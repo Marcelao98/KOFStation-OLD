@@ -22,7 +22,34 @@ static bool temHw = false;
 static EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctxGl = 0;
 static uintptr_t fbAtual() { return 0; }
 extern "C" void* eglGetProcAddress(const char*);
+// mapear buffer: o WebGL2 não tem, e o emscripten só imita o mapeamento de escrita. O GLideN64 (cópia da imagem de volta
+// pra memória do N64) mapeia pra LER: aqui uma cópia na memória do wasm, lida com getBufferSubData e escrita de volta
+// com glBufferSubData. Definidas com o nome do OpenGL, valem tanto pra chamada direta quanto pelo procGl
+static struct { GLenum alvo; GLintptr ini; GLsizeiptr n; GLbitfield modo; uint8_t* p; } mapas[4];
+extern "C" void* glMapBufferRange(GLenum alvo, GLintptr ini, GLsizeiptr n, GLbitfield modo) {
+    int i = 0;
+    while (i < 4 && mapas[i].p && mapas[i].alvo != alvo) i++;
+    if (i == 4) return nullptr;
+    free(mapas[i].p);
+    mapas[i] = { alvo, ini, n, modo, (uint8_t*)malloc(n > 0 ? n : 1) };
+    if (modo & GL_MAP_READ_BIT) EM_ASM({ GLctx.getBufferSubData($0, $1, HEAPU8, $2, $3); }, alvo, ini, mapas[i].p, n);
+    return mapas[i].p;
+}
+extern "C" void glFlushMappedBufferRange(GLenum alvo, GLintptr ini, GLsizeiptr n) {
+    for (auto& m : mapas) if (m.p && m.alvo == alvo) glBufferSubData(alvo, m.ini + ini, n, m.p + ini);
+}
+extern "C" GLboolean glUnmapBuffer(GLenum alvo) {
+    for (auto& m : mapas) if (m.p && m.alvo == alvo) {
+        if ((m.modo & GL_MAP_WRITE_BIT) && !(m.modo & GL_MAP_FLUSH_EXPLICIT_BIT)) glBufferSubData(alvo, m.ini, m.n, m.p);
+        free(m.p); m.p = nullptr;
+        return GL_TRUE;
+    }
+    return GL_FALSE;
+}
 static retro_proc_address_t procGl(const char* s) {
+    if (!strncmp(s, "glMapBufferRange", 16)) return (retro_proc_address_t)glMapBufferRange;   // também com EXT/OES no fim
+    if (!strncmp(s, "glFlushMappedBufferRange", 24)) return (retro_proc_address_t)glFlushMappedBufferRange;
+    if (!strncmp(s, "glUnmapBuffer", 13)) return (retro_proc_address_t)glUnmapBuffer;
     void* f = emscripten_webgl_get_proc_address(s);
     if (!f) f = eglGetProcAddress(s);
     if (!f) printf("OpenGL sem a função %s\n", s);
@@ -62,8 +89,27 @@ static const int MAX_VARS = 32;
 static char varChave[MAX_VARS][64], varValor[MAX_VARS][64];
 static int nVars = 0;
 static bool varsMudaram = false;
+// o padrão de cada opção, como o núcleo declara (SET_VARIABLES: "Descrição; padrão|outro|..."): o RetroArch entrega esse
+// valor quando o usuário não escolheu nada, e tem núcleo (Mupen64Plus) cujo valor interno sem isso é outro
+static const int MAX_PADROES = 256;
+static char padraoChave[MAX_PADROES][64], padraoValor[MAX_PADROES][48];
+static int nPadroes = 0;
+static void guardarPadroes(const struct retro_variable* v) {
+    for (; v && v->key; v++) {
+        const char* p = v->value ? strstr(v->value, "; ") : nullptr;
+        if (!p || nPadroes >= MAX_PADROES || strlen(v->key) >= sizeof padraoChave[0]) continue;
+        p += 2;
+        size_t n = strcspn(p, "|");
+        if (n >= sizeof padraoValor[0]) continue;
+        int i = 0;
+        while (i < nPadroes && strcmp(padraoChave[i], v->key)) i++;
+        if (i == nPadroes) nPadroes++;
+        strcpy(padraoChave[i], v->key); memcpy(padraoValor[i], p, n); padraoValor[i][n] = 0;
+    }
+}
 static const char* lerVar(const char* k) {
     for (int i = 0; i < nVars; i++) if (!strcmp(varChave[i], k)) return varValor[i];
+    for (int i = 0; i < nPadroes; i++) if (!strcmp(padraoChave[i], k)) return padraoValor[i];
     return nullptr;
 }
 
@@ -83,8 +129,12 @@ static void video(const void* dados, unsigned w, unsigned h, size_t pitch) {
         if (!copiar) return;
         static uint32_t* tmp = nullptr; static size_t tmpN = 0;
         if (tmpN < (size_t)w * h) { free(tmp); tmp = (uint32_t*)malloc((size_t)w * h * 4); tmpN = (size_t)w * h; }
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        while (glGetError() != GL_NO_ERROR) {}
+        // o GLideN64 pode deixar um buffer de leitura (PBO) e um framebuffer de leitura ligados: com eles o WebGL2 recusa a leitura
+        GLint pbo = 0, rfb = 0; glGetIntegerv(GL_PIXEL_PACK_BUFFER_BINDING, &pbo); glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &rfb);
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, 0); glBindFramebuffer(GL_READ_FRAMEBUFFER, 0); glPixelStorei(GL_PACK_ALIGNMENT, 4);
         glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo); glBindFramebuffer(GL_READ_FRAMEBUFFER, rfb);
         for (unsigned y = 0; y < h; y++) memcpy(quadro + (size_t)y * w, tmp + (size_t)(h - 1 - y) * w, (size_t)w * 4);
         return;
     }
@@ -124,7 +174,7 @@ static int16_t eixo(int menos, int mais) { return (int16_t)((mais ? 0x7FFF : 0) 
 static int16_t entrada(unsigned porta, unsigned dispositivo, unsigned idx, unsigned id) {
     if (porta != 0) return 0;
 #ifdef KOF_GL
-    // N64: o direcional vira o analógico (inclinação total) e os bits 16-19, os botões C (analógico direito)
+    // N64: o direcional vira também o analógico (inclinação total) e os bits 16-19, os botões C (analógico direito)
     if ((dispositivo & RETRO_DEVICE_MASK) == RETRO_DEVICE_ANALOG) {
         uint32_t b = botoes;
         if (idx == RETRO_DEVICE_INDEX_ANALOG_LEFT)
@@ -132,7 +182,7 @@ static int16_t entrada(unsigned porta, unsigned dispositivo, unsigned idx, unsig
                                                   : eixo(b >> RETRO_DEVICE_ID_JOYPAD_UP & 1, b >> RETRO_DEVICE_ID_JOYPAD_DOWN & 1);
         return id == RETRO_DEVICE_ID_ANALOG_X ? eixo(b >> 18 & 1, b >> 19 & 1) : eixo(b >> 16 & 1, b >> 17 & 1);
     }
-    uint32_t pad = botoes & ~0xF0u & 0xFFFF;
+    uint32_t pad = botoes & 0xFFFF;   // o direcional vale também como o direcional do N64 (demo e menus usam ele)
 #else
     uint32_t pad = botoes & 0xFFFF;
     (void)idx;
@@ -185,7 +235,8 @@ static bool ambiente(unsigned cmd, void* dado) {
         if (n.geometry.max_height < maxA) n.geometry.max_height = maxA;
         guardarAv(&n); return true;
     }
-    case RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL: case RETRO_ENVIRONMENT_SET_VARIABLES:
+    case RETRO_ENVIRONMENT_SET_VARIABLES: guardarPadroes((const struct retro_variable*)dado); return true;
+    case RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL:
     case RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS: case RETRO_ENVIRONMENT_SET_CONTROLLER_INFO:
     case RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME: case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY:
         return true;
@@ -301,8 +352,12 @@ EMSCRIPTEN_KEEPALIVE void lr_reset() { retro_reset(); }
 
 // savestate: o núcleo serializa tudo num bloco de bytes (tamanho fixo por jogo)
 EMSCRIPTEN_KEEPALIVE size_t lr_state_size() { return retro_serialize_size(); }
-EMSCRIPTEN_KEEPALIVE int lr_state_save(uint8_t* dest, size_t n) { return retro_serialize(dest, n) ? 1 : 0; }
-EMSCRIPTEN_KEEPALIVE int lr_state_load(const uint8_t* src, size_t n) { return retro_unserialize(src, n) ? 1 : 0; }
+// o resultado também fica em lr_ok(): no N64 o núcleo troca de corrotina (Asyncify) dentro dessas funções e aí o valor
+// devolvido direto se perde no caminho até o JS
+static int okUltimo;
+EMSCRIPTEN_KEEPALIVE int lr_state_save(uint8_t* dest, size_t n) { okUltimo = retro_serialize(dest, n) ? 1 : 0; return okUltimo; }
+EMSCRIPTEN_KEEPALIVE int lr_state_load(const uint8_t* src, size_t n) { okUltimo = retro_unserialize(src, n) ? 1 : 0; return okUltimo; }
+EMSCRIPTEN_KEEPALIVE int lr_ok() { return okUltimo; }
 
 // memórias do núcleo (RETRO_MEMORY_SAVE_RAM = 0 bateria, 1 relógio RTC, 2 RAM do sistema): o JS lê e grava direto
 EMSCRIPTEN_KEEPALIVE uint8_t* lr_mem_ptr(unsigned id) { return (uint8_t*)retro_get_memory_data(id); }

@@ -24,6 +24,9 @@ int memcmp(const void *, const void *, size_t);
 int strcmp(const char *, const char *);
 size_t strlen(const char *);
 char *strncpy(char *, const char *, size_t);
+char *strstr(const char *, const char *);
+size_t strcspn(const char *, const char *);
+char *strcpy(char *, const char *);
 #ifdef __ANDROID__
 int __android_log_print(int, const char *, const char *, ...);
 #define ANOTAR(...) __android_log_print(4, "KOFps1", __VA_ARGS__)
@@ -51,6 +54,25 @@ static retro_proc_address_t procGl(const char *s) { return (retro_proc_address_t
 static uint8_t cartaoVisto[128 * 1024];
 static int carregado;
 
+// o padrão de cada opção, como o núcleo declara (SET_VARIABLES: "Descrição; padrão|outro|..."): é o que o RetroArch
+// entrega quando ninguém escolheu, e o Mupen64Plus sem isso fica com a emulação do framebuffer desligada
+#define MAX_PADROES 256
+static char padraoChave[MAX_PADROES][64], padraoValor[MAX_PADROES][48];
+static int nPadroes;
+static void guardarPadroes(const struct retro_variable *v) {
+    for (; v && v->key; v++) {
+        const char *p = v->value ? strstr(v->value, "; ") : NULL;
+        if (!p || nPadroes >= MAX_PADROES || strlen(v->key) >= sizeof padraoChave[0]) continue;
+        p += 2;
+        size_t n = strcspn(p, "|");
+        if (n >= sizeof padraoValor[0]) continue;
+        int i = 0;
+        while (i < nPadroes && strcmp(padraoChave[i], v->key)) i++;
+        if (i == nPadroes) nPadroes++;
+        strcpy(padraoChave[i], v->key); memcpy(padraoValor[i], p, n); padraoValor[i][n] = 0;
+    }
+}
+
 static const char *valorOpcao(const char *chave) {   // opcoes = "chave=valor\n..."
     static char v[256];
     size_t n = strlen(chave);
@@ -62,6 +84,7 @@ static const char *valorOpcao(const char *chave) {   // opcoes = "chave=valor\n.
         }
         p = *fim ? fim + 1 : fim;
     }
+    for (int i = 0; i < nPadroes; i++) if (!strcmp(padraoChave[i], chave)) return padraoValor[i];
     return NULL;
 }
 
@@ -86,6 +109,7 @@ static bool ambiente(unsigned cmd, void *dado) {
     }
     case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE: *(bool *)dado = false; return true;
     case RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION: *(unsigned *)dado = 0; return true;
+    case RETRO_ENVIRONMENT_SET_VARIABLES: guardarPadroes(dado); return true;
 #ifdef KOF_GL
     case RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER: *(unsigned *)dado = RETRO_HW_CONTEXT_OPENGLES3; return true;
     case RETRO_ENVIRONMENT_SET_HW_RENDER: {
@@ -140,7 +164,7 @@ static int16_t estadoInput(unsigned porta, unsigned disp, unsigned idx, unsigned
                                                   : eixo(b >> RETRO_DEVICE_ID_JOYPAD_UP & 1, b >> RETRO_DEVICE_ID_JOYPAD_DOWN & 1);
         return id == RETRO_DEVICE_ID_ANALOG_X ? eixo(b >> 18 & 1, b >> 19 & 1) : eixo(b >> 16 & 1, b >> 17 & 1);
     }
-    uint32_t pad = botoes & ~0xF0u & 0xFFFF;   // o direcional já foi pro analógico
+    uint32_t pad = botoes & 0xFFFF;   // o direcional vale também como o direcional do N64 (menus usam ele)
 #else
     uint32_t pad = botoes & 0xFFFF;
 #endif

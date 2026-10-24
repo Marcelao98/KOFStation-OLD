@@ -62,9 +62,9 @@ const KofLibretro = (() => {
       canais: [] },
     // Nintendo 64: Mupen64Plus-Next. No PC em WebAssembly (GLideN64 em WebGL2 num canvas escondido; a ponte lê a imagem de
     // volta); no APK, nativo (android/nativo, com OpenGL ES 3) pela "fachada" do android.js. Estado grande: sem rebobinar
-    n64: { nome: 'Nintendo 64', curto: 'N64', ext: ['z64', 'n64', 'v64'], nucleo: 'mupen64', nativo: 'n64', largura: 640, altura: 480,
+    n64: { nome: 'Nintendo 64', curto: 'N64', ext: ['z64', 'n64', 'v64'], nucleo: 'mupen64', nativo: 'n64', largura: 320, altura: 240, dinamico: true,
       tv43: true, semRebob: true, musica: false, minimo: 0x1000, canais: [],
-      opcoes: { 'mupen64plus-rdp-plugin': 'gliden64', 'mupen64plus-cpucore': 'cached_interpreter', 'mupen64plus-43screensize': '640x480',
+      opcoes: { 'mupen64plus-rdp-plugin': 'gliden64', 'mupen64plus-cpucore': 'cached_interpreter', 'mupen64plus-43screensize': '320x240',
         'mupen64plus-EnableNativeResFactor': '1', 'mupen64plus-ThreadedRenderer': 'False', 'mupen64plus-pak1': 'memory' },
       botoes: ['Cima', 'Baixo', 'Esquerda', 'Direita', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'] },
   };
@@ -186,6 +186,17 @@ const KofLibretro = (() => {
   };
   const apagar = (mod, caminho) => { const c = caminho + '\0', pc = mod._lr_alloc(c.length); for (let i = 0; i < c.length; i++) mod.HEAPU8[pc + i] = c.charCodeAt(i); mod._lr_apagar(pc); mod._free(pc); };
   async function iniciar(nucleo) {
+    // N64: o Mupen64Plus não troca de jogo direito na mesma instância (a corrotina do emulador e o OpenGL ficam do jogo
+    // anterior): jogo novo = instância nova, com um canvas novo; a velha fica pro coletor de lixo
+    if (nucleo === 'mupen64' && modulos[nucleo]) {
+      const velho = await modulos[nucleo].catch(() => null);
+      if (velho && velho.kofAtual) {
+        const i = instancias.findIndex(([, m]) => m === velho);
+        if (i >= 0) instancias.splice(i, 1);
+        const c = document.getElementById('kof-gl'); if (c) c.remove();
+        delete modulos[nucleo];
+      }
+    }
     if (!modulos[nucleo]) modulos[nucleo] = buscar(nucleo).then((f) => novaInstancia(nucleo, f)).catch((e) => { delete modulos[nucleo]; throw e; });
     return modulos[nucleo];
   }
@@ -374,18 +385,23 @@ const KofLibretro = (() => {
     // savestate: bytes do núcleo
     serializar() {
       const mod = this.mod;
-      if (!mod._lr_state_save(this.estadoBuf, this.tamEstado)) {
+      // lr_ok: o resultado guardado na ponte (no N64 o valor devolvido direto se perde na troca de corrotina); núcleo antigo não tem
+      const salvar = () => { const r = mod._lr_state_save(this.estadoBuf, this.tamEstado); return mod._lr_ok ? mod._lr_ok() : r; };
+      if (!salvar()) {
         // o tamanho do estado mudou depois que o jogo começou (FBNeo): pergunta de novo e tenta mais uma vez
         const n = mod._lr_state_size();
         if (n !== this.tamEstado) { mod._free(this.estadoBuf); this.tamEstado = n; this.estadoBuf = mod._lr_alloc((n + 3) & ~3); }
-        if (!mod._lr_state_save(this.estadoBuf, this.tamEstado)) throw new Error('não consegui guardar o estado');
+        // N64 (Mupen64Plus): só tem estado depois do primeiro quadro; o caçador de bugs pede uma foto logo ao abrir o jogo
+        if (!this.quadros && !salvar()) { this.runFrame(); return this.serializar(); }
+        if (!salvar()) throw new Error('não consegui guardar o estado');
       }
       return new Uint8Array(mod.HEAPU8.buffer, this.estadoBuf, this.tamEstado).slice();
     }
     desserializar(u8) {
       if (u8.length > this.tamEstado) { this.mod._free(this.estadoBuf); this.tamEstado = u8.length; this.estadoBuf = this.mod._lr_alloc((u8.length + 3) & ~3); }
       this.mod.HEAPU8.set(u8, this.estadoBuf);
-      return !!this.mod._lr_state_load(this.estadoBuf, u8.length);
+      const r = this.mod._lr_state_load(this.estadoBuf, u8.length);
+      return !!(this.mod._lr_ok ? this.mod._lr_ok() : r);
     }
   }
   // rebobinar: guarda o estado mais recente inteiro e, de cada foto, só os pedaços que mudaram (o valor antigo)
