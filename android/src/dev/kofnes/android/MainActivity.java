@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final int PEDIDO_ARQUIVO = 1, PEDIDO_SALVAR = 2;
     // sobe a cada mudança neste Java: página publicada com casca maior pede APK novo (ela pode usar algo que esta não tem)
-    static final int CASCA = 3;
+    static final int CASCA = 4;
     private static final String FONTE = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/publicado/";
     private static final String APK = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/android/apk/KOFstation.apk";
     private File raizWeb;   // pasta da versão baixada (null = a que veio dentro do APK)
