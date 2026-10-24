@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final int PEDIDO_ARQUIVO = 1, PEDIDO_SALVAR = 2;
     // sobe a cada mudança neste Java: página publicada com casca maior pede APK novo (ela pode usar algo que esta não tem)
-    static final int CASCA = 3;
+    static final int CASCA = 4;
     private static final String FONTE = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/publicado/";
     private static final String APK = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/android/apk/KOFstation.apk";
     private File raizWeb;   // pasta da versão baixada (null = a que veio dentro do APK)
@@ -51,6 +51,7 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> escolha;
     private byte[] paraSalvar;
     private Ps1Jogo ps1;   // PlayStation nativo (null = a ponte não carregou: o app usa o WebAssembly)
+    private N64Jogo n64;   // Nintendo 64 nativo (null = sem N64 nesse aparelho)
 
     @Override
     protected void onCreate(Bundle b) {
@@ -61,6 +62,7 @@ public class MainActivity extends Activity {
         raiz.addView(web);
         setContentView(raiz);
         if (Ps1.carregar(null)) ps1 = new Ps1Jogo(this, raiz);
+        if (N64.carregar(null)) n64 = new N64Jogo(this, raiz);
         web.setBackgroundColor(0xFF000000);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -228,6 +230,39 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public boolean ps1CarregarEstado(String b64) { return ps1.carregarEstado(b64); }
+
+        // ---- Nintendo 64 nativo (N64Jogo): a mesma conversa do PS1 ----
+        @JavascriptInterface
+        public boolean n64Nativo() { return n64 != null; }
+
+        @JavascriptInterface
+        public void n64Abrir(final String nome) {
+            new Thread(new Runnable() { public void run() {
+                final String r = n64.abrir(nome);
+                runOnUiThread(new Runnable() { public void run() { web.evaluateJavascript("window.__n64Pronto && window.__n64Pronto(" + r + ")", null); } });
+            } }).start();
+        }
+
+        @JavascriptInterface
+        public void n64Pad(int botoes) { n64.sinal(botoes); }
+
+        @JavascriptInterface
+        public void n64Area(float x, float y, float w, float h) { n64.area(x, y, w, h); }
+
+        @JavascriptInterface
+        public void n64Fechar() { n64.fechar(); }
+
+        @JavascriptInterface
+        public void n64Reiniciar() { n64.reiniciar(); }
+
+        @JavascriptInterface
+        public void n64Volume(float v) { n64.volume(v); }
+
+        @JavascriptInterface
+        public String n64Estado() { return n64.estado(); }
+
+        @JavascriptInterface
+        public boolean n64CarregarEstado(String b64) { return n64.carregarEstado(b64); }
     }
 
     @Override
@@ -242,6 +277,7 @@ public class MainActivity extends Activity {
                 for (int k = 0; k < r.length; k++) r[k] = c.getItemAt(k).getUri();
             }
             if (ps1 != null && r != null) ps1.ultimaEscolha = r;   // o PS1 nativo copia o CD direto dos arquivos escolhidos
+            if (n64 != null && r != null) n64.ultimaEscolha = r;
             escolha.onReceiveValue(r);
             escolha = null;
         } else if (pedido == PEDIDO_SALVAR) {
@@ -271,7 +307,7 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    protected void onPause() { super.onPause(); web.onPause(); if (ps1 != null) ps1.pausar(); }
+    protected void onPause() { super.onPause(); web.onPause(); if (ps1 != null) ps1.pausar(); if (n64 != null) n64.pausar(); }
 
     @Override
     protected void onResume() { super.onResume(); web.onResume(); imersivo(); }

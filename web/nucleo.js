@@ -60,6 +60,10 @@ const KofLibretro = (() => {
       botoes: ['Cima', 'Baixo', 'Esquerda', 'Direita', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'], musica: false, minimo: 16, grande: true,   // o .cue é só um texto pequeno
       bios: ['scph5501.bin', 'scph1001.bin', 'scph7001.bin', 'scph5500.bin', 'scph5502.bin', 'scph101.bin', 'scph7502.bin', 'psxonpsp660.bin'].map((arquivo) => ({ arquivo, tamanho: 524288, opcional: true })),
       canais: [] },
+    // Nintendo 64: só no APK, nativo (Mupen64Plus-Next com OpenGL ES 3, android/nativo): a página só tem a "fachada" (android.js)
+    n64: { nome: 'Nintendo 64', curto: 'N64', ext: ['z64', 'n64', 'v64'], nucleo: 'mupen64', nativo: 'n64', largura: 640, altura: 480,
+      tv43: true, caminho: true, grande: true, musica: false, minimo: 16, canais: [],
+      botoes: ['Cima', 'Baixo', 'Esquerda', 'Direita', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'] },
   };
   const extensao = (nome) => (/\.([^.]+)$/.exec(nome || '') || [])[1]?.toLowerCase() || '';
   // set do Neo Geo pelo nome do zip ('mslug.zip' -> 'mslug'), se estiver na lista do FBNeo
@@ -106,7 +110,8 @@ const KofLibretro = (() => {
   // É <script src> e não fetch: o navegador bloqueia fetch de arquivo local (file://), script ele deixa.
   const ARQUIVOS = /*{{NUCLEOS}}*/ {};
   const fabrica = (n) => (typeof globalThis['Nucleo_' + n] === 'function' ? globalThis['Nucleo_' + n] : null);
-  const disponivel = (sis) => !!(SISTEMAS[sis] && (fabrica(SISTEMAS[sis].nucleo) || ARQUIVOS[SISTEMAS[sis].nucleo]));
+  const disponivel = (sis) => !!(SISTEMAS[sis] && (fabrica(SISTEMAS[sis].nucleo) || ARQUIVOS[SISTEMAS[sis].nucleo]
+    || (SISTEMAS[sis].nativo && typeof KOFnesApk !== 'undefined' && KOFnesApk[SISTEMAS[sis].nativo + 'Nativo'] && KOFnesApk[SISTEMAS[sis].nativo + 'Nativo']())));
   const baixando = {};
   function buscar(n) {
     if (fabrica(n)) return Promise.resolve(fabrica(n));

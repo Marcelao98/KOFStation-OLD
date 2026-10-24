@@ -4,7 +4,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * PlayStation nativo: as funções da ponte em C (android/nativo/kofps1.c), que liga o PCSX-ReARMed compilado pra ARM64
+ * PlayStation nativo: as funções da ponte em C (android/nativo/kofnativo.c, -DCLASSE=Ps1), que liga o PCSX-ReARMed compilado pra ARM64
  * (com o recompilador) ao app. A imagem (RGBA) e o som (16 bits estéreo) chegam em buffers diretos, sem cópia.
  * Sem nada de Android aqui dentro: o teste (testes/android/ps1-nativo.sh) roda esta classe num Java comum no Linux.
  */

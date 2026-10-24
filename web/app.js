@@ -837,7 +837,7 @@ function jukeProxima(d) {
 function jukeFechar() { juke.tocando = false; if (juke.apu) juke.apu.fechar(); juke.apu = null; juke.atual = -1; ini = fim = 0; montarJuke(); }
 async function guardarMusica() {
   if (!snes) { avisar('abra um jogo pra guardar a música dele'); return; }
-  if (snes.sistema === 'ps1') { avisar('a jukebox ainda não guarda música de PlayStation', 3000); return; }
+  if (snes.sistema === 'ps1' || snes.sistema === 'n64') { avisar('a jukebox ainda não guarda música de ' + SIS[snes.sistema].nome, 3000); return; }
   try {
     const n = juke.lista.filter((f) => f.jogoId === jogoId).length + 1;
     const reg = { origem: 'jogo', titulo: `Faixa ${n}`, jogo: romNome, jogoId, quando: Date.now(), capa: foto(256) };
@@ -1224,7 +1224,7 @@ const VERSAO = '{{VERSAO}}', REPO = 'Marcelao98/KOFSnes';
 let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAtual = null;
 function rodarQuadro() {
   let b = semCombo(estado());
-  if (snes.sistema !== 'ps1') b &= ~0x000C;   // L2/R2: no SNES esses bits identificam o controle e têm de ficar zerados
+  if (snes.sistema !== 'ps1' && snes.sistema !== 'n64') b &= ~0x000C;   // L2/R2: no SNES esses bits identificam o controle e têm de ficar zerados
   snes.pad[0] = b; snes.runFrame();
   if (marcoBug) { marcoBug.entradas.push(b); if (marcoBug.entradas.length >= 600) novoMarco(); }
 }
@@ -1737,7 +1737,7 @@ async function abrirCdSolto(nome, bytes, soltos) {
 }
 // a ROM de um jogo da biblioteca: do banco; o CD de PlayStation não fica no banco (até 700 MB): vem da pasta de ROMs
 async function bytesDoJogo(j) {
-  if (j.sistema === 'ps1' && typeof ps1NativoJogo === 'function' && PS1N) return ps1NativoJogo(j.arquivo);
+  if (typeof nativoJogo === 'function' && NATIVO[j.sistema]) return nativoJogo(j.sistema, j.arquivo);   // APK: PS1/N64 nativos
   const rom = await bdPegar('roms', j.id);
   if (rom) return { bytes: rom };
   if (j.sistema === 'ps1') {
@@ -1765,7 +1765,7 @@ async function bytesDoJogo(j) {
 }
 async function abrirArquivo(arq, soltos = []) {
   try {
-    if (typeof ps1NativoArquivo === 'function' && await ps1NativoArquivo(arq)) return;   // APK: CD de PS1 vai pro núcleo nativo
+    if (typeof nativoArquivo === 'function' && await nativoArquivo(arq)) return;   // APK: CD de PS1 e ROM de N64 vão pro núcleo nativo
     let nome = arq.name;
     // zip (pelo nome ou pelos primeiros bytes "PK") com CD de PlayStation: abre direto do arquivo, sem ler o zip inteiro
     const cab = arq.slice ? new Uint8Array(await arq.slice(0, 4).arrayBuffer()) : new Uint8Array(4);   // item de dentro de um zip não tem slice
@@ -1845,8 +1845,8 @@ const biosProntas = carregarBios().catch(() => {});
 async function novoNucleo(bytes, sis, nome, extras) {
   if (sis === 'snes' && !CELULAR && typeof KofNucleo !== 'undefined') return new KofNucleo.Snes(Int32Array.from(bytes));
   await biosProntas;
-  if (snes && snes.nativo && !(extras && extras.nativo)) KOFnesApk.ps1Fechar();   // saiu do PS1 nativo pra outro jogo
-  if (sis === 'ps1' && extras && extras.nativo) return extras.nativo;
+  if (snes && snes.nativo && !(extras && extras.nativo && extras.nativo.sistema === snes.sistema)) snes.fecharNativo();   // saiu do nativo pra outro console
+  if (extras && extras.nativo) return extras.nativo;
   if (sis === 'ps1') return KofLibretro.criar(bytes, nome, extras || []);
   if (sis !== 'neogeo') return KofLibretro.criar(bytes, sis);
   return KofLibretro.criar(bytes, nome, await zipsDoPai(nome));
@@ -1898,7 +1898,7 @@ async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
   visualDoSistema(sis); ligaIni = performance.now();
   if (ler('moldPorSis') === '1') mudarMoldura(ler('moldura.' + sis) || KofMolduras.PADRAO_SIS[sis] || moldura, true);
   document.body.dataset.sis = sis;
-  document.body.classList.toggle('ps1-nativo', !!s.nativo);   // celular: some o que o PS1 nativo não usa (turbo)   // o controle virtual e a interface mudam com o sistema (Game Boy e NES: só A, B, Start e Select)
+  document.body.classList.toggle('nativo', !!s.nativo);   // celular: some o que o núcleo nativo (PS1/N64) não usa (turbo)   // o controle virtual e a interface mudam com o sistema (Game Boy e NES: só A, B, Start e Select)
   document.body.classList.toggle('so-ab', !!(SIS[sis] && SIS[sis].botoes && !SIS[sis].botoes.includes('X')));
   if (typeof rotularControle === 'function') rotularControle(sis);   // celular: nomes dos botões do console (Mega Drive A/B/C...)
   QUADRO_MS = 1000 / (s.fps || 60.0988);
@@ -2190,7 +2190,7 @@ function estadoBib(t) { const e = $('#bib-estado'); e.textContent = t || ''; e.h
 // um acervo por sistema; o app anota o sistema de cada nome de jogo que mostra (capaSis) pra buscar no acervo certo
 const ACERVO = { snes: 'Nintendo_-_Super_Nintendo_Entertainment_System', nes: 'Nintendo_-_Nintendo_Entertainment_System', gb: 'Nintendo_-_Game_Boy', gbc: 'Nintendo_-_Game_Boy_Color',
   md: 'Sega_-_Mega_Drive_-_Genesis', sms: 'Sega_-_Master_System_-_Mark_III', gg: 'Sega_-_Game_Gear', gba: 'Nintendo_-_Game_Boy_Advance',
-  neogeo: 'FBNeo_-_Arcade_Games', ps1: 'Sony_-_PlayStation' };   // Neo Geo: as capas do FBNeo, pelo nome completo do jogo (o do set vem da lista)
+  neogeo: 'FBNeo_-_Arcade_Games', ps1: 'Sony_-_PlayStation', n64: 'Nintendo_-_Nintendo_64' };   // Neo Geo: as capas do FBNeo, pelo nome completo do jogo (o do set vem da lista)
 const capaSis = new Map();
 const urlAcervo = (nome) => `https://raw.githubusercontent.com/libretro-thumbnails/${ACERVO[capaSis.get(nome)] || ACERVO.snes}/master/Named_Boxarts/`;
 let capasNet = ler('capas') !== '0';
@@ -2474,7 +2474,8 @@ setInterval(() => {
 // por cima do jogo, pausado; teclado ou controle, sem precisar do mouse
 let rapidoAberto = false, pausadoAntesRapido = false, selR = 0;
 const ciclar = (lista, atual, d) => lista[(lista.findIndex(([k]) => k === atual) + d + lista.length) % lista.length][0];
-const ehPs1 = () => !!(snes && snes.sistema === 'ps1'), nativo = () => !!(snes && snes.nativo);
+const ehPs1 = () => !!(snes && (snes.sistema === 'ps1' || snes.sistema === 'n64')),   // sem jukebox (ainda)
+   nativo = () => !!(snes && snes.nativo);
 const ITENS_RAPIDO = [
   { t: '▶ Continuar', f: () => fecharRapido() },   // so: o item só aparece quando faz sentido (PS1 nativo: a imagem não passa pela página)
   { t: '💾 Salvar estado', f: () => { fecharRapido(); salvarEstado(); } },

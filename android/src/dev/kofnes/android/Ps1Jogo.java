@@ -64,15 +64,10 @@ final class Ps1Jogo implements Runnable {
             File principal = null;
             Uri[] es = ultimaEscolha;
             boolean escolhido = false;
-            if (es != null) for (Uri u : es) if (nome.equalsIgnoreCase(nomeDe(u))) escolhido = true;
+            if (es != null) for (Uri u : es) if (nome.equalsIgnoreCase(nomeDe(a, u))) escolhido = true;
             if (escolhido) {
-                apagar(pasta); pasta.mkdirs();
-                for (Uri u : es) {
-                    String n = nomeDe(u);
-                    if (n.toLowerCase().endsWith(".zip")) extrair(u);
-                    else copiar(a.getContentResolver().openInputStream(u), new File(pasta, n));
-                }
-                principal = escolherPrincipal(nome);
+                trazer(a, es, pasta);
+                principal = escolherPrincipal(pasta, nome, new String[]{".cue", ".chd", ".pbp", ".iso", ".bin", ".img"});
             } else if (new File(pasta, nome).isFile()) principal = new File(pasta, nome);   // da biblioteca: o último CD aberto
             if (principal == null) return "{\"erro\":\"abra o arquivo do jogo de novo (de PlayStation, o .cue junto com os .bin, ou o .zip)\"}";
             String base = principal.getName().replaceAll("\\.[^.]+$", "");
@@ -93,12 +88,24 @@ final class Ps1Jogo implements Runnable {
         }
     }
 
-    private File escolherPrincipal(String nome) {
+    // ---------- ajudantes (o N64 usa os mesmos) ----------
+    /** Copia os arquivos escolhidos (e extrai os .zip) pra pasta, que é esvaziada antes: só o último jogo fica. */
+    static void trazer(Activity a, Uri[] es, File pasta) throws Exception {
+        apagar(pasta); pasta.mkdirs();
+        for (Uri u : es) {
+            String n = nomeDe(a, u);
+            if (n.toLowerCase().endsWith(".zip")) extrair(a, u, pasta);
+            else copiar(a.getContentResolver().openInputStream(u), new File(pasta, n));
+        }
+    }
+
+    /** O arquivo que abre o jogo: o escolhido, se serve; senão o primeiro da pasta na ordem das extensões. */
+    static File escolherPrincipal(File pasta, String nome, String[] exts) {
         File[] fs = pasta.listFiles();
         if (fs == null) return null;
         File porNome = new File(pasta, nome);
         if (porNome.isFile() && !nome.toLowerCase().endsWith(".zip") && !nome.toLowerCase().matches(".*\\(track [2-9]\\d*\\)\\.bin")) return porNome;
-        for (String ext : new String[]{".cue", ".chd", ".pbp", ".iso", ".bin", ".img"}) {
+        for (String ext : exts) {
             File melhor = null;
             for (File f : fs) if (f.getName().toLowerCase().endsWith(ext) && (melhor == null || f.getName().compareToIgnoreCase(melhor.getName()) < 0)) melhor = f;
             if (melhor != null) return melhor;
@@ -106,7 +113,7 @@ final class Ps1Jogo implements Runnable {
         return null;
     }
 
-    private void extrair(Uri u) throws Exception {
+    static void extrair(Activity a, Uri u, File pasta) throws Exception {
         ZipInputStream z = new ZipInputStream(a.getContentResolver().openInputStream(u));
         try {
             for (ZipEntry e; (e = z.getNextEntry()) != null; ) {
@@ -121,13 +128,13 @@ final class Ps1Jogo implements Runnable {
         } finally { z.close(); }
     }
 
-    private static void copiar(InputStream in, File destino) throws Exception {
+    static void copiar(InputStream in, File destino) throws Exception {
         OutputStream o = new FileOutputStream(destino);
         try { byte[] b = new byte[1 << 16]; for (int k; (k = in.read(b)) > 0; ) o.write(b, 0, k); }
         finally { o.close(); in.close(); }
     }
 
-    private String nomeDe(Uri u) {
+    static String nomeDe(Activity a, Uri u) {
         Cursor c = null;
         try {
             c = a.getContentResolver().query(u, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null);
@@ -137,7 +144,7 @@ final class Ps1Jogo implements Runnable {
         return p == null ? "" : p.replaceAll("^.*[\\\\/]", "");
     }
 
-    private static void apagar(File f) {
+    static void apagar(File f) {
         File[] fs = f.listFiles();
         if (fs != null) for (File x : fs) apagar(x);
         f.delete();

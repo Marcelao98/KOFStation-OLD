@@ -1,5 +1,6 @@
-// Ponte nativa do PlayStation no Android: liga o PCSX-ReARMed já compilado pra ARM64 (com o recompilador ari64,
-// o build do libretro que o Lemuroid distribui) ao Java do app. Faz o papel da ponte.cpp do WebAssembly: chama as
+// Ponte nativa dos consoles pesados no Android (PlayStation e Nintendo 64): liga um núcleo libretro já compilado pra ARM64
+// (os builds do libretro que o Lemuroid distribui: PCSX-ReARMed com o recompilador ari64, Mupen64Plus-Next com GLideN64)
+// ao Java do app. Compila uma vez por console: -DCLASSE=Ps1 ou -DCLASSE=N64 -DKOF_GL (o N64 desenha com OpenGL ES 3). Faz o papel da ponte.cpp do WebAssembly: chama as
 // funções retro_* e entrega a imagem (RGBA) e o som (16 bits estéreo) em buffers diretos que o Java lê sem cópia.
 // Compila SEM o NDK (android/nativo/construir.sh): só o clang do Ubuntu, o jni.h do JDK e declarações próprias da libc.
 // Também compila pro Linux daqui, pros testes (testes/android/ps1-nativo.sh).
@@ -37,7 +38,16 @@ static enum retro_pixel_format formato = RETRO_PIXEL_FORMAT_0RGB1555;
 static uint8_t *video;               // buffer direto do Java: RGBA, até 1024x512
 static int16_t *som;                  // buffer direto do Java: estéreo intercalado
 static int videoMax, somMax, larg, alt, somN, novoQuadro;
-static uint16_t botoes;               // RETRO_DEVICE_ID_JOYPAD_* em bits
+static uint32_t botoes;               // RETRO_DEVICE_ID_JOYPAD_* em bits; 16-19 = C cima/baixo/esquerda/direita (N64)
+#ifdef KOF_GL
+// N64: o núcleo desenha com OpenGL ES 3 no contexto da GLSurfaceView do Java (framebuffer 0); a superfície tem o tamanho
+// exato da imagem do jogo e o Android escala pra tela
+void *eglGetProcAddress(const char *);
+static struct retro_hw_render_callback hw;
+static int temHw, hwPronto;
+static uintptr_t fbAtual(void) { return 0; }
+static retro_proc_address_t procGl(const char *s) { return (retro_proc_address_t)eglGetProcAddress(s); }
+#endif
 static uint8_t cartaoVisto[128 * 1024];
 static int carregado;
 
@@ -76,11 +86,24 @@ static bool ambiente(unsigned cmd, void *dado) {
     }
     case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE: *(bool *)dado = false; return true;
     case RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION: *(unsigned *)dado = 0; return true;
+#ifdef KOF_GL
+    case RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER: *(unsigned *)dado = RETRO_HW_CONTEXT_OPENGLES3; return true;
+    case RETRO_ENVIRONMENT_SET_HW_RENDER: {
+        struct retro_hw_render_callback *h = dado;
+        if (h->context_type != RETRO_HW_CONTEXT_OPENGLES3 && h->context_type != RETRO_HW_CONTEXT_OPENGLES2) return false;
+        h->get_current_framebuffer = fbAtual; h->get_proc_address = procGl;
+        hw = *h; temHw = 1; hwPronto = 0;
+        return true;
+    }
+#endif
     default: return false;
     }
 }
 
 static void quadro(const void *d, unsigned w, unsigned h, size_t pitch) {
+#ifdef KOF_GL
+    if (d == RETRO_HW_FRAME_BUFFER_VALID) { larg = w; alt = h; novoQuadro = 1; return; }   // já está na tela (OpenGL)
+#endif
     if (!d || !video || (int)(w * h) > videoMax) return;   // repetido (CAN_DUPE): fica o anterior
     larg = w; alt = h; novoQuadro = 1;
     uint8_t *o = video;
@@ -105,10 +128,25 @@ static size_t somLote(const int16_t *d, size_t quadros) {
 }
 static void somUm(int16_t e, int16_t dir) { int16_t a[2] = { e, dir }; somLote(a, 1); }
 static void nadaInput(void) {}
+static int16_t eixo(int menos, int mais) { return (int16_t)((mais ? 0x7FFF : 0) - (menos ? 0x7FFF : 0)); }
 static int16_t estadoInput(unsigned porta, unsigned disp, unsigned idx, unsigned id) {
-    if (porta || disp != RETRO_DEVICE_JOYPAD) return 0;
-    if (id == RETRO_DEVICE_ID_JOYPAD_MASK) return botoes;
-    return (botoes >> id) & 1;
+    if (porta) return 0;
+#ifdef KOF_GL
+    // N64: o direcional da tela vira o analógico (inclinação total) e os bits 16-19, os botões C (analógico direito)
+    if (disp == RETRO_DEVICE_ANALOG) {
+        uint32_t b = botoes;
+        if (idx == RETRO_DEVICE_INDEX_ANALOG_LEFT)
+            return id == RETRO_DEVICE_ID_ANALOG_X ? eixo(b >> RETRO_DEVICE_ID_JOYPAD_LEFT & 1, b >> RETRO_DEVICE_ID_JOYPAD_RIGHT & 1)
+                                                  : eixo(b >> RETRO_DEVICE_ID_JOYPAD_UP & 1, b >> RETRO_DEVICE_ID_JOYPAD_DOWN & 1);
+        return id == RETRO_DEVICE_ID_ANALOG_X ? eixo(b >> 18 & 1, b >> 19 & 1) : eixo(b >> 16 & 1, b >> 17 & 1);
+    }
+    uint32_t pad = botoes & ~0xF0u & 0xFFFF;   // o direcional já foi pro analógico
+#else
+    uint32_t pad = botoes & 0xFFFF;
+#endif
+    if (disp != RETRO_DEVICE_JOYPAD) return 0;
+    if (id == RETRO_DEVICE_ID_JOYPAD_MASK) return (int16_t)pad;
+    return (pad >> id) & 1;
     (void)idx;
 }
 
@@ -130,7 +168,12 @@ static int cartaoGravar(void) {
     return 1;
 }
 
-#define J(nome) Java_dev_kofnes_android_Ps1_##nome
+#ifndef CLASSE
+#define CLASSE Ps1
+#endif
+#define JX(c, n) Java_dev_kofnes_android_##c##_##n
+#define JY(c, n) JX(c, n)
+#define J(nome) JY(CLASSE, nome)
 static void texto(JNIEnv *env, jstring s, char *dest, size_t max) {
     const char *c = (*env)->GetStringUTFChars(env, s, NULL);
     strncpy(dest, c, max - 1); dest[max - 1] = 0;
@@ -157,7 +200,10 @@ JNIEXPORT jstring JNICALL J(abrir)(JNIEnv *env, jclass c, jstring jogo, jstring 
         retro_init(); iniciado = 1;
     }
     struct retro_game_info g = { caminho, NULL, 0, NULL };
-    if (!retro_load_game(&g)) return (*env)->NewStringUTF(env, "o PlayStation nativo não abriu esse jogo");
+#ifdef KOF_GL
+    hwPronto = 0;
+#endif
+    if (!retro_load_game(&g)) return (*env)->NewStringUTF(env, "o núcleo nativo não abriu esse jogo");
     retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
     carregado = 1; cartaoLer();
     struct retro_system_av_info av; retro_get_system_av_info(&av);
@@ -171,7 +217,10 @@ JNIEXPORT jstring JNICALL J(abrir)(JNIEnv *env, jclass c, jstring jogo, jstring 
 JNIEXPORT jint JNICALL J(rodar)(JNIEnv *env, jclass c, jint pad) {
     if (!carregado) return 0;
     static int vez;
-    botoes = (uint16_t)pad; somN = 0; novoQuadro = 0;
+    botoes = (uint32_t)pad; somN = 0; novoQuadro = 0;
+#ifdef KOF_GL
+    if (temHw && !hwPronto && hw.context_reset) { hw.context_reset(); hwPronto = 1; }   // já na thread do OpenGL
+#endif
     retro_run();
     if (++vez % 300 == 0) cartaoGravar();   // ~5 s
     (void)env; (void)c;

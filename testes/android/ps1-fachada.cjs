@@ -18,7 +18,10 @@ const [,, html, cue, bin, sfc] = process.argv;
     window.KOFnesApk = { salvar() {}, versao: () => 'teste', ps1Nativo: () => true,
       ps1Abrir: (n) => { L.abertos.push(n); setTimeout(() => window.__ps1Pronto({ principal: n.replace(/\.zip$/i, '.cue'), largura: 320, altura: 240, fps: 59.94, taxa: 44100 }), 50); },
       ps1Pad: (m) => { L.pads++; L.ultimoPad = m; }, ps1Area: (x, y, w, h) => L.areas.push([x, y, w, h]), ps1Fechar: () => L.fechou++,
-      ps1Reiniciar() {}, ps1Volume: (v) => { L.volume = v; }, ps1Estado: () => L.estado, ps1CarregarEstado: (s) => (L.carregado = atob(s), true) };
+      ps1Reiniciar() {}, ps1Volume: (v) => { L.volume = v; }, ps1Estado: () => L.estado, ps1CarregarEstado: (s) => (L.carregado = atob(s), true),
+      n64Nativo: () => true, n64Abrir: (n) => { L.n64 = n; setTimeout(() => window.__n64Pronto({ principal: n, largura: 640, altura: 480, fps: 60, taxa: 44100 }), 50); },
+      n64Pad: (m) => { L.n64pads = (L.n64pads || 0) + 1; L.n64pad = m; }, n64Area() {}, n64Fechar: () => { L.n64fechou = (L.n64fechou || 0) + 1; }, n64Reiniciar() {}, n64Volume() {},
+      n64Estado: () => '', n64CarregarEstado: () => true };
   });
   const p = await ctx.newPage(), erros = [], falhas = [];
   const conferir = (ok, msg) => { console.log((ok ? 'ok    ' : 'FALHA ') + msg); if (!ok) falhas.push(msg); };
@@ -49,6 +52,19 @@ const [,, html, cue, bin, sfc] = process.argv;
   await p.setInputFiles('#arquivo', sfc); await p.waitForTimeout(2500);
   L = await p.evaluate(() => ({ ...window.__ps1, n: KOFnes.nucleo().nucleo || 'kof' }));
   conferir(L.fechou >= 1 && L.n !== 'pcsx-nativo', `abrir um SNES fecha o PS1 nativo (fechou ${L.fechou}, agora ${L.n})`);
+  // N64 nativo: um arquivo .z64 (de mentira) vai pro N64Jogo; o controle troca os nomes; B da tela = A do N64; L2/R2 aparecem
+  const rom = require('os').tmpdir() + '/teste-kof.z64'; fs.writeFileSync(rom, Buffer.alloc(1024, 0x37));
+  await p.setInputFiles('#arquivo', rom); await p.waitForTimeout(2000);
+  L = await p.evaluate(() => ({ ...window.__ps1, n: KOFnes.nucleo().nucleo, rot: ['B', 'Y', 'X', 'L', 'L2', 'R2'].map((k) => document.querySelector(`#ctl [data-b="${k}"]`).textContent).join(' '),
+    l2: getComputedStyle(document.querySelector('#ctl [data-b="L2"]')).display }));
+  conferir(L.n === 'mupen64-nativo' && L.n64 === 'teste-kof.z64' && L.n64pads > 30, `.z64 foi pro N64 nativo (${L.n}, ${L.n64pads} quadros de sinal)`);
+  conferir(L.rot === 'A B C▲ Z C◀ C▶' && L.l2 !== 'none', `controle do N64: ${L.rot} (L2 ${L.l2})`);
+  await p.keyboard.down('KeyZ'); await p.waitForTimeout(200); const pn = await p.evaluate(() => window.__ps1.n64pad); await p.keyboard.up('KeyZ');
+  conferir(pn === 1, `B da tela (tecla Z) chega como A do N64 (${pn})`);
+  await p.keyboard.down('ArrowLeft'); await p.waitForTimeout(200); const pe = await p.evaluate(() => window.__ps1.n64pad); await p.keyboard.up('ArrowLeft');
+  conferir(pe === 64, `direcional pra esquerda chega (vira o analógico na ponte) (${pe})`);
+  await p.setInputFiles('#arquivo', sfc); await p.waitForTimeout(2000);
+  conferir((await p.evaluate(() => window.__ps1.n64fechou)) >= 1, 'abrir outro console fecha o N64 nativo');
   conferir(erros.length === 0, 'sem erro na página ' + erros.join(' | '));
   console.log(falhas.length ? falhas.length + ' falha(s)' : 'tudo certo');
   await b.close(); process.exit(falhas.length ? 1 : 0);

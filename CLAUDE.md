@@ -257,6 +257,15 @@ app/, empacotar/, nativo/  versões antigas: Java (instalador) e nativa Linux s�
 > com lr/serializar pela ponte, `nucleo: 'pcsx-nativo'`). `CASCA = 3`. Testes: `testes/android/ps1-nativo.sh` (a ponte
 > compilada pro Linux com o PCSX do Linux, interpretador: lightrec briga com a JVM) e `testes/android/ps1-fachada.cjs`.
 > Sem filtros/molduras no PS1 nativo (a imagem não passa pelo WebGL).
+> **N64 nativo (branch `n64`, 24/10, não publicado, falta testar no celular):** núcleo Mupen64Plus-Next GLES3 ARM64 do
+> LemuroidCores (GLideN64, GPL-2), SONAME trocado com `patchelf` pra `libn64.so` (o original também é `libretro.so`).
+> A ponte virou genérica: `android/nativo/kofnativo.c` compilada 2x (`-DCLASSE=Ps1` → libkofps1.so; `-DCLASSE=N64 -DKOF_GL`
+> → libkofn64.so, com SET_HW_RENDER: framebuffer 0 da GLSurfaceView, `eglGetProcAddress`, `context_reset` no 1º quadro;
+> direcional → analógico esquerdo; bits 16-19 → botões C pelo analógico direito). `N64Jogo.java`: tudo na thread do
+> OpenGL (queueEvent + latch), `setFixedSize` no tamanho da imagem, AudioTrack bloqueante marca o ritmo, a GLSurfaceView
+> nunca some (encolhe pra 1 px). Página: `android.js` genérico (`NATIVO`, `consoleNativo`, `fachada(c, r)`, `mascaraN64`),
+> sistema `n64` no `nucleo.js` (`nativo: 'n64'`; `disponivel` pergunta `KOFnesApk.n64Nativo()`), ROTULOS.n64.
+> CASCA = 4. Sem teste do N64 com o núcleo de verdade aqui (sem OpenGL ES no container).
 > **APK se atualiza sozinho (21/10, publicado):** `android/src/.../Atualizador.java` (sem Android dentro, testável:
 > `testes/android/teste-atualizador.sh`) lê `publicado/android/versao.txt` (`versao=`, `casca=`, `html=`, `nucleo=`),
 > baixa pra `files/web/baixando` → `pronta` (núcleo que já existe é copiado), e na abertura seguinte `pronta` vira `atual`
