@@ -21,7 +21,13 @@ static struct retro_hw_render_callback hw;
 static bool temHw = false;
 static EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctxGl = 0;
 static uintptr_t fbAtual() { return 0; }
-static retro_proc_address_t procGl(const char* s) { return (retro_proc_address_t)emscripten_webgl_get_proc_address(s); }
+extern "C" void* eglGetProcAddress(const char*);
+static retro_proc_address_t procGl(const char* s) {
+    void* f = emscripten_webgl_get_proc_address(s);
+    if (!f) f = eglGetProcAddress(s);
+    if (!f) printf("OpenGL sem a função %s\n", s);
+    return (retro_proc_address_t)f;
+}
 // o Mupen64Plus pede duas funções que o WebAssembly não tem (do renderizador em thread e do tratamento de sinais, ambos
 // desligados aqui): versões vazias
 #include <semaphore.h>
