@@ -283,7 +283,7 @@ app/, empacotar/, nativo/  versões antigas: Java (instalador) e nativa Linux s�
 > `kofnes.sh` (**LANCADOR=3**, mesma coisa). Testado no Wine e no sh com servidor local. README e prints refeitos SÓ com
 > conteúdo livre (PeterLemon Mode7 Perspective/RotZoom, Cube do PS1, Trilha): jogo ou capa comercial NÃO entra em print.
 > Script dos prints: refazer com Playwright (KOFnes.mudarTema/aplicarFiltro/mudarMoldura + juntar com PIL).
-> **24/10:** PS1 nativo engasgava no celular (publicado 202610242054, CASCA 4): o caçador de bugs copiava o estado (~4 MB)
+> **24/10 (N64 PUBLICADO na main, versão 202610242237, CASCA 5; a branch `n64` foi junta):** PS1 nativo engasgava no celular (publicado 202610242054, CASCA 4): o caçador de bugs copiava o estado (~4 MB)
 > pela ponte a cada 10 s e a página travava (>250 ms sem sinal = o jogo nativo pausa); agora o nativo não tem caçador,
 > salva o automático a cada 2 min, a página não redesenha por baixo, a imagem é ampliada pelo Android (setFixedSize) e o
 > som do PCSX roda em thread (`pcsx_rearmed_spu_thread`). **N64 no PC (branch `n64`, NÃO publicada, CASCA 5):** Mupen64Plus-
