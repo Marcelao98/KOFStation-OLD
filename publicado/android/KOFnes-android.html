@@ -1762,19 +1762,20 @@ html.celular body[data-sis="sms"] #ctl [data-b="Select"], html.celular body[data
 
 /* PlayStation: L2 e R2 (gatilhos de trás) logo abaixo do L1/R1; nos outros consoles não aparecem */
 #ctl [data-b="L2"], #ctl [data-b="R2"] { display: none; --w: calc(var(--u) * 24); --h: calc(var(--u) * 10); --y: 23.5%; }
-html.celular body[data-sis="ps1"] #ctl [data-b="L2"], html.celular body[data-sis="ps1"] #ctl [data-b="R2"] { display: grid; }
+html.celular body[data-sis="ps1"] #ctl [data-b="L2"], html.celular body[data-sis="ps1"] #ctl [data-b="R2"],
+html.celular body[data-sis="n64"] #ctl [data-b="L2"], html.celular body[data-sis="n64"] #ctl [data-b="R2"] { display: grid; }
 #ctl [data-b="L2"] { --x: 13%; } #ctl [data-b="R2"] { --x: 87%; }
 body.canhoto #ctl [data-b="L2"] { --x: 87%; } body.canhoto #ctl [data-b="R2"] { --x: 13%; }
 @media (orientation: landscape) {   /* deitado: L1 e L2 lado a lado no canto (embaixo ficam ⏪ ☰ ⏩) */
-  html.celular body.cel-jogo[data-sis="ps1"] #ctl .shoulder { --w: calc(var(--u) * 18); --h: calc(var(--u) * 12); --y: 9%; }
-  html.celular body.cel-jogo[data-sis="ps1"] #ctl [data-b="L"] { --x: calc(var(--u) * 10); } html.celular body.cel-jogo[data-sis="ps1"] #ctl [data-b="L2"] { --x: calc(var(--u) * 30); }
-  html.celular body.cel-jogo[data-sis="ps1"] #ctl [data-b="R"] { --x: calc(100% - var(--u) * 10); } html.celular body.cel-jogo[data-sis="ps1"] #ctl [data-b="R2"] { --x: calc(100% - var(--u) * 30); }
-  html.celular body.cel-jogo.canhoto[data-sis="ps1"] #ctl [data-b="L"] { --x: calc(100% - var(--u) * 10); } html.celular body.cel-jogo.canhoto[data-sis="ps1"] #ctl [data-b="L2"] { --x: calc(100% - var(--u) * 30); }
-  html.celular body.cel-jogo.canhoto[data-sis="ps1"] #ctl [data-b="R"] { --x: calc(var(--u) * 10); } html.celular body.cel-jogo.canhoto[data-sis="ps1"] #ctl [data-b="R2"] { --x: calc(var(--u) * 30); }
+  html.celular body.cel-jogo:is([data-sis="ps1"], [data-sis="n64"]) #ctl .shoulder { --w: calc(var(--u) * 18); --h: calc(var(--u) * 12); --y: 9%; }
+  html.celular body.cel-jogo:is([data-sis="ps1"], [data-sis="n64"]) #ctl [data-b="L"] { --x: calc(var(--u) * 10); } html.celular body.cel-jogo:is([data-sis="ps1"], [data-sis="n64"]) #ctl [data-b="L2"] { --x: calc(var(--u) * 30); }
+  html.celular body.cel-jogo:is([data-sis="ps1"], [data-sis="n64"]) #ctl [data-b="R"] { --x: calc(100% - var(--u) * 10); } html.celular body.cel-jogo:is([data-sis="ps1"], [data-sis="n64"]) #ctl [data-b="R2"] { --x: calc(100% - var(--u) * 30); }
+  html.celular body.cel-jogo.canhoto:is([data-sis="ps1"], [data-sis="n64"]) #ctl [data-b="L"] { --x: calc(100% - var(--u) * 10); } html.celular body.cel-jogo.canhoto:is([data-sis="ps1"], [data-sis="n64"]) #ctl [data-b="L2"] { --x: calc(100% - var(--u) * 30); }
+  html.celular body.cel-jogo.canhoto:is([data-sis="ps1"], [data-sis="n64"]) #ctl [data-b="R"] { --x: calc(var(--u) * 10); } html.celular body.cel-jogo.canhoto:is([data-sis="ps1"], [data-sis="n64"]) #ctl [data-b="R2"] { --x: calc(var(--u) * 30); }
 }
 
 /* PlayStation: sem rebobinar (o estado é grande demais); no nativo também sem turbo */
-html.celular body[data-sis="ps1"] #ctl .rew, html.celular body.ps1-nativo #ctl .turbo { display: none; }
+html.celular body[data-sis="ps1"] #ctl .rew, html.celular body[data-sis="n64"] #ctl .rew, html.celular body.nativo #ctl .turbo { display: none; }
 
 </style>
 </head>
@@ -12003,6 +12004,13 @@ const KofLibretro = (() => {
       botoes: ['Cima', 'Baixo', 'Esquerda', 'Direita', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'], musica: false, minimo: 16, grande: true,   // o .cue é só um texto pequeno
       bios: ['scph5501.bin', 'scph1001.bin', 'scph7001.bin', 'scph5500.bin', 'scph5502.bin', 'scph101.bin', 'scph7502.bin', 'psxonpsp660.bin'].map((arquivo) => ({ arquivo, tamanho: 524288, opcional: true })),
       canais: [] },
+    // Nintendo 64: Mupen64Plus-Next. No PC em WebAssembly (GLideN64 em WebGL2 num canvas escondido; a ponte lê a imagem de
+    // volta); no APK, nativo (android/nativo, com OpenGL ES 3) pela "fachada" do android.js. Estado grande: sem rebobinar
+    n64: { nome: 'Nintendo 64', curto: 'N64', ext: ['z64', 'n64', 'v64'], nucleo: 'mupen64', nativo: 'n64', largura: 320, altura: 240, dinamico: true,
+      tv43: true, semRebob: true, musica: false, minimo: 0x1000, canais: [],
+      opcoes: { 'mupen64plus-rdp-plugin': 'gliden64', 'mupen64plus-cpucore': 'cached_interpreter', 'mupen64plus-43screensize': '320x240',
+        'mupen64plus-EnableNativeResFactor': '1', 'mupen64plus-ThreadedRenderer': 'False', 'mupen64plus-pak1': 'memory' },
+      botoes: ['Cima', 'Baixo', 'Esquerda', 'Direita', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'] },
   };
   const extensao = (nome) => (/\.([^.]+)$/.exec(nome || '') || [])[1]?.toLowerCase() || '';
   // set do Neo Geo pelo nome do zip ('mslug.zip' -> 'mslug'), se estiver na lista do FBNeo
@@ -12049,7 +12057,8 @@ const KofLibretro = (() => {
   // É <script src> e não fetch: o navegador bloqueia fetch de arquivo local (file://), script ele deixa.
   const ARQUIVOS = {"fbneo": "nucleos/fbneo-3ffc717a.js", "fceumm": "nucleos/fceumm-9243119b.js", "gambatte": "nucleos/gambatte-f3b4deb6.js", "genplus": "nucleos/genplus-cd68890e.js", "mgba": "nucleos/mgba-cefd6783.js", "pcsx": "nucleos/pcsx-ab9e5865.js", "snes9x": "nucleos/snes9x-e205bc90.js", "violino": "nucleos/violino-306d94e5.js"};
   const fabrica = (n) => (typeof globalThis['Nucleo_' + n] === 'function' ? globalThis['Nucleo_' + n] : null);
-  const disponivel = (sis) => !!(SISTEMAS[sis] && (fabrica(SISTEMAS[sis].nucleo) || ARQUIVOS[SISTEMAS[sis].nucleo]));
+  const disponivel = (sis) => !!(SISTEMAS[sis] && (fabrica(SISTEMAS[sis].nucleo) || ARQUIVOS[SISTEMAS[sis].nucleo]
+    || (SISTEMAS[sis].nativo && typeof KOFnesApk !== 'undefined' && KOFnesApk[SISTEMAS[sis].nativo + 'Nativo'] && KOFnesApk[SISTEMAS[sis].nativo + 'Nativo']())));
   const baixando = {};
   function buscar(n) {
     if (fabrica(n)) return Promise.resolve(fabrica(n));
@@ -12099,7 +12108,14 @@ const KofLibretro = (() => {
   // o que o núcleo escreve (ex.: o FBNeo diz qual arquivo do zip faltou) fica nas últimas linhas de m.kofLog, pro erro mostrar
   const novaInstancia = (nucleo, f) => {
     const log = [], anotar = (t) => { log.push(String(t)); if (log.length > 40) log.shift(); };
-    return f({ print: anotar, printErr: anotar }).then((m) => { m.kofLog = log; instancias.push([nucleo, m]); passarOpcoes(m, nucleo); m._lr_init(); return m; });
+    // núcleo que desenha com OpenGL (N64): um canvas só dele, fora da página; a ponte cria o WebGL2 nele e lê a imagem
+    let extra = {};
+    if (nucleo === 'mupen64') {   // a ponte procura pelo id (#kof-gl); fica na página, escondido
+      const c = document.getElementById('kof-gl') || document.body.appendChild(Object.assign(document.createElement('canvas'), { id: 'kof-gl' }));
+      c.style.cssText = 'position:fixed;left:-10000px;top:0;width:1px;height:1px;pointer-events:none';
+      extra = { canvas: c };
+    }
+    return f(Object.assign({ print: anotar, printErr: anotar }, extra)).then((m) => { m.kofLog = log; instancias.push([nucleo, m]); passarOpcoes(m, nucleo); m._lr_init(); return m; });
   };
   const gravar = (mod, caminho, dados) => {
     // CD de PlayStation (centenas de MB): direto pro disco virtual, sem cópia (canOwn) e sem passar pela memória do wasm
@@ -12114,6 +12130,17 @@ const KofLibretro = (() => {
   };
   const apagar = (mod, caminho) => { const c = caminho + '\0', pc = mod._lr_alloc(c.length); for (let i = 0; i < c.length; i++) mod.HEAPU8[pc + i] = c.charCodeAt(i); mod._lr_apagar(pc); mod._free(pc); };
   async function iniciar(nucleo) {
+    // N64: o Mupen64Plus não troca de jogo direito na mesma instância (a corrotina do emulador e o OpenGL ficam do jogo
+    // anterior): jogo novo = instância nova, com um canvas novo; a velha fica pro coletor de lixo
+    if (nucleo === 'mupen64' && modulos[nucleo]) {
+      const velho = await modulos[nucleo].catch(() => null);
+      if (velho && velho.kofAtual) {
+        const i = instancias.findIndex(([, m]) => m === velho);
+        if (i >= 0) instancias.splice(i, 1);
+        const c = document.getElementById('kof-gl'); if (c) c.remove();
+        delete modulos[nucleo];
+      }
+    }
     if (!modulos[nucleo]) modulos[nucleo] = buscar(nucleo).then((f) => novaInstancia(nucleo, f)).catch((e) => { delete modulos[nucleo]; throw e; });
     return modulos[nucleo];
   }
@@ -12122,6 +12149,11 @@ const KofLibretro = (() => {
   // No Game Boy o Gambatte só olha B, Select, Start, direcional e A: o mesmo mapa serve
   const LIGACAO = [[0x8000, 0], [0x4000, 1], [0x2000, 2], [0x1000, 3], [0x0800, 4], [0x0400, 5], [0x0200, 6], [0x0100, 7], [0x0080, 8], [0x0040, 9], [0x0020, 10], [0x0010, 11], [0x0008, 12], [0x0004, 13]];   // 12/13 = L2/R2 (PlayStation)
   const mascara = (b) => { let m = 0; for (const [bit, id] of LIGACAO) if (b & bit) m |= 1 << id; return m; };
+  // N64 (controle do SNES): B/Y = A/B, L = Z, R = R, Select = L; X/A = C▲/C▼ e L2/R2 = C◀/C▶ (bits 16-19 da ponte, que viram o
+  // analógico direito); o direcional vira o analógico na ponte
+  const BITS_N64 = [[0x8000, 0], [0x4000, 1], [0x1000, 3], [0x0800, 4], [0x0400, 5], [0x0200, 6], [0x0100, 7], [0x0020, 12], [0x0010, 11],
+    [0x2000, 10], [0x0040, 16], [0x0080, 17], [0x0008, 18], [0x0004, 19]];
+  const mascaraN64 = (b) => { let m = 0; for (const [bit, id] of BITS_N64) if (b & bit) m |= 1 << id; return m; };
   const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const deB64 = (t) => { const s = atob(t), u8 = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i); return u8; };
   const texto = (rom, ini, n) => { let t = ''; for (let i = 0; i < n && ini + i < rom.length; i++) { const c = rom[ini + i]; t += c >= 32 && c < 127 ? String.fromCharCode(c) : ' '; } return t; };
@@ -12246,7 +12278,7 @@ const KofLibretro = (() => {
     reset() { this.mod._lr_reset(); }
     runFrame() {
       const mod = this.mod;
-      mod._lr_pad(mascara(this.pad[0]));
+      mod._lr_pad(this.sistema === 'n64' ? mascaraN64(this.pad[0]) : mascara(this.pad[0]));
       if (mod._lr_audio_status && this.atrasado !== undefined) mod._lr_audio_status(this.ocupacao | 0, this.atrasado ? 1 : 0);   // o app diz se está atrasado
       mod._lr_run(1, 1);
       this.quadros++;
@@ -12297,18 +12329,23 @@ const KofLibretro = (() => {
     // savestate: bytes do núcleo
     serializar() {
       const mod = this.mod;
-      if (!mod._lr_state_save(this.estadoBuf, this.tamEstado)) {
+      // lr_ok: o resultado guardado na ponte (no N64 o valor devolvido direto se perde na troca de corrotina); núcleo antigo não tem
+      const salvar = () => { const r = mod._lr_state_save(this.estadoBuf, this.tamEstado); return mod._lr_ok ? mod._lr_ok() : r; };
+      if (!salvar()) {
         // o tamanho do estado mudou depois que o jogo começou (FBNeo): pergunta de novo e tenta mais uma vez
         const n = mod._lr_state_size();
         if (n !== this.tamEstado) { mod._free(this.estadoBuf); this.tamEstado = n; this.estadoBuf = mod._lr_alloc((n + 3) & ~3); }
-        if (!mod._lr_state_save(this.estadoBuf, this.tamEstado)) throw new Error('não consegui guardar o estado');
+        // N64 (Mupen64Plus): só tem estado depois do primeiro quadro; o caçador de bugs pede uma foto logo ao abrir o jogo
+        if (!this.quadros && !salvar()) { this.runFrame(); return this.serializar(); }
+        if (!salvar()) throw new Error('não consegui guardar o estado');
       }
       return new Uint8Array(mod.HEAPU8.buffer, this.estadoBuf, this.tamEstado).slice();
     }
     desserializar(u8) {
       if (u8.length > this.tamEstado) { this.mod._free(this.estadoBuf); this.tamEstado = u8.length; this.estadoBuf = this.mod._lr_alloc((u8.length + 3) & ~3); }
       this.mod.HEAPU8.set(u8, this.estadoBuf);
-      return !!this.mod._lr_state_load(this.estadoBuf, u8.length);
+      const r = this.mod._lr_state_load(this.estadoBuf, u8.length);
+      return !!(this.mod._lr_ok ? this.mod._lr_ok() : r);
     }
   }
   // rebobinar: guarda o estado mais recente inteiro e, de cada foto, só os pedaços que mudaram (o valor antigo)
@@ -12403,7 +12440,7 @@ const KofLibretro = (() => {
       fechar() { mod._lr_sonda(0); this.mudas(0); },
     };
   }
-  return { criar, mascara, iniciar, titulo, sistemaDe, disponivel, tocador, opcao, bios, temBios, sistemaDaBios, setNeoGeo, setNeoGeoDoZip, NEOGEO, SISTEMAS, EXTENSOES, ARQUIVOS };
+  return { criar, mascara, mascaraN64, iniciar, titulo, sistemaDe, disponivel, tocador, opcao, bios, temBios, sistemaDaBios, setNeoGeo, setNeoGeoDoZip, NEOGEO, SISTEMAS, EXTENSOES, ARQUIVOS };
 })();
 if (typeof module !== 'undefined') module.exports = KofLibretro;
 
@@ -13246,7 +13283,7 @@ function jukeProxima(d) {
 function jukeFechar() { juke.tocando = false; if (juke.apu) juke.apu.fechar(); juke.apu = null; juke.atual = -1; ini = fim = 0; montarJuke(); }
 async function guardarMusica() {
   if (!snes) { avisar('abra um jogo pra guardar a música dele'); return; }
-  if (snes.sistema === 'ps1') { avisar('a jukebox ainda não guarda música de PlayStation', 3000); return; }
+  if (snes.sistema === 'ps1' || snes.sistema === 'n64') { avisar('a jukebox ainda não guarda música de ' + SIS[snes.sistema].nome, 3000); return; }
   try {
     const n = juke.lista.filter((f) => f.jogoId === jogoId).length + 1;
     const reg = { origem: 'jogo', titulo: `Faixa ${n}`, jogo: romNome, jogoId, quando: Date.now(), capa: foto(256) };
@@ -13629,11 +13666,11 @@ $('#arquivo-spc').addEventListener('change', (e) => { if (e.target.files.length)
 // estado (um marco) e anota os botões de cada quadro dali pra frente. O pacote
 // do bug leva o marco anterior + os botões até agora: rodando de novo, o
 // núcleo (determinístico) chega no mesmo lugar, quadro a quadro.
-const VERSAO = '202610242054 · 321cfe7', REPO = 'Marcelao98/KOFSnes';
+const VERSAO = '202610242236 · 12dbf76', REPO = 'Marcelao98/KOFSnes';
 let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAtual = null;
 function rodarQuadro() {
   let b = semCombo(estado());
-  if (snes.sistema !== 'ps1') b &= ~0x000C;   // L2/R2: no SNES esses bits identificam o controle e têm de ficar zerados
+  if (snes.sistema !== 'ps1' && snes.sistema !== 'n64') b &= ~0x000C;   // L2/R2: no SNES esses bits identificam o controle e têm de ficar zerados
   snes.pad[0] = b; snes.runFrame();
   if (marcoBug) { marcoBug.entradas.push(b); if (marcoBug.entradas.length >= 600) novoMarco(); }
 }
@@ -13740,7 +13777,7 @@ let rebob = null, rebobLigado = true, desdeFoto = 0, voltandoTecla = false, rebo
 const voltando = () => voltandoTecla || (estado() & 0x6000) === 0x6000;
 const rebobPronto = () => !!rebob && rebobRecarga <= 0 && rebob.fotos > 0;
 function novoRebob() {
-  rebob = rebobLigado && snes && !(SIS[snes.sistema] && SIS[snes.sistema].grande) ? KofEstado.Rebobinador(snes, 48 << 20, rebobLimite * 30) : null;   // ~30 fotos por segundo (PS1: o estado tem ~4 MB, fica sem)
+  rebob = rebobLigado && snes && !(SIS[snes.sistema] && (SIS[snes.sistema].grande || SIS[snes.sistema].semRebob)) ? KofEstado.Rebobinador(snes, 48 << 20, rebobLimite * 30) : null;   // ~30 fotos por segundo (PS1: o estado tem ~4 MB, fica sem)
   desdeFoto = 0; rebobRecarga = 0; marcarAmpulheta(); novoMarco(true);
 }
 function marcarAmpulheta() {
@@ -14147,7 +14184,7 @@ async function abrirCdSolto(nome, bytes, soltos) {
 }
 // a ROM de um jogo da biblioteca: do banco; o CD de PlayStation não fica no banco (até 700 MB): vem da pasta de ROMs
 async function bytesDoJogo(j) {
-  if (j.sistema === 'ps1' && typeof ps1NativoJogo === 'function' && PS1N) return ps1NativoJogo(j.arquivo);
+  if (typeof nativoJogo === 'function' && NATIVO[j.sistema]) return nativoJogo(j.sistema, j.arquivo);   // APK: PS1/N64 nativos
   const rom = await bdPegar('roms', j.id);
   if (rom) return { bytes: rom };
   if (j.sistema === 'ps1') {
@@ -14175,7 +14212,7 @@ async function bytesDoJogo(j) {
 }
 async function abrirArquivo(arq, soltos = []) {
   try {
-    if (typeof ps1NativoArquivo === 'function' && await ps1NativoArquivo(arq)) return;   // APK: CD de PS1 vai pro núcleo nativo
+    if (typeof nativoArquivo === 'function' && await nativoArquivo(arq)) return;   // APK: CD de PS1 e ROM de N64 vão pro núcleo nativo
     let nome = arq.name;
     // zip (pelo nome ou pelos primeiros bytes "PK") com CD de PlayStation: abre direto do arquivo, sem ler o zip inteiro
     const cab = arq.slice ? new Uint8Array(await arq.slice(0, 4).arrayBuffer()) : new Uint8Array(4);   // item de dentro de um zip não tem slice
@@ -14255,8 +14292,8 @@ const biosProntas = carregarBios().catch(() => {});
 async function novoNucleo(bytes, sis, nome, extras) {
   if (sis === 'snes' && !CELULAR && typeof KofNucleo !== 'undefined') return new KofNucleo.Snes(Int32Array.from(bytes));
   await biosProntas;
-  if (snes && snes.nativo && !(extras && extras.nativo)) KOFnesApk.ps1Fechar();   // saiu do PS1 nativo pra outro jogo
-  if (sis === 'ps1' && extras && extras.nativo) return extras.nativo;
+  if (snes && snes.nativo && !(extras && extras.nativo && extras.nativo.sistema === snes.sistema)) snes.fecharNativo();   // saiu do nativo pra outro console
+  if (extras && extras.nativo) return extras.nativo;
   if (sis === 'ps1') return KofLibretro.criar(bytes, nome, extras || []);
   if (sis !== 'neogeo') return KofLibretro.criar(bytes, sis);
   return KofLibretro.criar(bytes, nome, await zipsDoPai(nome));
@@ -14286,7 +14323,7 @@ async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
   // sistema pela extensão; jogo antigo da biblioteca guardado sem extensão é de SNES
   const sis = !/\.[a-z0-9]{2,4}$/i.test(nome) ? 'snes' : sistemaDoNome(nome);
   if (!sis) throw new Error('não conheço esse tipo de arquivo (' + SIS_ATIVOS.map((k) => SIS[k].ext.map((e) => '.' + e).join(' ')).join(' ') + ')');
-  if (bytes.length < SIS[sis].minimo) throw new Error('isso não parece uma ROM de ' + SIS[sis].nome);
+  if (bytes.length < SIS[sis].minimo && !(extras && extras.nativo)) throw new Error('isso não parece uma ROM de ' + SIS[sis].nome);   // nativo: os bytes são só uma marca
   if (SIS[sis].bios && typeof KofLibretro !== 'undefined') {
     await biosProntas;
     if (!KofLibretro.temBios(sis)) { pedirBios(sis, () => abrirBytes(nome, bytes, guardarNaBiblioteca, extras)); return; }
@@ -14308,7 +14345,7 @@ async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
   visualDoSistema(sis); ligaIni = performance.now();
   if (ler('moldPorSis') === '1') mudarMoldura(ler('moldura.' + sis) || KofMolduras.PADRAO_SIS[sis] || moldura, true);
   document.body.dataset.sis = sis;
-  document.body.classList.toggle('ps1-nativo', !!s.nativo);   // celular: some o que o PS1 nativo não usa (turbo)   // o controle virtual e a interface mudam com o sistema (Game Boy e NES: só A, B, Start e Select)
+  document.body.classList.toggle('nativo', !!s.nativo);   // celular: some o que o núcleo nativo (PS1/N64) não usa (turbo)   // o controle virtual e a interface mudam com o sistema (Game Boy e NES: só A, B, Start e Select)
   document.body.classList.toggle('so-ab', !!(SIS[sis] && SIS[sis].botoes && !SIS[sis].botoes.includes('X')));
   if (typeof rotularControle === 'function') rotularControle(sis);   // celular: nomes dos botões do console (Mega Drive A/B/C...)
   QUADRO_MS = 1000 / (s.fps || 60.0988);
@@ -14600,7 +14637,7 @@ function estadoBib(t) { const e = $('#bib-estado'); e.textContent = t || ''; e.h
 // um acervo por sistema; o app anota o sistema de cada nome de jogo que mostra (capaSis) pra buscar no acervo certo
 const ACERVO = { snes: 'Nintendo_-_Super_Nintendo_Entertainment_System', nes: 'Nintendo_-_Nintendo_Entertainment_System', gb: 'Nintendo_-_Game_Boy', gbc: 'Nintendo_-_Game_Boy_Color',
   md: 'Sega_-_Mega_Drive_-_Genesis', sms: 'Sega_-_Master_System_-_Mark_III', gg: 'Sega_-_Game_Gear', gba: 'Nintendo_-_Game_Boy_Advance',
-  neogeo: 'FBNeo_-_Arcade_Games', ps1: 'Sony_-_PlayStation' };   // Neo Geo: as capas do FBNeo, pelo nome completo do jogo (o do set vem da lista)
+  neogeo: 'FBNeo_-_Arcade_Games', ps1: 'Sony_-_PlayStation', n64: 'Nintendo_-_Nintendo_64' };   // Neo Geo: as capas do FBNeo, pelo nome completo do jogo (o do set vem da lista)
 const capaSis = new Map();
 const urlAcervo = (nome) => `https://raw.githubusercontent.com/libretro-thumbnails/${ACERVO[capaSis.get(nome)] || ACERVO.snes}/master/Named_Boxarts/`;
 let capasNet = ler('capas') !== '0';
@@ -14884,7 +14921,8 @@ setInterval(() => {
 // por cima do jogo, pausado; teclado ou controle, sem precisar do mouse
 let rapidoAberto = false, pausadoAntesRapido = false, selR = 0;
 const ciclar = (lista, atual, d) => lista[(lista.findIndex(([k]) => k === atual) + d + lista.length) % lista.length][0];
-const ehPs1 = () => !!(snes && snes.sistema === 'ps1'), nativo = () => !!(snes && snes.nativo);
+const ehPs1 = () => !!(snes && (snes.sistema === 'ps1' || snes.sistema === 'n64')),   // sem jukebox (ainda)
+   nativo = () => !!(snes && snes.nativo);
 const ITENS_RAPIDO = [
   { t: '▶ Continuar', f: () => fecharRapido() },   // so: o item só aparece quando faz sentido (PS1 nativo: a imagem não passa pela página)
   { t: '💾 Salvar estado', f: () => { fecharRapido(); salvarEstado(); } },
@@ -15681,6 +15719,7 @@ window.KOFnes = { imagemTeste: (rgba, l, a) => { imagemTeste = true; document.bo
     sms: { B: '1', A: '2', Start: 'PAUSE' }, gg: { B: '1', A: '2' },
     neogeo: { B: 'A', A: 'B', Y: 'C', X: 'D', Select: 'FICHA' },
     ps1: { B: '✕', A: '○', Y: '□', X: '△', L: 'L1', R: 'R1' },
+    n64: { B: 'A', Y: 'B', X: 'C▲', A: 'C▼', L: 'Z', R: 'R', L2: 'C◀', R2: 'C▶', Select: 'L' },
   };
   // o app.js chama ao abrir um jogo; esta parte toda mora dentro de uma função, então vai pelo window
   window.rotularControle = rotularControle;
@@ -15878,53 +15917,65 @@ window.KOFnes = { imagemTeste: (rgba, l, a) => { imagemTeste = true; document.bo
   document.querySelectorAll('.n-temas').forEach((e) => { e.textContent = TODOS_TEMAS.length; });
 })();
 
-// ---------- PlayStation nativo (só no APK, celular ARM64) ----------
-// O PCSX-ReARMed compilado pra ARM64, com o recompilador, roda no Java (Ps1Jogo): a imagem vai pra uma tela nativa por cima
-// da área do jogo e o som sai direto. Aqui fica só uma "fachada" com a cara de núcleo que o app conhece: ela manda os
-// botões a cada quadro (que é também o sinal de "jogando"; parou = menu aberto, a tela nativa some), a posição da área do
-// jogo, o volume e o savestate. O CD nem passa pelo JavaScript: o Java copia direto dos arquivos escolhidos.
-var PS1N = !!(window.KOFnesApk && KOFnesApk.ps1Nativo && KOFnesApk.ps1Nativo());
-function ps1NativoAbrir(nome) {
+// ---------- PlayStation e Nintendo 64 nativos (só no APK, celular ARM64) ----------
+// Os núcleos rodam no Java (Ps1Jogo/N64Jogo): a imagem vai pra uma tela nativa por cima da área do jogo e o som sai direto.
+// Aqui fica só uma "fachada" com a cara de núcleo que o app conhece: ela manda os botões a cada quadro (que é também o
+// sinal de "jogando"; parou = menu aberto, a tela nativa some), a posição da área do jogo, o volume e o savestate. O jogo nem
+// passa pelo JavaScript: o Java copia direto dos arquivos escolhidos. KOFnesApk.<c>Abrir/<c>Pad/... com c = 'ps1' ou 'n64'.
+var NATIVO = {};
+if (window.KOFnesApk) for (const c of ['ps1', 'n64']) if (KOFnesApk[c + 'Nativo'] && KOFnesApk[c + 'Nativo']()) NATIVO[c] = true;
+var PS1N = !!NATIVO.ps1;
+function nativoAbrir(c, nome) {
   return new Promise((ok, falha) => {
-    window.__ps1Pronto = (r) => { window.__ps1Pronto = null; if (r && r.erro) falha(new Error(r.erro)); else ok(r); };
-    KOFnesApk.ps1Abrir(nome);
+    window['__' + c + 'Pronto'] = (r) => { window['__' + c + 'Pronto'] = null; if (r && r.erro) falha(new Error(r.erro)); else ok(r); };
+    KOFnesApk[c + 'Abrir'](nome);
   });
 }
-const ps1Marca = (nome) => new TextEncoder().encode(('PS1 nativo ' + nome).padEnd(16)).slice(0, 16);   // o "arquivo" que o app guarda
-async function ps1NativoJogo(nome) {   // da biblioteca: o Java reabre o último CD que copiou
-  const r = await ps1NativoAbrir(nome);
-  return { bytes: ps1Marca(r.principal), extras: { nativo: ps1Fachada(r) } };
+const marcaNativa = (c, nome) => new TextEncoder().encode((c + ' nativo ' + nome).padEnd(16)).slice(0, 16);   // o "arquivo" que o app guarda
+async function nativoJogo(c, nome) {   // da biblioteca: o Java reabre o último jogo que copiou
+  const r = await nativoAbrir(c, nome);
+  return { bytes: marcaNativa(c, r.principal), extras: { nativo: fachada(c, r) } };
 }
-async function ps1NativoArquivo(arq) {
-  if (!PS1N || !arq || !arq.name) return false;
+// qual console nativo abre esse arquivo (null = nenhum: segue o caminho normal, WebAssembly)
+async function consoleNativo(arq) {
   const n = arq.name.toLowerCase();
-  let cd = /\.(cue|chd|pbp|iso|img|exe)$/.test(n);
-  if (!cd && n.endsWith('.bin') && arq.slice) cd = cdPs1(new Uint8Array(await arq.slice(0, 0x9000).arrayBuffer()));
-  if (!cd && n.endsWith('.zip') && arq.slice) cd = !!(await cdDoZip(arq));
-  if (!cd) return false;
-  avisar('💿 preparando o CD do PlayStation…', 30000);
-  const r = await ps1NativoAbrir(arq.name);
-  await abrirBytes(r.principal, ps1Marca(r.principal), true, { nativo: ps1Fachada(r) });
-  avisar('💿 PlayStation nativo', 1500);
+  if (NATIVO.n64 && /\.(z64|n64|v64)$/.test(n)) return 'n64';
+  if (NATIVO.ps1 && /\.(cue|chd|pbp|iso|img|exe)$/.test(n)) return 'ps1';
+  if (NATIVO.ps1 && n.endsWith('.bin') && arq.slice && cdPs1(new Uint8Array(await arq.slice(0, 0x9000).arrayBuffer()))) return 'ps1';
+  if (n.endsWith('.zip') && arq.slice) {
+    if (NATIVO.ps1 && await cdDoZip(arq)) return 'ps1';
+    if (NATIVO.n64) { try { if ((await itensDoZip(arq)).some((f) => /\.(z64|n64|v64)$/i.test(f.name))) return 'n64'; } catch (e) { /* zip quebrado */ } }
+  }
+  return null;
+}
+async function nativoArquivo(arq) {
+  if (!arq || !arq.name || !Object.keys(NATIVO).length) return false;
+  const c = await consoleNativo(arq);
+  if (!c) return false;
+  avisar(c === 'ps1' ? '💿 preparando o CD do PlayStation…' : '🎮 preparando o cartucho do Nintendo 64…', 30000);
+  const r = await nativoAbrir(c, arq.name);
+  await abrirBytes(r.principal, marcaNativa(c, r.principal), true, { nativo: fachada(c, r) });
+  avisar(c === 'ps1' ? '💿 PlayStation nativo' : '🎮 Nintendo 64 nativo', 1500);
   return true;
 }
-function ps1Fachada(r) {
-  const area = () => { const q = $('#tela').getBoundingClientRect(); KOFnesApk.ps1Area(q.left, q.top, q.width, q.height); };
+function fachada(c, r) {
+  const area = () => { const q = $('#tela').getBoundingClientRect(); KOFnesApk[c + 'Area'](q.left, q.top, q.width, q.height); };
+  const L = r.largura || 320, A = r.altura || 240;
   return {
-    sistema: 'ps1', nucleo: 'pcsx-nativo', lr: true, nativo: true, largura: 320, altura: 240, proporcao: 4 / 3,
-    fps: r.fps || 59.94, taxaAudio: 32000, rgba: new Uint32Array(320 * 240), quadros: 0, pad: [0],
+    sistema: c, nucleo: c === 'ps1' ? 'pcsx-nativo' : 'mupen64-nativo', lr: true, nativo: true, largura: L, altura: A, proporcao: 4 / 3,
+    fps: r.fps || 59.94, taxaAudio: 32000, rgba: new Uint32Array(L * A), quadros: 0, pad: [0],
     apu: { dsp: { outCount: 0, outBuf: new Int16Array(4) } },
     cart: { title: r.principal.replace(/\.[^.]+$/, ''), hasSram: () => false, sram: new Uint8Array(0) },
     runFrame() {
-      if (this.quadros++ % 30 === 0) { area(); KOFnesApk.ps1Volume(mudo ? 0 : volume / 100); }
-      KOFnesApk.ps1Pad(KofLibretro.mascara(this.pad[0]));
+      if (this.quadros++ % 30 === 0) { area(); KOFnesApk[c + 'Volume'](mudo ? 0 : volume / 100); }
+      KOFnesApk[c + 'Pad'](c === 'n64' ? KofLibretro.mascaraN64(this.pad[0]) : KofLibretro.mascara(this.pad[0]));
     },
-    reset() { KOFnesApk.ps1Reiniciar(); },
-    serializar() { const t = atob(KOFnesApk.ps1Estado()), u = new Uint8Array(t.length); for (let i = 0; i < t.length; i++) u[i] = t.charCodeAt(i); return u; },
-    desserializar(u) { let t = ''; for (let i = 0; i < u.length; i += 0x8000) t += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return KOFnesApk.ps1CarregarEstado(btoa(t)); },
+    reset() { KOFnesApk[c + 'Reiniciar'](); },
+    fecharNativo() { KOFnesApk[c + 'Fechar'](); },
+    serializar() { const t = atob(KOFnesApk[c + 'Estado']()), u = new Uint8Array(t.length); for (let i = 0; i < t.length; i++) u[i] = t.charCodeAt(i); return u; },
+    desserializar(u) { let t = ''; for (let i = 0; i < u.length; i += 0x8000) t += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return KOFnesApk[c + 'CarregarEstado'](btoa(t)); },
   };
 }
-
 
 })();
 

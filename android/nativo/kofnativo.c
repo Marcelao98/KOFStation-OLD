@@ -43,13 +43,43 @@ static int16_t *som;                  // buffer direto do Java: estéreo interca
 static int videoMax, somMax, larg, alt, somN, novoQuadro;
 static uint32_t botoes;               // RETRO_DEVICE_ID_JOYPAD_* em bits; 16-19 = C cima/baixo/esquerda/direita (N64)
 #ifdef KOF_GL
-// N64: o núcleo desenha com OpenGL ES 3 no contexto da GLSurfaceView do Java (framebuffer 0); a superfície tem o tamanho
-// exato da imagem do jogo e o Android escala pra tela
+// N64: o núcleo desenha com OpenGL ES 3 num framebuffer nosso (como o Lemuroid), e a cada quadro esse framebuffer é
+// copiado pra tela da GLSurfaceView: quadro sem imagem nova (jogo a 30 fps, FrameDuping) mostra a mesma imagem de novo,
+// em vez do buffer velho da tela piscando. A superfície tem o tamanho exato da imagem e o Android escala pra tela
 void *eglGetProcAddress(const char *);
 static struct retro_hw_render_callback hw;
 static int temHw, hwPronto;
-static uintptr_t fbAtual(void) { return 0; }
+static unsigned fbo, fboCor, fboProf, fboL, fboA;
+static uintptr_t fbAtual(void) { return fbo; }
 static retro_proc_address_t procGl(const char *s) { return (retro_proc_address_t)eglGetProcAddress(s); }
+typedef void (*GlGen)(int, unsigned *);
+typedef void (*GlBind)(unsigned, unsigned);
+typedef void (*GlStorage)(unsigned, unsigned, int, int);
+typedef void (*GlAttach)(unsigned, unsigned, unsigned, unsigned);
+typedef void (*GlBlit)(int, int, int, int, int, int, int, int, unsigned, unsigned);
+typedef void (*GlCap)(unsigned);
+typedef void (*GlCor)(float, float, float, float);
+#define GL(t, n) ((t)eglGetProcAddress(n))
+static void criarFbo(unsigned l, unsigned a) {
+    if (fbo) { GL(GlGen, "glDeleteFramebuffers")(1, &fbo); GL(GlGen, "glDeleteRenderbuffers")(1, &fboCor); GL(GlGen, "glDeleteRenderbuffers")(1, &fboProf); }
+    GL(GlGen, "glGenFramebuffers")(1, &fbo); GL(GlBind, "glBindFramebuffer")(0x8D40, fbo);
+    GL(GlGen, "glGenRenderbuffers")(1, &fboCor); GL(GlBind, "glBindRenderbuffer")(0x8D41, fboCor);
+    GL(GlStorage, "glRenderbufferStorage")(0x8D41, 0x8058 /* RGBA8 */, (int)l, (int)a);
+    GL(GlAttach, "glFramebufferRenderbuffer")(0x8D40, 0x8CE0 /* COLOR0 */, 0x8D41, fboCor);
+    GL(GlGen, "glGenRenderbuffers")(1, &fboProf); GL(GlBind, "glBindRenderbuffer")(0x8D41, fboProf);
+    GL(GlStorage, "glRenderbufferStorage")(0x8D41, 0x88F0 /* DEPTH24_STENCIL8 */, (int)l, (int)a);
+    GL(GlAttach, "glFramebufferRenderbuffer")(0x8D40, 0x821A /* DEPTH_STENCIL */, 0x8D41, fboProf);
+    GL(GlBind, "glBindFramebuffer")(0x8D40, 0);
+    fboL = l; fboA = a;
+}
+static void mostrarFbo(void) {   // framebuffer do jogo -> tela (sempre, mesmo sem quadro novo)
+    GL(GlCap, "glDisable")(0x0C11 /* SCISSOR_TEST */);
+    GL(GlBind, "glBindFramebuffer")(0x8CA9 /* DRAW */, 0);
+    if (!larg || !alt) { GL(GlCor, "glClearColor")(0, 0, 0, 1); GL(GlCap, "glClear")(0x4000); return; }
+    GL(GlBind, "glBindFramebuffer")(0x8CA8 /* READ */, fbo);
+    GL(GlBlit, "glBlitFramebuffer")(0, 0, larg, alt, 0, 0, larg, alt, 0x4000 /* COLOR */, 0x2600 /* NEAREST */);
+    GL(GlBind, "glBindFramebuffer")(0x8CA8, 0);
+}
 #endif
 static uint8_t cartaoVisto[128 * 1024];
 static int carregado;
@@ -243,9 +273,17 @@ JNIEXPORT jint JNICALL J(rodar)(JNIEnv *env, jclass c, jint pad) {
     static int vez;
     botoes = (uint32_t)pad; somN = 0; novoQuadro = 0;
 #ifdef KOF_GL
-    if (temHw && !hwPronto && hw.context_reset) { hw.context_reset(); hwPronto = 1; }   // já na thread do OpenGL
+    if (temHw && !hwPronto && hw.context_reset) {   // já na thread do OpenGL
+        struct retro_system_av_info av; retro_get_system_av_info(&av);
+        unsigned l = av.geometry.max_width > 640 ? av.geometry.max_width : 640, a = av.geometry.max_height > 480 ? av.geometry.max_height : 480;
+        criarFbo(l, a); larg = alt = 0;
+        hw.context_reset(); hwPronto = 1;
+    }
 #endif
     retro_run();
+#ifdef KOF_GL
+    if (temHw && fbo) mostrarFbo();
+#endif
     if (++vez % 300 == 0) cartaoGravar();   // ~5 s
     (void)env; (void)c;
     return somN;

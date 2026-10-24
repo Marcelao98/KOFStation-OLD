@@ -83,8 +83,9 @@ final class N64Jogo implements GLSurfaceView.Renderer {
             final int[] info = new int[4];
             String erro = noGl(new java.util.concurrent.Callable<String>() { public String call() {
                 return N64.abrir(caminho, sistema.getAbsolutePath(), saves.getAbsolutePath(), new File(saves, base + ".sav").getAbsolutePath(),
-                        "mupen64plus-rdp-plugin=gliden64\nmupen64plus-cpucore=dynamic_recompiler\nmupen64plus-43screensize=640x480\n"
-                        + "mupen64plus-EnableNativeResFactor=1\nmupen64plus-pak1=memory\n", info);
+                        // as mesmas do Lemuroid (que usa este mesmo núcleo): o resto fica no padrão do núcleo (recompilador ARM64,
+                        // GLideN64, RSP em HLE), que a ponte agora entrega como o RetroArch
+                        "mupen64plus-43screensize=320x240\nmupen64plus-FrameDuping=True\nmupen64plus-pak1=memory\n", info);
             } });
             if (!erro.isEmpty()) return "{\"erro\":\"" + erro + "\"}";
             iniciarSom(info[3] > 0 ? info[3] : 44100);
