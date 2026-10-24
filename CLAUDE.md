@@ -283,6 +283,16 @@ app/, empacotar/, nativo/  versões antigas: Java (instalador) e nativa Linux s�
 > `kofnes.sh` (**LANCADOR=3**, mesma coisa). Testado no Wine e no sh com servidor local. README e prints refeitos SÓ com
 > conteúdo livre (PeterLemon Mode7 Perspective/RotZoom, Cube do PS1, Trilha): jogo ou capa comercial NÃO entra em print.
 > Script dos prints: refazer com Playwright (KOFnes.mudarTema/aplicarFiltro/mudarMoldura + juntar com PIL).
+> **24/10:** PS1 nativo engasgava no celular (publicado 202610242054, CASCA 4): o caçador de bugs copiava o estado (~4 MB)
+> pela ponte a cada 10 s e a página travava (>250 ms sem sinal = o jogo nativo pausa); agora o nativo não tem caçador,
+> salva o automático a cada 2 min, a página não redesenha por baixo, a imagem é ampliada pelo Android (setFixedSize) e o
+> som do PCSX roda em thread (`pcsx_rearmed_spu_thread`). **N64 no PC (branch `n64`, NÃO publicada, CASCA 5):** Mupen64Plus-
+> Next em WebAssembly roda (demos livres do PeterLemon, `testes/navegador/n64.cjs`): `GLES3=1` + `FULL_ES3`, libco por
+> fibers do emscripten + ASYNCIFY (`nucleo-libretro/libco-emscripten.c`), `lr_ok()` (o retorno se perde na troca de
+> corrotina), glMapBufferRange com leitura na ponte, instância nova por jogo. **A ponte (e a nativa) agora guardam o padrão
+> das opções do `SET_VARIABLES`**, como o RetroArch (sem isso o Mupen ficava sem emulação de framebuffer); os outros núcleos
+> só ganham isso quando forem recompilados. Falta o Marcelo testar jogo de N64 de verdade no PC e no celular.
+
 ## Pendências (atualizado 17/10; ver a nota de 20/10 logo abaixo)
 
 > **20/10:** conferido no git: as branches `temas-menu` (126 temas, busca, categorias, Café) e `atualizador-wininet` (aviso
