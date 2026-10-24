@@ -725,7 +725,7 @@ function laco(t) {
     if (cacador) abrirBug(e);
     return;
   }
-  if (vezes) desenhar();
+  if (vezes && !snes.nativo) desenhar();   // nativo: a imagem vem por uma tela do Android por cima; a página não precisa redesenhar
   desdeFoto += vezes;
   if (rebobLigado && rebob && desdeFoto >= 2) { rebob.gravar(); desdeFoto = 0; }   // ~30 fotos por segundo
   if (rebobRecarga > 0) {
@@ -1230,7 +1230,8 @@ function rodarQuadro() {
 }
 function novoMarco(zerar) {
   if (zerar) marcoBugAnt = null; else marcoBugAnt = marcoBug;
-  marcoBug = cacador && snes ? { estado: KofEstado.capturar(snes), entradas: [] } : null;
+  // núcleo nativo (PS1 no celular): o estado inteiro (~4 MB) atravessaria a ponte a cada 10 s e o jogo engasgaria; e lá não tem caçador
+  marcoBug = cacador && snes && !snes.nativo ? { estado: KofEstado.capturar(snes), entradas: [] } : null;
 }
 function marcarCacador() {
   const b = $('[data-acao="cacador-toggle"]');
@@ -2043,7 +2044,7 @@ async function salvarAuto() {
     autoAntes = Date.now();
   } catch (e) { console.warn('auto-save falhou', e); }
 }
-setInterval(() => { if (snes && !pausado && Date.now() - autoAntes > 30000) salvarAuto(); }, 5000);
+setInterval(() => { if (snes && !pausado && Date.now() - autoAntes > (snes.nativo ? 120000 : 30000)) salvarAuto(); }, 5000);   // nativo: o estado é grande, salva a cada 2 min
 
 // ---------------- savestates ----------------
 async function salvarEstado() {

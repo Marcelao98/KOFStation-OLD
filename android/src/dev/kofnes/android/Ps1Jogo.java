@@ -4,7 +4,6 @@ import android.app.Activity;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Rect;
 import android.media.AudioFormat;
 import android.media.AudioManager;
@@ -39,6 +38,7 @@ final class Ps1Jogo implements Runnable {
     private volatile int pad, largura = 320, altura = 240;
     private volatile long ultimoSinal;
     private volatile boolean aberto, visivel;
+    private boolean fixo;
     private volatile float volume = 1f;
     private Thread laco;
     private AudioTrack som;
@@ -75,7 +75,7 @@ final class Ps1Jogo implements Runnable {
             String erro;
             synchronized (trava) {
                 erro = Ps1.abrir(principal.getAbsolutePath(), sistema.getAbsolutePath(), saves.getAbsolutePath(),
-                        new File(saves, base + ".mcd").getAbsolutePath(), "pcsx_rearmed_drc=enabled\npcsx_rearmed_frameskip_type=disabled\n", info);
+                        new File(saves, base + ".mcd").getAbsolutePath(), "pcsx_rearmed_drc=enabled\npcsx_rearmed_frameskip_type=disabled\npcsx_rearmed_spu_thread=enabled\n", info);
             }
             if (!erro.isEmpty()) return "{\"erro\":\"" + erro + "\"}";
             iniciarSom(info[3] > 0 ? info[3] : 44100);
@@ -216,6 +216,11 @@ final class Ps1Jogo implements Runnable {
                     if (quadro == null || quadro.getWidth() != w || quadro.getHeight() != h) quadro = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
                     Ps1.VIDEO.rewind();
                     quadro.copyPixelsFromBuffer(Ps1.VIDEO);
+                    if (w != largura || h != altura || !fixo) {
+                        fixo = true;
+                        final int W = w, H = h;
+                        a.runOnUiThread(new Runnable() { public void run() { tela.getHolder().setFixedSize(W, H); } });
+                    }
                     largura = w; altura = h;
                 }
                 if (n > 0) { Ps1.SOM.rewind(); Ps1.SOM.asShortBuffer().get(amostras, 0, Math.min(n, amostras.length)); }
@@ -232,11 +237,10 @@ final class Ps1Jogo implements Runnable {
         try {
             c = s.lockCanvas();
             if (c == null) return;
-            c.drawColor(Color.BLACK);
-            int W = c.getWidth(), H = c.getHeight(), w = W, h = W * 3 / 4;   // 4:3, como na TV
-            if (h > H) { h = H; w = H * 4 / 3; }
+            // a superfície tem o tamanho da imagem do jogo (setFixedSize) e quem amplia pra área do jogo é o Android, na placa de
+            // vídeo; ampliar aqui no Canvas era feito na CPU, a cada quadro, disputando com o emulador
             src.set(0, 0, largura, altura);
-            dst.set((W - w) / 2, (H - h) / 2, (W + w) / 2, (H + h) / 2);
+            dst.set(0, 0, c.getWidth(), c.getHeight());
             c.drawBitmap(quadro, src, dst, null);
         } catch (Exception e) { /* superfície sumiu no meio */ } finally {
             if (c != null) try { s.unlockCanvasAndPost(c); } catch (Exception e) { /* idem */ }
