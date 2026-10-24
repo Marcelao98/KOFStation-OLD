@@ -80,6 +80,8 @@ construir() {
               sed -i 's/-fcommon/-fno-common/g' "$dir/Makefile" "$dir/Makefile.common"
               # corrotinas (libco) com as fibers do emscripten: o padrão dele cai no sjlj.c, que precisa de sigaltstack
               cp "$AQUI/libco-emscripten.c" "$dir/libretro-common/libco/emscripten.c"
+              # a corrotina do emulador é "void* f(void*)" forçada pra "void f(void)": o WebAssembly confere o tipo e trava
+              grep -q EmuThreadSemArg "$dir/libretro/libretro.c" || perl -0pi -e 's/static void\* EmuThreadFunction\(void\* param\)\n/static void* EmuThreadFunction(void* param);\nstatic void EmuThreadSemArg(void) { EmuThreadFunction(NULL); }\nstatic void* EmuThreadFunction(void* param)\n/; s/\(void \(\*\)\(void\)\)EmuThreadFunction/EmuThreadSemArg/' "$dir/libretro/libretro.c"
               grep -q '__EMSCRIPTEN__' "$dir/libretro-common/libco/libco.c" || sed -i 's/^#elif defined __GNUC__$/#elif defined __EMSCRIPTEN__\n  #include "emscripten.c"\n#elif defined __GNUC__/' "$dir/libretro-common/libco/libco.c"
               (cd "$dir" && emmake make platform=emscripten -j"$(nproc)" && rm -f kof-mupen64.a && find . -name '*.o' -print0 | xargs -0 emar rcs kof-mupen64.a) ;;   # a saída do Makefile já vem ligada: junta os .o
     fbneo)    (cd "$dir/src/burner/libretro" && make clean platform=emscripten SUBSET=neogeo >/dev/null && make generate-files platform=emscripten SUBSET=neogeo >/dev/null \
