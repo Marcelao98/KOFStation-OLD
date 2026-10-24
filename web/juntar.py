@@ -27,7 +27,8 @@ pasta_nucleos = pathlib.Path(sys.argv[5]) if len(sys.argv) > 5 else None
 pc = len(sys.argv) > 6 and sys.argv[6] == "pc"
 android = pasta_nucleos if pasta_nucleos and not pc else None
 somfm = (pasta_nucleos or web.parent / "nucleo-libretro" / "saida") / "som" / "somfm.js"
-nucleos = [f for f in sorted(pasta_nucleos.glob("*.js")) if not (pc and f.stem == "snes9x")] if pasta_nucleos else []
+# PC sem o Snes9x (o SNES do PC é o núcleo Kof); celular sem o N64 em WebAssembly (o APK usa o nativo, android/nativo)
+nucleos = [f for f in sorted(pasta_nucleos.glob("*.js")) if not (pc and f.stem == "snes9x") and not (not pc and f.stem == "mupen64")] if pasta_nucleos else []
 
 
 def separar_nucleos():

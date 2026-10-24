@@ -60,9 +60,12 @@ const KofLibretro = (() => {
       botoes: ['Cima', 'Baixo', 'Esquerda', 'Direita', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'], musica: false, minimo: 16, grande: true,   // o .cue é só um texto pequeno
       bios: ['scph5501.bin', 'scph1001.bin', 'scph7001.bin', 'scph5500.bin', 'scph5502.bin', 'scph101.bin', 'scph7502.bin', 'psxonpsp660.bin'].map((arquivo) => ({ arquivo, tamanho: 524288, opcional: true })),
       canais: [] },
-    // Nintendo 64: só no APK, nativo (Mupen64Plus-Next com OpenGL ES 3, android/nativo): a página só tem a "fachada" (android.js)
+    // Nintendo 64: Mupen64Plus-Next. No PC em WebAssembly (GLideN64 em WebGL2 num canvas escondido; a ponte lê a imagem de
+    // volta); no APK, nativo (android/nativo, com OpenGL ES 3) pela "fachada" do android.js. Estado grande: sem rebobinar
     n64: { nome: 'Nintendo 64', curto: 'N64', ext: ['z64', 'n64', 'v64'], nucleo: 'mupen64', nativo: 'n64', largura: 640, altura: 480,
-      tv43: true, caminho: true, grande: true, musica: false, minimo: 16, canais: [],
+      tv43: true, semRebob: true, musica: false, minimo: 0x1000, canais: [],
+      opcoes: { 'mupen64plus-rdp-plugin': 'gliden64', 'mupen64plus-cpucore': 'cached_interpreter', 'mupen64plus-43screensize': '640x480',
+        'mupen64plus-EnableNativeResFactor': '1', 'mupen64plus-ThreadedRenderer': 'False', 'mupen64plus-pak1': 'memory' },
       botoes: ['Cima', 'Baixo', 'Esquerda', 'Direita', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'] },
   };
   const extensao = (nome) => (/\.([^.]+)$/.exec(nome || '') || [])[1]?.toLowerCase() || '';
@@ -161,7 +164,14 @@ const KofLibretro = (() => {
   // o que o núcleo escreve (ex.: o FBNeo diz qual arquivo do zip faltou) fica nas últimas linhas de m.kofLog, pro erro mostrar
   const novaInstancia = (nucleo, f) => {
     const log = [], anotar = (t) => { log.push(String(t)); if (log.length > 40) log.shift(); };
-    return f({ print: anotar, printErr: anotar }).then((m) => { m.kofLog = log; instancias.push([nucleo, m]); passarOpcoes(m, nucleo); m._lr_init(); return m; });
+    // núcleo que desenha com OpenGL (N64): um canvas só dele, fora da página; a ponte cria o WebGL2 nele e lê a imagem
+    let extra = {};
+    if (nucleo === 'mupen64') {   // a ponte procura pelo id (#kof-gl); fica na página, escondido
+      const c = document.getElementById('kof-gl') || document.body.appendChild(Object.assign(document.createElement('canvas'), { id: 'kof-gl' }));
+      c.style.cssText = 'position:fixed;left:-10000px;top:0;width:1px;height:1px;pointer-events:none';
+      extra = { canvas: c };
+    }
+    return f(Object.assign({ print: anotar, printErr: anotar }, extra)).then((m) => { m.kofLog = log; instancias.push([nucleo, m]); passarOpcoes(m, nucleo); m._lr_init(); return m; });
   };
   const gravar = (mod, caminho, dados) => {
     // CD de PlayStation (centenas de MB): direto pro disco virtual, sem cópia (canOwn) e sem passar pela memória do wasm
@@ -184,6 +194,11 @@ const KofLibretro = (() => {
   // No Game Boy o Gambatte só olha B, Select, Start, direcional e A: o mesmo mapa serve
   const LIGACAO = [[0x8000, 0], [0x4000, 1], [0x2000, 2], [0x1000, 3], [0x0800, 4], [0x0400, 5], [0x0200, 6], [0x0100, 7], [0x0080, 8], [0x0040, 9], [0x0020, 10], [0x0010, 11], [0x0008, 12], [0x0004, 13]];   // 12/13 = L2/R2 (PlayStation)
   const mascara = (b) => { let m = 0; for (const [bit, id] of LIGACAO) if (b & bit) m |= 1 << id; return m; };
+  // N64 (controle do SNES): B/Y = A/B, L = Z, R = R, Select = L; X/A = C▲/C▼ e L2/R2 = C◀/C▶ (bits 16-19 da ponte, que viram o
+  // analógico direito); o direcional vira o analógico na ponte
+  const BITS_N64 = [[0x8000, 0], [0x4000, 1], [0x1000, 3], [0x0800, 4], [0x0400, 5], [0x0200, 6], [0x0100, 7], [0x0020, 12], [0x0010, 11],
+    [0x2000, 10], [0x0040, 16], [0x0080, 17], [0x0008, 18], [0x0004, 19]];
+  const mascaraN64 = (b) => { let m = 0; for (const [bit, id] of BITS_N64) if (b & bit) m |= 1 << id; return m; };
   const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const deB64 = (t) => { const s = atob(t), u8 = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i); return u8; };
   const texto = (rom, ini, n) => { let t = ''; for (let i = 0; i < n && ini + i < rom.length; i++) { const c = rom[ini + i]; t += c >= 32 && c < 127 ? String.fromCharCode(c) : ' '; } return t; };
@@ -308,7 +323,7 @@ const KofLibretro = (() => {
     reset() { this.mod._lr_reset(); }
     runFrame() {
       const mod = this.mod;
-      mod._lr_pad(mascara(this.pad[0]));
+      mod._lr_pad(this.sistema === 'n64' ? mascaraN64(this.pad[0]) : mascara(this.pad[0]));
       if (mod._lr_audio_status && this.atrasado !== undefined) mod._lr_audio_status(this.ocupacao | 0, this.atrasado ? 1 : 0);   // o app diz se está atrasado
       mod._lr_run(1, 1);
       this.quadros++;
@@ -465,6 +480,6 @@ const KofLibretro = (() => {
       fechar() { mod._lr_sonda(0); this.mudas(0); },
     };
   }
-  return { criar, mascara, iniciar, titulo, sistemaDe, disponivel, tocador, opcao, bios, temBios, sistemaDaBios, setNeoGeo, setNeoGeoDoZip, NEOGEO, SISTEMAS, EXTENSOES, ARQUIVOS };
+  return { criar, mascara, mascaraN64, iniciar, titulo, sistemaDe, disponivel, tocador, opcao, bios, temBios, sistemaDaBios, setNeoGeo, setNeoGeoDoZip, NEOGEO, SISTEMAS, EXTENSOES, ARQUIVOS };
 })();
 if (typeof module !== 'undefined') module.exports = KofLibretro;

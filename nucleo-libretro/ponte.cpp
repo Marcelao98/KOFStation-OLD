@@ -11,13 +11,32 @@
 #include <sys/stat.h>
 #include <emscripten.h>
 #include "libretro.h"
+#ifdef KOF_GL
+// Núcleo que desenha com OpenGL ES (Nintendo 64): no navegador vira WebGL2 num canvas escondido (#kof-gl, o nucleo.js cria). Depois de
+// cada quadro a ponte lê a imagem pronta (glReadPixels) pro mesmo buffer RGBA dos outros núcleos: o app trata igual e os
+// filtros e molduras continuam valendo
+#include <emscripten/html5.h>
+#include <GLES3/gl3.h>
+static struct retro_hw_render_callback hw;
+static bool temHw = false;
+static EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctxGl = 0;
+static uintptr_t fbAtual() { return 0; }
+static retro_proc_address_t procGl(const char* s) { return (retro_proc_address_t)emscripten_webgl_get_proc_address(s); }
+// o Mupen64Plus pede duas funções que o WebAssembly não tem (do renderizador em thread e do tratamento de sinais, ambos
+// desligados aqui): versões vazias
+#include <semaphore.h>
+#include <signal.h>
+#include <errno.h>
+extern "C" int sem_timedwait(sem_t*, const struct timespec*) { errno = ETIMEDOUT; return -1; }
+extern "C" int sigaltstack(const stack_t*, stack_t*) { return 0; }
+#endif
 
 extern "C" {
 
 static uint32_t* quadro = nullptr;     // RGBA (formato do canvas), até maxL x maxA
 static unsigned maxL = 0, maxA = 0, larg = 0, alt = 0;
 static int copiar = 1;
-static uint16_t botoes = 0;            // máscara RETRO_DEVICE_ID_JOYPAD_*
+static uint32_t botoes = 0;            // máscara RETRO_DEVICE_ID_JOYPAD_*; 16-19 = C cima/baixo/esquerda/direita (N64)
 static const unsigned AUDIO_MAX = 32768;   // quadros estéreo por retro_run (sobra até pra núcleo que manda áudio em lotes)
 static int16_t audio[AUDIO_MAX * 2];
 static unsigned audioQuadros = 0;
@@ -51,6 +70,19 @@ static void guardarAv(const struct retro_system_av_info* i) {
 static inline uint32_t de5(uint32_t v) { return (v << 3) | (v >> 2); }
 static retro_audio_buffer_status_callback_t statusAudio = nullptr;
 static void video(const void* dados, unsigned w, unsigned h, size_t pitch) {
+#ifdef KOF_GL
+    if (dados == RETRO_HW_FRAME_BUFFER_VALID) {   // a imagem está no canvas: lê de baixo pra cima (OpenGL) e desvira
+        if ((size_t)w * h > (size_t)maxL * maxA) return;
+        larg = w; alt = h;
+        if (!copiar) return;
+        static uint32_t* tmp = nullptr; static size_t tmpN = 0;
+        if (tmpN < (size_t)w * h) { free(tmp); tmp = (uint32_t*)malloc((size_t)w * h * 4); tmpN = (size_t)w * h; }
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, tmp);
+        for (unsigned y = 0; y < h; y++) memcpy(quadro + (size_t)y * w, tmp + (size_t)(h - 1 - y) * w, (size_t)w * 4);
+        return;
+    }
+#endif
     if (!dados) return;                 // quadro repetido (CAN_DUPE): mantém o anterior
     if ((size_t)w * h > (size_t)maxL * maxA) return;
     larg = w; alt = h;
@@ -82,14 +114,40 @@ static size_t amostras(const int16_t* d, size_t n) {
 }
 static void amostra(int16_t e, int16_t dir) { int16_t p[2] = { e, dir }; amostras(p, 1); }
 static void sondar() {}
-static int16_t entrada(unsigned porta, unsigned dispositivo, unsigned, unsigned id) {
-    if (porta != 0 || (dispositivo & RETRO_DEVICE_MASK) != RETRO_DEVICE_JOYPAD) return 0;
-    if (id == RETRO_DEVICE_ID_JOYPAD_MASK) return botoes;
-    return (botoes >> id) & 1;
+static int16_t eixo(int menos, int mais) { return (int16_t)((mais ? 0x7FFF : 0) - (menos ? 0x7FFF : 0)); }
+static int16_t entrada(unsigned porta, unsigned dispositivo, unsigned idx, unsigned id) {
+    if (porta != 0) return 0;
+#ifdef KOF_GL
+    // N64: o direcional vira o analógico (inclinação total) e os bits 16-19, os botões C (analógico direito)
+    if ((dispositivo & RETRO_DEVICE_MASK) == RETRO_DEVICE_ANALOG) {
+        uint32_t b = botoes;
+        if (idx == RETRO_DEVICE_INDEX_ANALOG_LEFT)
+            return id == RETRO_DEVICE_ID_ANALOG_X ? eixo(b >> RETRO_DEVICE_ID_JOYPAD_LEFT & 1, b >> RETRO_DEVICE_ID_JOYPAD_RIGHT & 1)
+                                                  : eixo(b >> RETRO_DEVICE_ID_JOYPAD_UP & 1, b >> RETRO_DEVICE_ID_JOYPAD_DOWN & 1);
+        return id == RETRO_DEVICE_ID_ANALOG_X ? eixo(b >> 18 & 1, b >> 19 & 1) : eixo(b >> 16 & 1, b >> 17 & 1);
+    }
+    uint32_t pad = botoes & ~0xF0u & 0xFFFF;
+#else
+    uint32_t pad = botoes & 0xFFFF;
+    (void)idx;
+#endif
+    if ((dispositivo & RETRO_DEVICE_MASK) != RETRO_DEVICE_JOYPAD) return 0;
+    if (id == RETRO_DEVICE_ID_JOYPAD_MASK) return (int16_t)pad;
+    return (pad >> id) & 1;
 }
 static void registro(enum retro_log_level, const char* fmt, ...) { va_list a; va_start(a, fmt); vprintf(fmt, a); va_end(a); }
 static bool ambiente(unsigned cmd, void* dado) {
     switch (cmd) {
+#ifdef KOF_GL
+    case RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER: *(unsigned*)dado = RETRO_HW_CONTEXT_OPENGLES3; return true;
+    case RETRO_ENVIRONMENT_SET_HW_RENDER: {
+        struct retro_hw_render_callback* h = (struct retro_hw_render_callback*)dado;
+        if (h->context_type != RETRO_HW_CONTEXT_OPENGLES3 && h->context_type != RETRO_HW_CONTEXT_OPENGLES2) return false;
+        h->get_current_framebuffer = fbAtual; h->get_proc_address = procGl;
+        hw = *h; temHw = true;
+        return true;
+    }
+#endif
     case RETRO_ENVIRONMENT_SET_PIXEL_FORMAT: {
         int f = *(enum retro_pixel_format*)dado;
         if (f != RETRO_PIXEL_FORMAT_RGB565 && f != RETRO_PIXEL_FORMAT_XRGB8888 && f != RETRO_PIXEL_FORMAT_0RGB1555) return false;
@@ -196,6 +254,20 @@ EMSCRIPTEN_KEEPALIVE int lr_load(const uint8_t* rom, size_t n, const char* nome)
     retro_get_system_av_info(&i);
     guardarAv(&i);
     larg = av.geometry.base_width; alt = av.geometry.base_height;
+#ifdef KOF_GL
+    if (temHw) {   // contexto WebGL2 no canvas do módulo, do tamanho da imagem, e o núcleo prepara as coisas dele
+        emscripten_set_canvas_element_size("#kof-gl", av.geometry.base_width, av.geometry.base_height);
+        if (!ctxGl) {
+            EmscriptenWebGLContextAttributes at; emscripten_webgl_init_context_attributes(&at);
+            at.majorVersion = 2; at.minorVersion = 0; at.depth = hw.depth; at.stencil = hw.stencil; at.antialias = false;
+            at.preserveDrawingBuffer = true; at.alpha = false;
+            ctxGl = emscripten_webgl_create_context("#kof-gl", &at);
+            if (ctxGl <= 0) { printf("WebGL2 não abriu (%d)\n", (int)ctxGl); return 0; }
+        }
+        emscripten_webgl_make_context_current(ctxGl);
+        if (hw.context_reset) hw.context_reset();
+    }
+#endif
     if (quadro) memset(quadro, 0, (size_t)maxL * maxA * 4);
     return 1;
 }
@@ -230,7 +302,7 @@ EMSCRIPTEN_KEEPALIVE int lr_state_load(const uint8_t* src, size_t n) { return re
 EMSCRIPTEN_KEEPALIVE uint8_t* lr_mem_ptr(unsigned id) { return (uint8_t*)retro_get_memory_data(id); }
 EMSCRIPTEN_KEEPALIVE size_t lr_mem_size(unsigned id) { return retro_get_memory_size(id); }
 
-EMSCRIPTEN_KEEPALIVE void lr_pad(int mascara) { botoes = (uint16_t)mascara; }
+EMSCRIPTEN_KEEPALIVE void lr_pad(int mascara) { botoes = (uint32_t)mascara; }
 EMSCRIPTEN_KEEPALIVE uint32_t* lr_fb() { return quadro; }
 EMSCRIPTEN_KEEPALIVE int lr_w() { return larg; }
 EMSCRIPTEN_KEEPALIVE int lr_h() { return alt; }

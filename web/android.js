@@ -266,11 +266,6 @@ async function nativoArquivo(arq) {
   avisar(c === 'ps1' ? '💿 PlayStation nativo' : '🎮 Nintendo 64 nativo', 1500);
   return true;
 }
-// N64 no controle da tela: B/Y = A/B, L = Z, R = R, Select = L; X/A = C▲/C▼ e L2/R2 = C◀/C▶ (bits 16-19 da ponte);
-// o direcional vira o analógico lá na ponte
-const BITS_N64 = [[0x8000, 0], [0x4000, 1], [0x1000, 3], [0x0800, 4], [0x0400, 5], [0x0200, 6], [0x0100, 7], [0x0020, 12], [0x0010, 11],
-  [0x2000, 10], [0x0040, 16], [0x0080, 17], [0x0008, 18], [0x0004, 19]];
-const mascaraN64 = (b) => { let m = 0; for (const [bit, id] of BITS_N64) if (b & bit) m |= 1 << id; return m; };
 function fachada(c, r) {
   const area = () => { const q = $('#tela').getBoundingClientRect(); KOFnesApk[c + 'Area'](q.left, q.top, q.width, q.height); };
   const L = r.largura || 320, A = r.altura || 240;
@@ -281,7 +276,7 @@ function fachada(c, r) {
     cart: { title: r.principal.replace(/\.[^.]+$/, ''), hasSram: () => false, sram: new Uint8Array(0) },
     runFrame() {
       if (this.quadros++ % 30 === 0) { area(); KOFnesApk[c + 'Volume'](mudo ? 0 : volume / 100); }
-      KOFnesApk[c + 'Pad'](c === 'n64' ? mascaraN64(this.pad[0]) : KofLibretro.mascara(this.pad[0]));
+      KOFnesApk[c + 'Pad'](c === 'n64' ? KofLibretro.mascaraN64(this.pad[0]) : KofLibretro.mascara(this.pad[0]));
     },
     reset() { KOFnesApk[c + 'Reiniciar'](); },
     fecharNativo() { KOFnesApk[c + 'Fechar'](); },

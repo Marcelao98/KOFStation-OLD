@@ -1330,7 +1330,7 @@ let rebob = null, rebobLigado = true, desdeFoto = 0, voltandoTecla = false, rebo
 const voltando = () => voltandoTecla || (estado() & 0x6000) === 0x6000;
 const rebobPronto = () => !!rebob && rebobRecarga <= 0 && rebob.fotos > 0;
 function novoRebob() {
-  rebob = rebobLigado && snes && !(SIS[snes.sistema] && SIS[snes.sistema].grande) ? KofEstado.Rebobinador(snes, 48 << 20, rebobLimite * 30) : null;   // ~30 fotos por segundo (PS1: o estado tem ~4 MB, fica sem)
+  rebob = rebobLigado && snes && !(SIS[snes.sistema] && (SIS[snes.sistema].grande || SIS[snes.sistema].semRebob)) ? KofEstado.Rebobinador(snes, 48 << 20, rebobLimite * 30) : null;   // ~30 fotos por segundo (PS1: o estado tem ~4 MB, fica sem)
   desdeFoto = 0; rebobRecarga = 0; marcarAmpulheta(); novoMarco(true);
 }
 function marcarAmpulheta() {

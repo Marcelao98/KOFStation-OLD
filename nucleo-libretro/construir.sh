@@ -46,6 +46,9 @@ construir() {
               dir="$T/mgba"; lc="$dir/src/platform/libretro"; bc="$dir/build/mgba_libretro.bc" ;;
     fbneo)    repo=https://github.com/libretro/FBNeo.git; commit=2dbbac7623fbae1c7894a6437769e8a3adb78610
               dir="$T/fbneo"; lc="$dir/src/burner/libretro/libretro-common"; bc="$dir/src/burner/libretro/fbneo_neogeo_libretro_emscripten.bc" ;;
+    # Nintendo 64 (só o PC usa; o celular usa o nativo, android/nativo): GLideN64 em OpenGL ES 2 vira WebGL2, sem recompilador
+    mupen64)  repo=https://github.com/libretro/mupen64plus-libretro-nx.git; commit=15bada85906593376e8fd697f1b0b3af3a20f512
+              dir="$T/mupen64"; lc="$dir/libretro-common"; bc="$dir/kof-mupen64.a" ;;
     pcsx)     repo=https://github.com/libretro/pcsx_rearmed.git; commit=c8816799b50388e61cfe237fe2cdbb7d8175f20a
               dir="$T/pcsx"; lc="$dir/deps/libretro-common"; bc="$dir/pcsx_rearmed_libretro_emscripten.bc" ;;
     *) echo "núcleo desconhecido: $nome (use snes9x, gambatte, fceumm, genplus, mgba, fbneo, pcsx ou somfm)"; exit 1 ;;
@@ -71,6 +74,14 @@ construir() {
     # PCSX-ReARMed (PlayStation): o emscripten do Ubuntu não deixa baixar a zlib dele (cache congelado): usa a miniz que vem junto
     pcsx)     sed -i '/platform), emscripten)/,/USE_ASYNC_SPU=0/{s/^   USE_MINIZ = 0/   USE_MINIZ = 1/;/-sUSE_ZLIB=1/d}' "$dir/Makefile.libretro"
               (cd "$dir" && emmake make -f Makefile.libretro platform=emscripten -j"$(nproc)") ;;
+    # Mupen64Plus-Next: a zlib vem junto (custom/dependencies); a do emscripten não dá (cache congelado)
+    mupen64)  sed -i 's/^   CPUFLAGS += -DEMSCRIPTEN -DNO_ASM -s USE_ZLIB=1/   CPUFLAGS += -DEMSCRIPTEN -DNO_ASM/' "$dir/Makefile"
+              # global sem valor + -fcommon derruba o clang 15 do emscripten do Ubuntu: compila com -fno-common
+              sed -i 's/-fcommon/-fno-common/g' "$dir/Makefile" "$dir/Makefile.common"
+              # corrotinas (libco) com as fibers do emscripten: o padrão dele cai no sjlj.c, que precisa de sigaltstack
+              cp "$AQUI/libco-emscripten.c" "$dir/libretro-common/libco/emscripten.c"
+              grep -q '__EMSCRIPTEN__' "$dir/libretro-common/libco/libco.c" || sed -i 's/^#elif defined __GNUC__$/#elif defined __EMSCRIPTEN__\n  #include "emscripten.c"\n#elif defined __GNUC__/' "$dir/libretro-common/libco/libco.c"
+              (cd "$dir" && emmake make platform=emscripten -j"$(nproc)" && rm -f kof-mupen64.a && find . -name '*.o' -print0 | xargs -0 emar rcs kof-mupen64.a) ;;   # a saída do Makefile já vem ligada: junta os .o
     fbneo)    (cd "$dir/src/burner/libretro" && make clean platform=emscripten SUBSET=neogeo >/dev/null && make generate-files platform=emscripten SUBSET=neogeo >/dev/null \
                 && emmake make -j"$(nproc)" platform=emscripten SUBSET=neogeo EXTERNAL_ZLIB=0) ;;   # generate-files: lista de drivers só do Neo Geo
   esac
@@ -78,7 +89,9 @@ construir() {
   # PlayStation: o CD (até 700 MB) vai do JS direto pro disco virtual (FS.writeFile sem cópia), sem passar pela memória do wasm
   local RT_EXTRA=""; [ "$nome" = pcsx ] && RT_EXTRA=",FS"
   local INC="-I$(dirname "$bc") -I$lc/include -I$lc -I$dir"
-  em++ -O3 -DNDEBUG -std=c++11 $INC -c "$AQUI/ponte.cpp" -o "$O/ponte.o"
+  # núcleo que desenha com OpenGL (N64): a ponte cria o WebGL2 e lê a imagem de volta (KOF_GL)
+  local GL_C="" GL_LD=""; [ "$nome" = mupen64 ] && GL_C="-DKOF_GL" && GL_LD="-s USE_WEBGL2=1 -s MIN_WEBGL_VERSION=2 -s FULL_ES2=1 -s INITIAL_MEMORY=268435456 -s ASYNCIFY=1 -s ASYNCIFY_STACK_SIZE=65536"
+  em++ -O3 -DNDEBUG -std=c++11 $GL_C $INC -c "$AQUI/ponte.cpp" -o "$O/ponte.o"
   # o .bc do emscripten vem sem o libretro-common (STATIC_LINKING): compila aqui o que existir na cópia do núcleo
   local i=0 f
   for f in compat/compat_posix_string compat/compat_strcasestr compat/compat_snprintf compat/compat_strl compat/fopen_utf8 \
@@ -89,7 +102,7 @@ construir() {
   done
   local F=_lr_alloc,_lr_init,_lr_load,_lr_info,_lr_unload,_lr_run,_lr_pad,_lr_fb,_lr_w,_lr_h,_lr_audio,_lr_audio_n,_lr_audio_total
   F=$F,_lr_audio_status,_lr_arquivo,_lr_apagar,_lr_var,_lr_canais,_lr_sonda,_lr_mudas,_lr_onda,_lr_onda_pos,_lr_onda_pos_c,_lr_reset,_lr_state_size,_lr_state_save,_lr_state_load,_lr_mem_ptr,_lr_mem_size,_malloc,_free
-  em++ -O3 ${EXTRA_LD:-} "$O"/*.o "$bc" -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=67108864 \
+  em++ -O3 ${EXTRA_LD:-} "$O"/*.o "$bc" -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=67108864 $GL_LD \
     -s MODULARIZE=1 -s EXPORT_NAME="Nucleo_$nome" -s ENVIRONMENT=web,node -s SINGLE_FILE=1 \
     -s EXPORTED_RUNTIME_METHODS=ccall,HEAPU8,HEAPF64,stringToUTF8,lengthBytesUTF8${RT_EXTRA:-} -s EXPORTED_FUNCTIONS=$F \
     -o "$AQUI/saida/$nome.js"
