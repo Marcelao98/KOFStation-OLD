@@ -34,6 +34,7 @@ if [ -f "$RAIZ/nucleo-libretro/saida/snes9x.js" ]; then
     # os núcleos vão junto e entram na lista do sw.js (o app guarda tudo pra abrir sem internet); o nome do cache muda a cada build
     rm -rf "$SAIDA/android" && mkdir -p "$SAIDA/android" && cp "$SAIDA/KOFnes-android.html" "$SAIDA/android/index.html" && cp "$AQUI/pwa/manifest.webmanifest" "$SAIDA/android/"
     cp -r "$SAIDA/nucleos" "$SAIDA/android/"
+    rm -f "$SAIDA/android/nucleos/"mupen64-*.js   # N64 no celular é nativo (APK); o html do celular não usa o de WebAssembly
     NUCS="$(cd "$SAIDA/android" && for f in nucleos/*.js; do printf ", '%s'" "$f"; done)"
     sed "s|^const CACHE = .*|const CACHE = 'kofnes-android-$KOFNES_BUILD';|; s|'icone-512.png'\]|'icone-512.png'$NUCS]|" "$AQUI/pwa/sw.js" > "$SAIDA/android/sw.js"
     python3 - "$T/icone.png" "$SAIDA/android" <<'PY'

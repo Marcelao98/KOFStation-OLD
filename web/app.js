@@ -1877,7 +1877,7 @@ async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
   // sistema pela extensão; jogo antigo da biblioteca guardado sem extensão é de SNES
   const sis = !/\.[a-z0-9]{2,4}$/i.test(nome) ? 'snes' : sistemaDoNome(nome);
   if (!sis) throw new Error('não conheço esse tipo de arquivo (' + SIS_ATIVOS.map((k) => SIS[k].ext.map((e) => '.' + e).join(' ')).join(' ') + ')');
-  if (bytes.length < SIS[sis].minimo) throw new Error('isso não parece uma ROM de ' + SIS[sis].nome);
+  if (bytes.length < SIS[sis].minimo && !(extras && extras.nativo)) throw new Error('isso não parece uma ROM de ' + SIS[sis].nome);   // nativo: os bytes são só uma marca
   if (SIS[sis].bios && typeof KofLibretro !== 'undefined') {
     await biosProntas;
     if (!KofLibretro.temBios(sis)) { pedirBios(sis, () => abrirBytes(nome, bytes, guardarNaBiblioteca, extras)); return; }
