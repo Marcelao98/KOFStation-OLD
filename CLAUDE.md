@@ -52,6 +52,11 @@
      versão vendida: trocar os núcleos só não comerciais (Snes9x, Genesis Plus GX, FBNeo) por Geolith (Neo Geo, BSD-3,
      tem libretro), Gearsystem/BlastEm ou ares (SMS/GG/MD) e o núcleo Kof (SNES, otimizar); pôr licença GPL-3 no projeto.
      Próximo se ele pedir: Geolith primeiro; depois app de TV (leanback, controle remoto, controle Bluetooth).
+     Também: **comércio com sala de espera** (barbearia, lava-jato, oficina): aluguel mensal da box; "modo comércio" (tela
+     travada só com os jogos liberados, volta pra tela de apresentação parada, logo/promoções da loja entre partidas) e o
+     **celular do cliente como controle por QR code, sem instalar nada** (precisa de uma página de controle no navegador,
+     servida pela própria box; hoje o controle exige o APK). Hardware barato combinado: TV box primeiro, depois Orange Pi
+     Zero 3 com versão nativa leve. Jogos em comércio: SÓ homebrew com autorização (exibição pública agrava).
 - **N64 e PS1 nativos ainda sem teste de jogo de verdade confirmado pelo Marcelo** (o PS1 voltou a abrir depois do
   conserto de 25/10; o N64 recebia "failed to read rom", corrigido na casca 7 entregando a ROM na memória).
 - Ambiente desta sessão (some no container novo): Kof4j em `/home/user/Kof4j`, núcleos compilados em
