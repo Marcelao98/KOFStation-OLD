@@ -1848,6 +1848,7 @@ async function abrirCdSolto(nome, bytes, soltos) {
 // a ROM de um jogo da biblioteca: do banco; o CD de PlayStation não fica no banco (até 700 MB): vem da pasta de ROMs
 async function bytesDoJogo(j) {
   if (typeof nativoJogo === 'function' && NATIVO[j.sistema]) return nativoJogo(j.sistema, j.arquivo, j);   // APK: PS1/N64 nativos
+  if (typeof ps2Jogo === 'function' && j.sistema === 'ps2') return ps2Jogo(j);   // PC: PS2 (ps2.js), o DVD vem da pasta de ROMs
   const rom = await bdPegar('roms', j.id);
   if (rom) return { bytes: rom };
   if (j.sistema === 'ps1') {
@@ -1876,6 +1877,7 @@ async function bytesDoJogo(j) {
 async function abrirArquivo(arq, soltos = []) {
   try {
     if (typeof nativoArquivo === 'function' && await nativoArquivo(arq)) return;   // APK: CD de PS1 e ROM de N64 vão pro núcleo nativo
+    if (typeof ps2Arquivo === 'function' && await ps2Arquivo(arq)) return;   // PC: DVD de PS2 (ps2.js)
     let nome = arq.name;
     // zip (pelo nome ou pelos primeiros bytes "PK") com CD de PlayStation: abre direto do arquivo, sem ler o zip inteiro
     const cab = arq.slice ? new Uint8Array(await arq.slice(0, 4).arrayBuffer()) : new Uint8Array(4);   // item de dentro de um zip não tem slice
@@ -1993,7 +1995,8 @@ function pedirBios(sis, abrir) {
 }
 async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
   // sistema pela extensão; jogo antigo da biblioteca guardado sem extensão é de SNES
-  const sis = !/\.[a-z0-9]{2,4}$/i.test(nome) ? 'snes' : sistemaDoNome(nome);
+  // fachada (nativos do celular, PS2): ela diz o console (o .iso do PS2 tem a extensão do PS1)
+  const sis = extras && extras.nativo ? extras.nativo.sistema : !/\.[a-z0-9]{2,4}$/i.test(nome) ? 'snes' : sistemaDoNome(nome);
   if (!sis) throw new Error('não conheço esse tipo de arquivo (' + SIS_ATIVOS.map((k) => SIS[k].ext.map((e) => '.' + e).join(' ')).join(' ') + ')');
   if (bytes.length < SIS[sis].minimo && !(extras && extras.nativo)) throw new Error('isso não parece uma ROM de ' + SIS[sis].nome);   // nativo: os bytes são só uma marca
   if (SIS[sis].bios && typeof KofLibretro !== 'undefined') {
@@ -2295,10 +2298,11 @@ function marcarAuto() {
 }
 async function salvarAuto() {
   if (!autoSalvar || !snes || !jogoId) return;
+  const id = jogoId;   // o estado do PS2 demora: o jogo pode trocar no meio
   try {
-    const texto = JSON.stringify(KofEstado.capturar(snes)), capa = foto(256);
+    const texto = JSON.stringify(await capturarEstado()), capa = foto(256);
+    if (id !== jogoId) return;
     const quandoAgora = Date.now();
-    const id = jogoId;
     await bdPor('autos', id, texto);
     await bdMudarJogo(id, (j) => j && Object.assign(j, { temAuto: true, autoQuando: quandoAgora, autoCapa: capa, capa, ultimo: quandoAgora }));
     autoAntes = Date.now();
@@ -2310,7 +2314,7 @@ setInterval(() => { if (snes && !pausado && Date.now() - autoAntes > (snes.nativ
 async function salvarEstado() {
   if (!snes) { avisar('abra um jogo primeiro'); return; }
   try {
-    const dados = await comprimir(JSON.stringify(KofEstado.capturar(snes)));
+    const dados = await comprimir(JSON.stringify(await capturarEstado()));
     await bdGuardar('estados', { jogo: jogoId, nome: romNome, quando: Date.now(), capa: foto(256), dados });
     atualizarCapa();
     const apagados = await limitarEstados(jogoId);
@@ -2336,13 +2340,16 @@ async function carregarEstado(est) {
     }
     const obj = JSON.parse(await descomprimir(est.dados)), outro = nucleoDoEstado(obj);
     if (outro) await abrirBytes(romArquivo, romAtual, false, { nucleoSnes: outro });   // estado do outro núcleo de SNES: reabre nele
-    KofEstado.restaurar(snes, obj);
+    await restaurarEstado(obj);
     snes.apu.dsp.outCount = 0; ini = fim = 0; sobra = 0; pausado = false; novoRebob();
     fecharJanelas();
     snes.runFrame(); snes.apu.dsp.outCount = 0; desenhar();
     avisar('estado de ' + quando(est.quando) + ' carregado');
   } catch (e) { avisar('não consegui carregar: ' + e.message, 4000); }
 }
+// o PS2 (ps2.js) salva e carrega o estado na thread dele: os outros núcleos respondem na hora
+const capturarEstado = () => (snes.estadoAsync ? snes.estadoAsync() : KofEstado.capturar(snes));
+const restaurarEstado = (obj) => (snes.restaurarAsync ? snes.restaurarAsync(obj) : KofEstado.restaurar(snes, obj));
 async function continuar(j) {
   const { bytes, extras } = await bytesDoJogo(j);
   const auto = j.temAuto ? await bdPegar('autos', j.id) : null;
@@ -2350,7 +2357,7 @@ async function continuar(j) {
   if (!auto) return;
   const obj = JSON.parse(auto), outro = nucleoDoEstado(obj);
   if (outro) await abrirBytes(j.arquivo || j.nome, bytes, false, Object.assign({}, extras, { nucleoSnes: outro }));   // continuar de um estado do outro núcleo
-  KofEstado.restaurar(snes, obj);
+  await restaurarEstado(obj);
   snes.apu.dsp.outCount = 0; ini = fim = 0; sobra = 0; novoRebob();
   snes.runFrame(); snes.apu.dsp.outCount = 0; desenhar();
   avisar('continuando de ' + quando(j.autoQuando));

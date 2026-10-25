@@ -27,8 +27,8 @@ pasta_nucleos = pathlib.Path(sys.argv[5]) if len(sys.argv) > 5 else None
 pc = len(sys.argv) > 6 and sys.argv[6] == "pc"
 android = pasta_nucleos if pasta_nucleos and not pc else None
 somfm = (pasta_nucleos or web.parent / "nucleo-libretro" / "saida") / "som" / "somfm.js"
-# PC sem o Snes9x (o SNES do PC é o núcleo Kof); celular sem o N64 em WebAssembly (o APK usa o nativo, android/nativo)
-nucleos = [f for f in sorted(pasta_nucleos.glob("*.js")) if not (not pc and f.stem == "mupen64")] if pasta_nucleos else []
+# celular sem o N64 em WebAssembly (o APK usa o nativo, android/nativo) e sem o PS2 (Play!: threads, pesado demais)
+nucleos = [f for f in sorted(pasta_nucleos.glob("*.js")) if not (not pc and f.stem in ("mupen64", "play"))] if pasta_nucleos else []
 
 
 def separar_nucleos():
@@ -113,6 +113,9 @@ app_js = (web / "app.js").read_text()
 if android:   # o app.js é uma função só ((() => {...})()): o código do celular entra por dentro, antes do fecha-parênteses final
     fim = app_js.rstrip().rfind("})();")
     app_js = app_js[:fim] + "\n" + (web / "android.js").read_text() + "\n" + app_js[fim:]
+elif any(f.stem == "play" for f in nucleos):   # PC com o PS2: a fachada do Play! entra por dentro do app.js do mesmo jeito
+    fim = app_js.rstrip().rfind("})();")
+    app_js = app_js[:fim] + "\n" + (web / "ps2.js").read_text() + "\n" + app_js[fim:]
 partes = {
     "{{CSS}}": (web / "estilo.css").read_text() + ((web / "android.css").read_text() if android else ""),
     "{{NUCLEO}}": script,
