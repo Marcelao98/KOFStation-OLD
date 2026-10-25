@@ -51,11 +51,20 @@ def separar_nucleos():
     # parte com nome por hash, baixado pelo lançador e levado no APK/PWA; o html só carrega quando vai tocar o Air
     violino = web / "musicas" / "air-violino.opus"
     if violino.exists():
-        import base64
         dados = ("var KofViolino = '" + base64.b64encode(violino.read_bytes()).decode() + "';\n").encode()
         nome = f"violino-{hashlib.sha256(dados).hexdigest()[:8]}.js"
         (pasta / nome).write_bytes(dados)
         lista["violino"] = "nucleos/" + nome
+        linhas.append(f"{nome}:{len(dados)}\n")
+        print(f"  nucleos/{nome}: {len(dados) // 1024} KB")
+    # a base de jogos da busca (gênero, empresa, ano...: web/jogos/montar.py) vai do mesmo jeito; o app só carrega quando
+    # abre a biblioteca
+    base = web / "jogos" / "jogos.json.gz"
+    if base.exists():
+        dados = ("var KofJogosDb = '" + base64.b64encode(base.read_bytes()).decode() + "';\n").encode()
+        nome = f"jogos-{hashlib.sha256(dados).hexdigest()[:8]}.js"
+        (pasta / nome).write_bytes(dados)
+        lista["jogos"] = "nucleos/" + nome
         linhas.append(f"{nome}:{len(dados)}\n")
         print(f"  nucleos/{nome}: {len(dados) // 1024} KB")
     if os.environ.get("KOFNES_LISTA"):
@@ -116,6 +125,7 @@ partes = {
         + (somfm.read_text() + "\n" + (web / "somfm.js").read_text() + "\n" if somfm.exists() else "")
         + ((web / "neogeo-jogos.js").read_text() + "\n" if nucleos else "")   # lista dos jogos de Neo Geo (reconhecer o zip)
         + ((web / "nucleo.js").read_text().replace("/*{{NUCLEOS}}*/ {}", separar_nucleos()) + "\n" if nucleos else "")   # depois do estado.js: ele troca o savestate pelo do núcleo libretro
+        + (web / "jogos.js").read_text() + "\n"   # a busca por gênero/empresa/ano (a base vem em nucleos/jogos-<hash>.js)
         + app_js
     ),
     "{{ICONE}}": "data:image/png;base64," + base64.b64encode(icone.read_bytes()).decode(),

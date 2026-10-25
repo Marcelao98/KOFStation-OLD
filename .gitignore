@@ -6,3 +6,5 @@
 build/
 dist/
 hs_err_pid*.log
+web/jogos/.rdb/
+__pycache__/

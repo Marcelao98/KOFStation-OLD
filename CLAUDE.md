@@ -262,6 +262,20 @@ app/, empacotar/, nativo/  versões antigas: Java (instalador) e nativa Linux s�
 > `kofnes.sh` (**LANCADOR=3**, mesma coisa). Testado no Wine e no sh com servidor local. README e prints refeitos SÓ com
 > conteúdo livre (PeterLemon Mode7 Perspective/RotZoom, Cube do PS1, Trilha): jogo ou capa comercial NÃO entra em print.
 > Script dos prints: refazer com Playwright (KOFnes.mudarTema/aplicarFiltro/mudarMoldura + juntar com PIL).
+> **Busca com base de jogos (branch `busca`, 25/10, não publicada):** `web/jogos/montar.py` lê os `rdb/*.rdb` do
+> libretro-database (`web/jogos/rdb.py` = leitor de MessagePack; .rdb baixados em `web/jogos/.rdb/`, fora do git) e grava
+> `web/jogos/jogos.json.gz` (~600 KB, versões/regiões juntadas pelo título sem parênteses e com o artigo na frente, gêneros
+> traduzidos em ~25 (`GENERO`), jogos sem informação fora; PS1 junta por código do disco; Neo Geo pelo set pai, sem gênero
+> na base). Licença **CC BY-SA 4.0** (crédito no Guia e em `web/jogos/LEIA-ME.md`). O juntar.py transforma em
+> `nucleos/jogos-<hash>.js` (`KofJogosDb`, gzip em base64; entra na lista `nucleo=`, APK/PWA levam). `web/jogos.js`
+> (`KofJogos.carregar/info/crcRom`): acha pelo CRC32 (No-Intro: sem cabeçalho 512/iNES; o `abrirBytes` grava `crc` no
+> registro e `preencherCrcs` completa os antigos 1x por sessão), pelo título ou pelo set do Neo Geo; zip sem console procura
+> em todos. Biblioteca: `metaDe`/`r.busca` (texto livre acha gênero, empresa, série, ano, console), `campo:valor`
+> (`CAMPOS`), fileira `#bib-filtros` (FACETAS: Console, Gênero, Empresa, Década, Jogadores, Série; `#bib-pop` com contagem
+> e caixinha de procurar; ✕ tira), ordenar (`ORDENS`, `kofnes.bibOrdem`), `#info-meta` com botõezinhos que filtram.
+> Teste: `testes/navegador/busca.cjs <html> [prints]`. Pacote de teste SEM o exe (o lançador apaga núcleo fora da lista do
+> main). Montar html sem Kof/emscripten: pegar o núcleo Kof e o somfm de `publicado/KOFstation.html` e os núcleos de
+> `publicado/nucleos/` e rodar o juntar.py (o hash dos núcleos sai igual ao publicado).
 ## Pendências (atualizado 17/10; ver a nota de 20/10 logo abaixo)
 
 > **20/10:** conferido no git: as branches `temas-menu` (126 temas, busca, categorias, Café) e `atualizador-wininet` (aviso

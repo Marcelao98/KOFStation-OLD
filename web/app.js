@@ -1906,6 +1906,7 @@ async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
   // a ROM vai pra biblioteca: da próxima vez abre sem diálogo nenhum
   try {
     const novo = { id: jogoId, nome: romNome, arquivo: nome, sistema: sis, titulo: s.cart.title.trim(), tamanho: bytes.length, ultimo: Date.now() };
+    if (!SIS[sis].grande && sis !== 'neogeo' && typeof KofJogos !== 'undefined') novo.crc = KofJogos.crcRom(sis, bytes);
     const id = jogoId;
     await bdMudarJogo(id, (antigo) => ({ ...(antigo || {}), ...novo }));
     if (!SIS[sis].grande && (guardarNaBiblioteca || !(await bdTem('roms', id)))) await bdPor('roms', id, bytes);   // CD de PS1 não vai pro banco
@@ -2311,14 +2312,69 @@ const olhoCapas = 'IntersectionObserver' in window ? new IntersectionObserver((e
 // tudo de uma vez travava a janela; rolar ou andar com as setas carrega mais
 const LOTE = 150;
 let escondidas = 0;
+// ---------------- busca: nome, gênero, empresa, ano (a base de jogos vem do jogos.js) ----------------
+// cada item ganha r.meta (o que a base sabe do jogo, ou null) e r.busca (o texto onde as palavras são procuradas: nome,
+// console, gênero, empresas, série e ano). Os filtros são uma fileira de botões; cada um abre a lista com a contagem.
+const ehZip = (r) => !r.jogo && /\.zip$/i.test(r.arquivo || '');
+const sisDe = (r) => (ehZip(r) && r.meta ? r.meta.sistema : sistemaDoItem(r));   // zip: o console vem da base
+function metaDe(r) {
+  if (r.meta !== undefined) return r.meta;
+  if (typeof KofJogos === 'undefined' || !KofJogos.pronta()) return null;
+  const m = r.meta = KofJogos.info(ehZip(r) ? null : sistemaDoItem(r), r.jogo ? r.jogo.nome || r.nome : r.nome, r.jogo && r.jogo.crc);
+  const S = SIS[sisDe(r)];
+  r.busca = (r.chave || '') + ' ' + normal((S ? S.nome + ' ' + S.curto + ' ' : '') + (m ? [m.titulo, m.generos.join(' '), m.publicou, m.desenvolveu, m.serie, m.ano || ''].join(' ') : ''));
+  return m;
+}
+const decada = (a) => String(Math.floor(a / 10) * 10);
+const JOGADORES = { 1: 'só 1 jogador', 2: '2 ou mais jogadores', 4: '4 ou mais jogadores' };
+// [id, nome do botão, valores do item, rótulo de um valor]
+const FACETAS = [
+  ['sis', 'Console', (r) => [sisDe(r)], (v) => (SIS[v] ? SIS[v].nome : v)],
+  ['genero', 'Gênero', (r) => (r.meta ? r.meta.generos : [])],
+  ['empresa', 'Empresa', (r) => (r.meta ? [...new Set([r.meta.publicou, r.meta.desenvolveu].filter(Boolean))] : [])],
+  ['decada', 'Década', (r) => (r.meta && r.meta.ano ? [decada(r.meta.ano)] : []), (v) => 'anos ' + (v < 2000 ? v.slice(2) : v)],
+  ['jogadores', 'Jogadores', (r) => { const n = r.meta ? r.meta.jogadores : 0; return n ? [n === 1 && '1', n >= 2 && '2', n >= 4 && '4'].filter(Boolean) : []; }, (v) => JOGADORES[v]],
+  ['serie', 'Série', (r) => (r.meta && r.meta.serie ? [r.meta.serie] : [])],
+];
+const ORDENS = [['padrao', 'Recentes primeiro'], ['nome', 'Nome'], ['ano', 'Ano'], ['tempo', 'Mais jogados']];
+let filtros = {}, ordem = ORDENS.some(([k]) => k === ler('bibOrdem')) ? ler('bibOrdem') : 'padrao', popId = null;
+const colar = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true }).compare;
+// "empresa:capcom ano:1994 luta": campo:valor filtra só naquele campo (empresa:square_enix pra nome com espaço)
+const CAMPOS = { ano: 'ano', empresa: 'empresa', genero: 'genero', console: 'sis', sistema: 'sis', serie: 'serie', jogadores: 'jogadores' };
+function consulta() {
+  const livres = [], campos = [];
+  for (const p of $('#filtro').value.split(/\s+/).filter(Boolean)) {
+    const m = p.match(/^([^:]+):(.+)$/), c = m && CAMPOS[normal(m[1])];
+    if (c) campos.push([c, normal(m[2])]); else livres.push(...normal(p).split(' ').filter(Boolean));
+  }
+  return { livres, campos };
+}
+function passa(r, q, ignorar) {
+  const m = metaDe(r), txt = r.busca || r.chave || '';
+  if (!q.livres.every((w) => txt.includes(w))) return false;
+  for (const [c, v] of q.campos) {
+    if (c === 'ano') { if (!m || !String(m.ano).startsWith(v)) return false; continue; }
+    if (c === 'sis') { const S = SIS[sisDe(r)]; if (!S || !normal(S.nome + ' ' + S.curto).includes(v)) return false; continue; }
+    if (!FACETAS.find(([id]) => id === c)[2](r).some((x) => normal(x).includes(v))) return false;
+  }
+  for (const [id, , valores] of FACETAS) if (id !== ignorar && filtros[id] && !valores(r).includes(filtros[id])) return false;
+  return true;
+}
+function ordenar(l) {
+  if (ordem === 'padrao') return;
+  const t = (r) => (r.jogo && estat[r.jogo.id] && estat[r.jogo.id].tempo) || 0;
+  const k = { nome: () => 0, ano: (r) => (r.meta && r.meta.ano) || 9999, tempo: (r) => -t(r) }[ordem];
+  l.sort((a, b) => k(a) - k(b) || colar(a.nome || '', b.nome || ''));
+}
 function montarLista() {
-  const ul = $('#roms'), palavras = normal($('#filtro').value).split(' ').filter(Boolean);
+  const ul = $('#roms'), q = consulta();
   escondidas = 0;
   visiveis = itens.filter((r) => {
-    if (!palavras.every((w) => (r.chave || '').includes(w))) return false;
+    if (!passa(r, q)) return false;
     if (soPrincipais && r.variante) { escondidas++; return false; }
     return true;
   });
+  ordenar(visiveis);
   selecionada = Math.max(0, Math.min(selecionada, visiveis.length - 1));
   if (olhoCapas) olhoCapas.disconnect();
   ul.innerHTML = ''; lis = [];
@@ -2327,15 +2383,126 @@ function montarLista() {
   $('#lista-vazia').innerHTML = temPasta
     ? 'Nenhum jogo ainda. Escolha a <b>pasta de ROMs</b> (só uma vez) ou arraste uma ROM pra cá.'
     : (CELULAR ? 'Nenhum jogo ainda. Volte ao <b>Início</b> e toque em <b>Abrir uma ROM</b>.' : 'Nenhum jogo ainda. Arraste uma ROM pra cá ou use <b>Adicionar arquivo</b>.');
+  marcarFiltros();
   marcarSel(selecionada);
+}
+function marcarFiltros() {
+  const box = $('#bib-filtros');
+  box.hidden = typeof KofJogos === 'undefined' || !KofJogos.pronta() || !itens.length;
+  if (box.hidden) return;
+  box.innerHTML = '';
+  const chip = (id, texto, ativo) => { const b = document.createElement('button'); b.className = 'chip' + (ativo ? ' ativo' : ''); b.dataset.faceta = id; b.textContent = texto; box.appendChild(b); };
+  for (const [id, nome, , rot] of FACETAS) {
+    if (id === 'sis' && SIS_ATIVOS.length < 2) continue;
+    const v = filtros[id];
+    chip(id, v ? `${nome}: ${rot ? rot(v) : v} ✕` : nome + ' ▾', !!v);
+  }
+  chip('ordem', '↕ ' + ORDENS.find(([k]) => k === ordem)[1], ordem !== 'padrao');
+}
+function abrirPop(id, ancora) {
+  const pop = $('#bib-pop');
+  let opcoes;
+  if (id === 'ordem') opcoes = ORDENS.map(([k, t]) => [k, t, 0]);
+  else {   // contagem com os outros filtros e a busca valendo (só este filtro fica de fora)
+    const f = FACETAS.find(([k]) => k === id), q = consulta(), n = new Map();
+    for (const r of itens) {
+      if ((soPrincipais && r.variante) || !passa(r, q, id)) continue;
+      for (const v of f[2](r)) n.set(v, (n.get(v) || 0) + 1);
+    }
+    opcoes = [...n].map(([v, c]) => [v, f[3] ? f[3](v) : v, c]);
+    opcoes.sort(id === 'decada' || id === 'jogadores' ? (a, b) => colar(a[0], b[0]) : (a, b) => b[2] - a[2] || colar(a[1], b[1]));
+    opcoes.unshift(['', 'Todos', 0]);
+  }
+  popId = id;
+  pop.innerHTML = '<input class="pop-busca" placeholder="procurar…" autocomplete="off" spellcheck="false"><div class="pop-lista"></div>';
+  const busca = pop.firstChild, lista = pop.lastChild;
+  busca.hidden = opcoes.length <= 12;
+  const desenhar = () => {
+    const w = normal(busca.value);
+    lista.innerHTML = '';
+    const atual = id === 'ordem' ? ordem : filtros[id] || '';
+    for (const [v, t, c] of opcoes.filter(([v, t]) => !w || !v || normal(t).includes(w)).slice(0, 200)) {
+      const b = document.createElement('button');
+      b.className = v === atual ? 'ativo' : ''; b.dataset.v = v;
+      b.innerHTML = '<span></span>' + (c ? `<small>${c.toLocaleString('pt-BR')}</small>` : '');
+      b.firstChild.textContent = t;
+      lista.appendChild(b);
+    }
+    if (!lista.children.length) lista.innerHTML = '<p class="dica">nada com esse nome</p>';
+  };
+  busca.oninput = desenhar;
+  busca.onkeydown = (e) => { if (e.code === 'Enter') { const b = lista.querySelector('button[data-v]:not([data-v=""])') || lista.querySelector('button'); if (b) b.click(); } };
+  desenhar();
+  pop.style.left = Math.min(ancora.offsetLeft, pop.parentElement.clientWidth - 260) + 'px';
+  pop.style.top = (ancora.offsetTop + ancora.offsetHeight + 4) + 'px';
+  pop.hidden = false;
+  (busca.hidden ? lista.querySelector('.ativo') || lista.querySelector('button') : busca).focus();
+}
+function fecharPop() { if (!popId) return; $('#bib-pop').hidden = true; popId = null; }
+$('#bib-pop').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-v]'); if (!b) return;
+  if (popId === 'ordem') { ordem = b.dataset.v; guardar('bibOrdem', ordem); } else filtros[popId] = b.dataset.v;
+  fecharPop(); selecionada = 0; montarLista(); $('#filtro').focus();
+});
+$('#bib-filtros').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-faceta]'); if (!b) return;
+  const id = b.dataset.faceta;
+  if (id !== 'ordem' && filtros[id]) { filtros[id] = ''; selecionada = 0; montarLista(); return; }   // o ✕ tira o filtro
+  if (popId === id) fecharPop(); else abrirPop(id, b);
+});
+document.addEventListener('pointerdown', (e) => { if (popId && !e.target.closest('#bib-pop, #bib-filtros')) fecharPop(); });
+function popTecla(e) {
+  if (e.code === 'Escape') { e.preventDefault(); fecharPop(); $('#filtro').focus(); return; }
+  if (e.code === 'ArrowDown' || e.code === 'ArrowUp') {
+    e.preventDefault();
+    const bs = [...$('#bib-pop').querySelectorAll('button')], i = bs.indexOf(document.activeElement);
+    const j = i < 0 ? 0 : Math.max(0, Math.min(bs.length - 1, i + (e.code === 'ArrowDown' ? 1 : -1)));
+    if (bs[j]) { bs[j].focus(); bs[j].scrollIntoView({ block: 'nearest' }); }
+  }
+}
+// o que a base sabe do jogo selecionado, em botõezinhos: tocar num deles filtra a lista por ele
+function mostrarMeta(r) {
+  const p = $('#info-meta'), m = r && metaDe(r);
+  p.hidden = !m; p.innerHTML = '';
+  if (!m) return;
+  const add = (id, v, txt) => {
+    const b = document.createElement('button'); b.className = 'chip'; b.textContent = txt || v; b.title = 'mostrar só esses';
+    b.onclick = () => { filtros[id] = v; selecionada = 0; montarLista(); }; p.appendChild(b);
+  };
+  m.generos.forEach((g) => add('genero', g));
+  if (m.ano) add('decada', decada(m.ano), String(m.ano));
+  [...new Set([m.publicou, m.desenvolveu].filter(Boolean))].forEach((e) => add('empresa', e));
+  if (m.serie) add('serie', m.serie, 'série ' + m.serie);
+  if (m.jogadores > 1) add('jogadores', m.jogadores >= 4 ? '4' : '2', m.jogadores + ' jogadores');
+}
+// jogos da biblioteca de antes da busca: o CRC da ROM acha o jogo mesmo quando o nome do arquivo é outro (1x por sessão)
+let crcsFeitos = false;
+async function preencherCrcs() {
+  if (crcsFeitos) return;
+  crcsFeitos = true;
+  let achou = 0;
+  for (const r of jogosItens.slice()) {
+    const j = r.jogo, sis = sistemaDoItem(r);
+    if (j.crc || !SIS[sis] || SIS[sis].grande || sis === 'neogeo' || metaDe(r)) continue;
+    try {
+      const b = await bdPegar('roms', j.id);
+      if (!b) continue;
+      const crc = KofJogos.crcRom(sis, b);
+      await bdMudarJogo(j.id, (a) => ({ ...(a || {}), crc }));
+      j.crc = crc; r.meta = undefined;
+      if (metaDe(r)) achou++;
+    } catch (e) { /* sem banco: fica pelo nome */ }
+    await new Promise((ok) => setTimeout(ok, 20));
+  }
+  if (achou && !$('#biblioteca').hidden) montarLista();
 }
 function contarBib() {
   if (lendoPasta) return;
   const n = visiveis.length, t = itens.length;
-  let s = palavras().length ? `${n.toLocaleString('pt-BR')} ${n === 1 ? 'jogo achado' : 'jogos achados'}` : `${t.toLocaleString('pt-BR')} jogos`;
+  let s = palavras().length || Object.values(filtros).some(Boolean) ? `${n.toLocaleString('pt-BR')} ${n === 1 ? 'jogo achado' : 'jogos achados'}` : `${t.toLocaleString('pt-BR')} jogos`;
   if (escondidas) s += ` · ${escondidas.toLocaleString('pt-BR')} hacks/cópias ruins escondidos`;
   if (lis.length < n) s += ` · mostrando ${lis.length.toLocaleString('pt-BR')}, role pra ver mais`;
-  estadoBib(t > 30 || escondidas ? s : '');
+  estadoBib(t > 30 || escondidas || n < t ? s : '');
 }
 const palavras = () => normal($('#filtro').value).split(' ').filter(Boolean);
 function adicionarLis(ate) {
@@ -2351,7 +2518,7 @@ function adicionarLis(ate) {
       li.appendChild(fig);
     }
     const nm = document.createElement('span'); nm.textContent = r.nome; li.appendChild(nm);
-    const sis = SIS_ATIVOS.length > 1 && sistemaDoItem(r);
+    const sis = SIS_ATIVOS.length > 1 && sisDe(r);
     if (sis && sis !== 'snes') { const tag = document.createElement('small'); tag.className = 'sis-tag'; tag.textContent = SIS[sis].curto; li.appendChild(tag); }
     if (r.jogo && r.jogo.traducao) { const tag = document.createElement('small'); tag.className = 'sis-tag'; tag.textContent = '🇧🇷'; tag.title = 'traduzido: ' + r.jogo.traducao; li.appendChild(tag); }
     const sm = document.createElement('small');
@@ -2377,6 +2544,7 @@ function marcarSel(i) {
 }
 function mostrarInfo() {
   const r = visiveis[selecionada], img = $('#capa-img');
+  mostrarMeta(r);
   if (!r) { $('#info-nome').textContent = 'KOFstation'; $('#info-det').textContent = 'Super Nintendo, NES, Game Boy, GBA, Sega, Neo Geo e PlayStation'; img.hidden = true; $('#capa-vazia').hidden = false; return; }
   $('#info-nome').textContent = r.nome;
   if (r.jogo) {
@@ -2408,6 +2576,7 @@ async function abrirJogo(r, doZero) {
   } catch (e) { avisar(e.message, 4000); }
 }
 function listaTecla(e) {
+  if (popId) { popTecla(e); return true; }
   if (e.code === 'Escape') { sairDaTela(); return true; }
   const passo = { ArrowDown: colunas(), ArrowUp: -colunas(), ArrowRight: sofa ? 1 : 0, ArrowLeft: sofa ? -1 : 0 }[e.code];
   if (passo) {
@@ -2423,10 +2592,18 @@ $('#filtro').addEventListener('input', () => { clearTimeout(filtroT); filtroT = 
 async function mostrarBiblioteca(pedir, relerPasta) {
   fecharJanelas(); $('#biblioteca').hidden = false;
   await montarItens();
-  $('#filtro').value = '';
+  $('#filtro').value = ''; filtros = {}; fecharPop();
   const k = itens.findIndex((r) => r.jogo && r.jogo.id === jogoId);   // o jogo atual vem selecionado
   selecionada = k >= 0 ? k : 0;
   montarLista();
+  if (typeof KofJogos !== 'undefined' && !KofJogos.pronta()) KofJogos.carregar().then((ok) => {
+    if (!ok || $('#biblioteca').hidden) return;
+    const antes = visiveis[selecionada];
+    montarLista();
+    if (antes) { const j = visiveis.indexOf(antes); if (j >= 0) marcarSel(j); }
+    preencherCrcs();
+  });
+  else if (typeof KofJogos !== 'undefined') preencherCrcs();
   if (!pastaCache || relerPasta) {
     await lerPasta(pedir, relerPasta);
     const antes = visiveis[selecionada];
@@ -2696,6 +2873,7 @@ const DICAS_PC = [
   'O filtro <b>TV de tubo (CRT)</b> com proporção <b>4:3</b> é o mais perto da sua TV de antigamente.',
   'Na Jukebox, clique numa das 8 vozes pra silenciar e ouvir só o baixo ou a percussão.',
   'Na biblioteca, "mario super" acha "Super Mario World": a busca aceita as palavras em qualquer ordem.',
+  'Na biblioteca, digite <b>rpg</b>, <b>capcom</b> ou <b>1994</b>: a busca entende gênero, empresa e ano. Os botões embaixo da busca filtram.',
   'O <b>🛋 modo sofá</b> transforma a biblioteca numa grade de capas pra jogar de longe, com o controle.',
   '<b>Alt+←</b> (ou o ← do menu da esquerda) volta pra tela anterior.',
 ];
