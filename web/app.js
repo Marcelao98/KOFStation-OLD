@@ -1758,7 +1758,7 @@ async function abrirCdSolto(nome, bytes, soltos) {
 }
 // a ROM de um jogo da biblioteca: do banco; o CD de PlayStation não fica no banco (até 700 MB): vem da pasta de ROMs
 async function bytesDoJogo(j) {
-  if (typeof nativoJogo === 'function' && NATIVO[j.sistema]) return nativoJogo(j.sistema, j.arquivo);   // APK: PS1/N64 nativos
+  if (typeof nativoJogo === 'function' && NATIVO[j.sistema]) return nativoJogo(j.sistema, j.arquivo, j);   // APK: PS1/N64 nativos
   const rom = await bdPegar('roms', j.id);
   if (rom) return { bytes: rom };
   if (j.sistema === 'ps1') {
@@ -2149,7 +2149,9 @@ $('#estados-jogo').addEventListener('change', (e) => mostrarEstados(e.target.val
 // ---------------- biblioteca (estilo ZSNES) ----------------
 // jogos já abertos (guardados aqui dentro) + os da pasta de ROMs escolhida
 // uma vez; tudo dentro da janela, sem diálogo do Windows
-const temPasta = 'showDirectoryPicker' in window;
+// APK: a pasta vem pelo seletor de pasta do Android (Pasta.java; listarPastaApk/escolherPastaApk no android.js)
+const pastaApk = !!(window.KOFnesApk && KOFnesApk.pastaEscolher);
+const temPasta = 'showDirectoryPicker' in window || pastaApk;
 let pasta = null, itens = [], visiveis = [], selecionada = 0, contagem = {};
 // A pasta de ROMs pode ter milhares de arquivos: é lida UMA vez por sessão, em
 // segundo plano (a biblioteca abre na hora com o que já tem e completa depois).
@@ -2174,13 +2176,21 @@ function lerPasta(pedir, forcar) {
   if (lendoPasta) return lendoPasta;
   lendoPasta = (async () => {
     try {
-      if (!pasta) pasta = await bdPegar('c', 'pasta');
-      if (!pasta) return [];
-      let p = await pasta.queryPermission({ mode: 'read' });
-      if (p !== 'granted' && pedir) p = await pasta.requestPermission({ mode: 'read' });
-      if (p !== 'granted') return [];
-      estadoBib('📁 lendo a pasta de ROMs…');
-      const l = []; await varrer(pasta, 0, l);
+      await null;   // sem isso, um retorno antes do 1º await rodava o finally antes de lendoPasta receber a promessa (e ela ficava presa)
+      let l = [];
+      if (pastaApk) {
+        if (!KOFnesApk.pastaNome()) return [];
+        estadoBib('📁 lendo a pasta de ROMs…');
+        l = await listarPastaApk();
+      } else {
+        if (!pasta) pasta = await bdPegar('c', 'pasta');
+        if (!pasta) return [];
+        let p = await pasta.queryPermission({ mode: 'read' });
+        if (p !== 'granted' && pedir) p = await pasta.requestPermission({ mode: 'read' });
+        if (p !== 'granted') return [];
+        estadoBib('📁 lendo a pasta de ROMs…');
+        await varrer(pasta, 0, l);
+      }
       l.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
       // PlayStation: os .bin de um .cue ("Jogo (Track 1).bin" do "Jogo.cue") são faixas do CD, não jogos de Mega Drive
       const cues = l.filter((r) => /\.cue$/i.test(r.nome)).map((r) => r.nome.replace(/\.cue$/i, '').toLowerCase());
@@ -2403,12 +2413,15 @@ function montarLista() {
     return true;
   });
   ordenar(visiveis);
+  $('#biblioteca').classList.remove('ficha');
   selecionada = Math.max(0, Math.min(selecionada, visiveis.length - 1));
   if (olhoCapas) olhoCapas.disconnect();
   ul.innerHTML = ''; lis = [];
   adicionarLis(Math.max(LOTE, selecionada + 30));
   $('#lista-vazia').hidden = itens.length > 0;
-  $('#lista-vazia').innerHTML = temPasta
+  $('#lista-vazia').innerHTML = pastaApk
+    ? 'Nenhum jogo ainda. Toque em <b>📁 Escolher pasta de ROMs</b> (só uma vez: ele lê a pasta e as subpastas) ou em <b>＋ Adicionar arquivo</b>.'
+    : temPasta
     ? 'Nenhum jogo ainda. Escolha a <b>pasta de ROMs</b> (só uma vez) ou arraste uma ROM pra cá.'
     : (CELULAR ? 'Nenhum jogo ainda. Volte ao <b>Início</b> e toque em <b>Abrir uma ROM</b>.' : 'Nenhum jogo ainda. Arraste uma ROM pra cá ou use <b>Adicionar arquivo</b>.');
   marcarFiltros();
@@ -2538,21 +2551,32 @@ function adicionarLis(ate) {
   for (let i = lis.length; i < Math.min(ate, visiveis.length); i++) {
     const r = visiveis[i];
     const li = document.createElement('li'); li.dataset.i = i;
-    if (sofa) {
+    if (sofa || CELULAR) {   // no celular cada jogo tem a capinha (como no sofá, mas em lista)
       const src = srcCapa(r), fig = document.createElement('div'); fig.className = 'mini';
       anotarSisCapa(r);
       if (olhoCapas) olhoCapas.observe(li); else capaPorNome(r.nome).catch(() => {});
-      if (src) { const im = document.createElement('img'); im.src = src; im.alt = ''; im.loading = 'lazy'; fig.appendChild(im); } else fig.textContent = '☕';
+      if (src) { const im = document.createElement('img'); im.src = src; im.alt = ''; im.loading = 'lazy'; fig.appendChild(im); } else fig.textContent = CELULAR ? (SIS[sisDe(r)] || SIS.snes).curto : '☕';
       li.appendChild(fig);
     }
     const nm = document.createElement('span'); nm.textContent = r.nome; li.appendChild(nm);
+    if (CELULAR) {   // embaixo do nome: gênero · ano · empresa (ou o console, se a base não conhece o jogo)
+      const m = metaDe(r), sub = document.createElement('small'); sub.className = 'li-sub';
+      sub.textContent = m ? [m.generos[0], m.ano, m.publicou || m.desenvolveu].filter(Boolean).join(' · ') : (SIS[sisDe(r)] || SIS.snes).nome;
+      li.appendChild(sub);
+    }
     const sis = SIS_ATIVOS.length > 1 && sisDe(r);
     if (sis && sis !== 'snes') { const tag = document.createElement('small'); tag.className = 'sis-tag'; tag.textContent = SIS[sis].curto; li.appendChild(tag); }
     if (r.jogo && r.jogo.traducao) { const tag = document.createElement('small'); tag.className = 'sis-tag'; tag.textContent = '🇧🇷'; tag.title = 'traduzido: ' + r.jogo.traducao; li.appendChild(tag); }
     const sm = document.createElement('small');
     sm.textContent = r.jogo ? (contagem[r.jogo.id] ? '💾 ' + contagem[r.jogo.id] : '★') : r.ext;
+    sm.className = 'li-ext';
     li.appendChild(sm);
-    li.onclick = () => { if (selecionada === i) jogar(); else marcarSel(i); };
+    // celular: o 1º toque abre a ficha do jogo (sobe de baixo, com capa, informações e Jogar); tocar de novo joga
+    li.onclick = () => {
+      const bib = $('#biblioteca');
+      if (selecionada === i && (!CELULAR || bib.classList.contains('ficha'))) jogar();
+      else { marcarSel(i); if (CELULAR) bib.classList.add('ficha'); }
+    };
     lis.push(li); frag.appendChild(li);
   }
   ul.appendChild(frag);
@@ -3013,6 +3037,8 @@ new MutationObserver(() => {
 // Esc: fecha a tela e volta ao jogo (sem jogo, vai pro Início); já o Voltar anda pelo histórico de telas
 function sairDaTela() { if (snes) fecharJanelas(); else if (telaAtual() !== 'home') abrirHome(); }
 async function voltar() {
+  if (popId) { fecharPop(); return; }   // biblioteca: o Voltar fecha primeiro a lista de um filtro e a ficha do jogo
+  if (!$('#biblioteca').hidden && $('#biblioteca').classList.contains('ficha')) { $('#biblioteca').classList.remove('ficha'); return; }
   let alvo;
   if (telaAtual() === 'jogo') alvo = 'home';
   else {   // o jogo só entra quando não sobra tela anterior (senão o Voltar ficava indo e vindo do jogo)
@@ -3311,6 +3337,7 @@ async function acao(a) {
     case 'bios-fechar': biosEsperando = null; $('#bios-tela').hidden = true; break;
     case 'pasta':
       if (!temPasta) { avisar('este navegador não deixa escolher pasta; use Adicionar arquivo', 4000); break; }
+      if (pastaApk) { if (await escolherPastaApk()) { pastaCache = null; await mostrarBiblioteca(true, true); } break; }
       try { pasta = await showDirectoryPicker({ id: 'kofnes-roms', mode: 'read' }); await bdPor('c', 'pasta', pasta); pastaCache = null; await mostrarBiblioteca(true, true); } catch (e) { /* cancelou */ }
       break;
     case 'biblioteca': await mostrarBiblioteca(true); break;
@@ -3318,6 +3345,7 @@ async function acao(a) {
     case 'so-principais':
       soPrincipais = !soPrincipais; guardar('soPrincipais', soPrincipais ? '1' : '0'); marcarPrincipais(); montarLista(); break;
     case 'fechar-biblioteca': voltar(); break;
+    case 'fechar-ficha': $('#biblioteca').classList.remove('ficha'); break;
     case 'jogar': await jogar(false); break;
     case 'auto-toggle':
       autoSalvar = !autoSalvar; guardar('autoSalvar', autoSalvar ? '1' : '0'); marcarAuto();

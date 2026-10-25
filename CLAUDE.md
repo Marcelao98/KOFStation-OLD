@@ -306,6 +306,18 @@ app/, empacotar/, nativo/  versões antigas: Java (instalador) e nativa Linux s�
 > Teste: `testes/navegador/busca.cjs <html> [prints]`. Pacote de teste SEM o exe (o lançador apaga núcleo fora da lista do
 > main). Montar html sem Kof/emscripten: pegar o núcleo Kof e o somfm de `publicado/KOFstation.html` e os núcleos de
 > `publicado/nucleos/` e rodar o juntar.py (o hash dos núcleos sai igual ao publicado).
+> **Pasta de ROMs no APK + biblioteca do celular (PUBLICADA 25/10 na main, CASCA 9; a casca 8 foi o analógico):** `Pasta.java`:
+> `ACTION_OPEN_DOCUMENT_TREE` com permissão guardada (prefs `pasta`/`arvore`), lista até 2 níveis filtrando pelo `EXT_ROM`
+> que a página manda, e serve cada arquivo em `/pasta?u=<uri>` com Range (206); só o que foi listado. Ponte: `pastaEscolher`
+> (-> `__pastaEscolhida`), `pastaNome`, `pastaListar` (thread; -> `__pastaLida`), `pastaPreparar(uri)` (põe o arquivo + as
+> faixas do mesmo CD no `ultimaEscolha` do PS1/N64 nativo). Página: `pastaApk`/`temPasta` no app.js, `arquivoApk` no
+> android.js (objeto tipo File: `slice`/`arrayBuffer`/`stream` por Range; zip e CD não são lidos inteiros),
+> `listarPastaApk`/`escolherPastaApk`; `nativoJogo` copia da pasta. Corrigido: `lerPasta` sem `await` antes do 1º `return`
+> deixava `lendoPasta` preso. Biblioteca no celular (android.css): tela cheia, capinha + linha "gênero · ano · empresa"
+> (`.li-sub`), filtros numa faixa de lado, lista dos filtros embaixo, e a **ficha** (`#biblioteca.ficha`, `.bib-dir` subindo
+> de baixo com capa, botõezinhos, Jogar/Estados; 1º toque abre a ficha, 2º joga; Voltar fecha). Teste:
+> `testes/android/pasta-apk.cjs <html> <pasta> [prints]`. APK montado com as `.so` tiradas do APK anterior
+> (`android/nativo/lib/`, fora do git) e o html montado sem Kof/emscripten. Falta testar no celular de verdade.
 ## Pendências (atualizado 17/10; ver a nota de 20/10 logo abaixo)
 
 > **20/10:** conferido no git: as branches `temas-menu` (126 temas, busca, categorias, Café) e `atualizador-wininet` (aviso

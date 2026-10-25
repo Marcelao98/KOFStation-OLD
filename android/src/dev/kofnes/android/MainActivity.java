@@ -35,14 +35,14 @@ import java.io.OutputStream;
  * KOFnes no Android: uma WebView em tela cheia que abre o KOFnes-android.html guardado dentro do app
  * (assets/index.html), servido em https://appassets.androidplatform.net/ pra a página ter um endereço seguro
  * (IndexedDB, crypto, WebAssembly). Faz só o que a página não consegue sozinha: escolher arquivo (ROM, .spc),
- * salvar arquivo (pacote de bug, .spc exportado) e abrir links no navegador. Também se atualiza sozinho (Atualizador):
+ * salvar arquivo (pacote de bug, .spc exportado), abrir links no navegador e ler a pasta de ROMs (Pasta). Também se atualiza sozinho (Atualizador):
  * a página e os núcleos novos vêm do GitHub e valem na abertura seguinte, sem reinstalar o APK.
  */
 public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
-    private static final int PEDIDO_ARQUIVO = 1, PEDIDO_SALVAR = 2;
+    private static final int PEDIDO_ARQUIVO = 1, PEDIDO_SALVAR = 2, PEDIDO_PASTA = 3;
     // sobe a cada mudança neste Java: página publicada com casca maior pede APK novo (ela pode usar algo que esta não tem)
-    static final int CASCA = 8;
+    static final int CASCA = 9;
     private static final String FONTE = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/publicado/";
     private static final String APK = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/android/apk/KOFstation.apk";
     private File raizWeb;   // pasta da versão baixada (null = a que veio dentro do APK)
@@ -52,6 +52,7 @@ public class MainActivity extends Activity {
     private byte[] paraSalvar;
     private Ps1Jogo ps1;   // PlayStation nativo (null = a ponte não carregou: o app usa o WebAssembly)
     private N64Jogo n64;   // Nintendo 64 nativo (null = sem N64 nesse aparelho)
+    private Pasta pasta;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -63,6 +64,7 @@ public class MainActivity extends Activity {
         setContentView(raiz);
         if (Ps1.carregar(null)) ps1 = new Ps1Jogo(this, raiz);
         if (N64.carregar(null)) n64 = new N64Jogo(this, raiz);
+        pasta = new Pasta(this);
         web.setBackgroundColor(0xFF000000);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
@@ -81,6 +83,7 @@ public class MainActivity extends Activity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
                 Uri u = r.getUrl();
+                if (HOST.equals(u.getHost()) && "/pasta".equals(u.getPath())) return pasta.servir(u, r.getRequestHeaders());
                 if (HOST.equals(u.getHost())) return servir(u.getPath());
                 return null;                       // o resto (capas na internet...) segue normal
             }
@@ -197,6 +200,34 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String versao() { return "@VERSAO_NOME@"; }
 
+        // pasta de ROMs (Pasta.java): escolher, listar em segundo plano e preparar o jogo nativo (PS1/N64) que vem dela
+        @JavascriptInterface
+        public void pastaEscolher() {
+            runOnUiThread(new Runnable() { public void run() {
+                try { startActivityForResult(new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE), PEDIDO_PASTA); }
+                catch (ActivityNotFoundException e) { Toast.makeText(MainActivity.this, "esse Android não deixa escolher pasta", Toast.LENGTH_LONG).show(); }
+            } });
+        }
+
+        @JavascriptInterface
+        public String pastaNome() { return pasta.nome(); }
+
+        @JavascriptInterface
+        public void pastaListar(final String ext) {
+            new Thread(new Runnable() { public void run() {
+                final String j = pasta.listar(ext);
+                runOnUiThread(new Runnable() { public void run() { web.evaluateJavascript("window.__pastaLida && window.__pastaLida(" + j + ")", null); } });
+            } }, "KOFpasta").start();
+        }
+
+        @JavascriptInterface
+        public void pastaPreparar(String u) {
+            Uri[] us = pasta.doJogo(u);
+            if (us == null) return;
+            if (ps1 != null) ps1.ultimaEscolha = us;
+            if (n64 != null) n64.ultimaEscolha = us;
+        }
+
         // ---- PlayStation nativo (Ps1Jogo): a página chama no lugar do núcleo em WebAssembly ----
         @JavascriptInterface
         public boolean ps1Nativo() { return ps1 != null; }
@@ -280,6 +311,12 @@ public class MainActivity extends Activity {
             if (n64 != null && r != null) n64.ultimaEscolha = r;
             escolha.onReceiveValue(r);
             escolha = null;
+        } else if (pedido == PEDIDO_PASTA) {
+            boolean ok = false;
+            if (resultado == RESULT_OK && dados != null && dados.getData() != null) {
+                try { pasta.guardar(dados.getData()); ok = true; } catch (Exception e) { Toast.makeText(this, "não consegui guardar a pasta", Toast.LENGTH_LONG).show(); }
+            }
+            web.evaluateJavascript("window.__pastaEscolhida && window.__pastaEscolhida(" + ok + ")", null);
         } else if (pedido == PEDIDO_SALVAR) {
             if (resultado == RESULT_OK && dados != null && dados.getData() != null && paraSalvar != null) {
                 try {
