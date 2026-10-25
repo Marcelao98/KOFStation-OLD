@@ -18,7 +18,7 @@
      Nativo no celular pro SNES etc. só se ainda não ficar liso (perde filtros/molduras). Medir com
      `/tmp`-style script: Playwright + `Emulation.setCPUThrottlingRate` 4 ≈ celular médio; `KOFnes.desempenho()`.
      Cuidado: engasgos no container com janela grande são do SwiftShader (placa imitada), teste com janela pequena.
-  2. **Celular como controle: conserto PUBLICADO (202610251829), falta o Marcelo testar.** Feito: (a) `ControleServidor`
+  2. **Celular como controle: FUNCIONOU no aparelho dele (25/10, vídeo: celular controlando o PC ligado na TV).** Conserto publicado na 202610251829. Feito: (a) `ControleServidor`
      responde GET com a página "✅ Celular achado" (e OPTIONS com `Access-Control-Allow-Private-Network`); (b) o PC explica
      na 1ª falha (`explicarFalhaControle`: link http://ip:porta, mesma Wi-Fi, e se a permissão `local-network-access`
      está negada); (c) celular mostra o link de teste e avisa se o IP não é de rede de casa (`casa` no JSON; `ipLocal`
