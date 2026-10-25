@@ -26,8 +26,10 @@ const [,, pasta, rom, saida = os.tmpdir()] = process.argv;
     // save: grava 1 byte no começo, salva, reabre a página e confere que voltou (e o resto em 0xFF)
     await p.evaluate(() => { const s = KOFnes.nucleo(); s.cart.sram[0] = 0x12; s.cart.sram[5] = 0x34; document.dispatchEvent(new Event('visibilitychange')); });
     await p.evaluate(() => dispatchEvent(new Event('pagehide')));
-    const tam = await p.evaluate(() => Object.entries(localStorage).filter(([k]) => k.startsWith('kofnes.sram.')).map(([, v]) => v.length)[0] || 0);
-    conferir(tam > 0 && tam < 100, `${nome}: save guardado sem o fim vazio (${tam} caracteres em vez de ~175 mil)`);
+    await p.waitForTimeout(800);   // o rascunho do localStorage vai pro banco, comprimido
+    const tam = await p.evaluate(async () => ({ rascunho: Object.keys(localStorage).filter((k) => k.startsWith('kofnes.sram.')).length,
+      banco: (await KOFnes.guarda.bdTodos('saves')).map((r) => r.dados.length)[0] || 0 }));
+    conferir(!tam.rascunho && tam.banco > 0 && tam.banco < 100, `${nome}: save no banco, comprimido e sem o fim vazio (${tam.banco} bytes em vez de 128 KB)`);
     await p.reload(); await p.waitForTimeout(800); await abrir(p);
     const volta = await p.evaluate(() => { const s = KOFnes.nucleo().cart.sram; return [s[0], s[5], s[1000], s[s.length - 1]]; });
     conferir(volta.join() === [0x12, 0x34, 0xFF, 0xFF].join(), `${nome}: save voltou ao reabrir (${volta})`);

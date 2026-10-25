@@ -10,6 +10,9 @@ const ler = (k) => { try { return localStorage.getItem('kofnes.' + k); } catch (
 
 let snes = null, romNome = '', pausado = false, mudo = ler('mudo') === '1';
 let escala = +(ler('escala') || 0), chaveSram = '', sramAntes = '';
+// cada aparelho (este navegador, este celular) tem um código próprio: as estatísticas e os saves dizem de onde vieram,
+// pra juntar PC + celular sem conflito (KofGuarda)
+const APARELHO = ler('aparelho') || (() => { const a = Math.random().toString(36).slice(2, 10); guardar('aparelho', a); return a; })();
 
 // ---------------- tela ----------------
 // O quadro do núcleo vai pra uma textura do tamanho da tela do sistema (SNES 256x224, Game Boy 160x144) e a placa de vídeo (WebGL)
@@ -25,7 +28,7 @@ const EXT_ROM = new RegExp('\\.(' + [].concat(...SIS_ATIVOS.map((k) => SIS[k].ex
 const neoGeo = (n) => SIS_ATIVOS.includes('neogeo') && !!KofLibretro.setNeoGeo(n);
 const sistemaDoNome = (n) => (neoGeo(n) ? 'neogeo' : SIS_ATIVOS.find((k) => SIS[k].ext.some((e) => (n || '').toLowerCase().endsWith('.' + e))) || null);
 const sistemaDoItem = (r) => (r.jogo && (r.jogo.sistema || sistemaDoNome(r.jogo.arquivo))) || sistemaDoNome(r.arquivo) || sistemaDoNome(r.nome) || 'snes';
-$('#arquivo').accept = [].concat(...SIS_ATIVOS.map((k) => SIS[k].ext)).map((e) => '.' + e).join(',') + ',.zip,.ips,.bps,.ups';
+$('#arquivo').accept = [].concat(...SIS_ATIVOS.map((k) => SIS[k].ext)).map((e) => '.' + e).join(',') + ',.zip,.ips,.bps,.ups,.kofsave';
 // ajustes da imagem: a predefinição escolhida (ou "meu": mexeu nos controles) + os valores de cada efeito
 let visual = (() => {
   try { const v = JSON.parse(ler('visual')); if (v && v.v) return { pre: v.pre, v: { ...KofVisual.PADRAO, ...v.v } }; } catch (e) { /* sem ajuste salvo */ }
@@ -1448,7 +1451,7 @@ let bd = null;
 function abrirBanco() {
   if (bd) return bd;
   bd = new Promise((ok, falha) => {
-    const r = indexedDB.open('kofnes', 7);
+    const r = indexedDB.open('kofnes', 8);
     r.onupgradeneeded = (ev) => {
       const b = r.result;
       if (!b.objectStoreNames.contains('c')) b.createObjectStore('c');
@@ -1459,7 +1462,8 @@ function abrirBanco() {
       if (!b.objectStoreNames.contains('roms')) b.createObjectStore('roms');
       if (!b.objectStoreNames.contains('autos')) b.createObjectStore('autos');
       if (!b.objectStoreNames.contains('musicas')) b.createObjectStore('musicas', { keyPath: 'n', autoIncrement: true });   // jukebox
-      if (!b.objectStoreNames.contains('bios')) b.createObjectStore('bios');   // nome do arquivo (gba_bios.bin...) -> {sistema, dados}
+      if (!b.objectStoreNames.contains('bios')) b.createObjectStore('bios');
+      if (!b.objectStoreNames.contains('saves')) b.createObjectStore('saves', { keyPath: 'chave' });   // saves comprimidos (KofGuarda), v8   // nome do arquivo (gba_bios.bin...) -> {sistema, dados}
       if (ev.oldVersion >= 1 && ev.oldVersion < 5) {   // versão antiga: tira ROM e estado automático de dentro de "jogos"
         const t = r.transaction, roms = t.objectStore('roms'), autos = t.objectStore('autos');
         t.objectStore('jogos').openCursor().onsuccess = (e) => {
@@ -1800,6 +1804,7 @@ async function abrirArquivo(arq, soltos = []) {
       return;
     }
     let bytes = new Uint8Array(await arq.arrayBuffer());
+    if (KofGuarda.ehPacote(bytes)) { avisar(resumoImport(await importarSaves(bytes, false)), 6000); return; }   // backup .kofsave
     if (/\.cue$/i.test(nome) && SIS_ATIVOS.includes('ps1')) { await abrirBytes(nome, bytes, true, await binsDoCue(bytes, soltos)); return; }
     if (/\.(bin|img)$/i.test(nome) && SIS_ATIVOS.includes('ps1') && cdPs1(bytes)) { await abrirCdSolto(nome, bytes, soltos); return; }
     // zip pelo nome ou pelos primeiros bytes ("PK"): o seletor do Android às vezes entrega o arquivo sem a extensão
@@ -1909,11 +1914,8 @@ async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
   capaSis.set(romNome, sis === 'gb' && /\.gbc$/i.test(nome) ? 'gbc' : sis);
   jogoId = s.cart.title.trim() + '|' + bytes.length;
   chaveSram = 'sram.' + s.cart.title.trim() + '.' + bytes.length;
-  const salvo = ler(chaveSram);
-  if (salvo && s.cart.hasSram()) {
-    const b = atob(salvo);
-    for (let i = 0; i < s.cart.sram.length; i++) s.cart.sram[i] = i < b.length ? b.charCodeAt(i) : 0xFF;
-  }
+  const salvo = s.cart.hasSram() ? await lerSave(chaveSram) : null;
+  if (salvo) for (let i = 0; i < s.cart.sram.length; i++) s.cart.sram[i] = i < salvo.length ? salvo[i] : 0xFF;
   s.reset();
   tamanhoTela(s.largura || 256, s.altura || 224); px.fill(0xFF000000);
   visualDoSistema(sis); ligaIni = performance.now();
@@ -1959,8 +1961,36 @@ function salvarSram() {
   if (!snes || !chaveSram) return;
   const t = textoSram();
   // o save do GBA tem 128 KB, quase tudo 0xFF (memória vazia): guarda sem o fim vazio, que volta como 0xFF ao abrir
-  if (t && t !== sramAntes) { guardar(chaveSram, btoa(t.replace(/\xFF+$/, ''))); sramAntes = t; }
+  if (t && t !== sramAntes) { guardar(chaveSram, btoa(t.replace(/\xFF+$/, ''))); sramAntes = t; assentarSave(chaveSram, romNome, jogoId); }
 }
+// O save cai primeiro no localStorage (síncrono: não se perde se a janela fechar no meio) e logo depois vai pro banco,
+// comprimido e com o hash (KofGuarda); aí o rascunho sai do localStorage, que nunca enche. Rascunho que sobrou (janela
+// fechada antes de terminar, ou os saves de antes da v8) é assentado na abertura seguinte
+async function assentarSave(chave, nome, jogo) {
+  const t = ler(chave); if (t == null) return;
+  try {
+    const reg = await KofGuarda.empacotarSave(KofGuarda.deTexto(atob(t)), { chave, quando: Date.now(), aparelho: APARELHO });
+    if (nome) reg.nome = nome; if (jogo) reg.jogo = jogo;
+    await bdMudar('saves', chave, (velho) => {
+      if (velho && velho.hash === reg.hash) return null;   // igual ao guardado: não regrava
+      if (velho) { reg.nome = reg.nome || velho.nome; reg.jogo = reg.jogo || velho.jogo; reg.anterior = { dados: velho.dados, cheio: velho.cheio, hash: velho.hash, quando: velho.quando, aparelho: velho.aparelho }; }
+      return reg;
+    });
+    if (ler(chave) === t) localStorage.removeItem('kofnes.' + chave);
+  } catch (e) { console.warn('save ficou no rascunho', e); }
+}
+async function lerSave(chave) {
+  const t = ler(chave);   // rascunho ainda não assentado: é o mais novo
+  if (t != null) return KofGuarda.deTexto(atob(t));
+  try { const r = await bdPegar('saves', chave); return r ? await KofGuarda.abrirSave(r) : null; } catch (e) { return null; }
+}
+async function assentarRascunhos() {
+  const ks = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('kofnes.sram.')) ks.push(k.slice(7)); } } catch (e) { /* sem armazenamento */ }
+  for (const k of ks) await assentarSave(k);
+}
+setTimeout(assentarRascunhos, 1500);
+// pede ao navegador pra não apagar os dados sozinho quando o disco enche
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* sem suporte */ }
 addEventListener('pagehide', () => { registrarTempo(); salvarSram(); salvarAuto(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { registrarTempo(); salvarSram(); salvarAuto(); } });
 
@@ -1971,20 +2001,15 @@ let jogando = 0, estat = {};
 const hoje = (t) => { const d = new Date(t); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 function registrarTempo() {
   if (!jogoId || jogando < 1000) return;
-  const ms = Math.round(jogando), id = jogoId, nome = romNome, dia = hoje(Date.now()); jogando = 0;
-  bdMudar('stats', id, (e) => {
-    e = e || { id, nome, tempo: 0, sessoes: 1, primeiro: Date.now(), dias: {} };
-    e.tempo += ms; e.ultimo = Date.now(); e.nome = nome;
-    e.dias[dia] = (e.dias[dia] || 0) + ms;
-    const dias = Object.keys(e.dias).sort();                        // guarda ~1 ano de dias
-    while (dias.length > 400) delete e.dias[dias.shift()];
-    estat[id] = e; return e;
+  const ms = Math.round(jogando), id = jogoId, nome = romNome; jogando = 0;
+  bdMudar('stats', id, (e) => {   // cada aparelho soma na sua parte (KofGuarda); a tela vê a soma
+    e = KofGuarda.registrarTempo(e, id, nome, APARELHO, ms, Date.now());
+    estat[id] = KofGuarda.visao(e); return e;
   }).catch(() => {});
 }
 function contarSessao(id, nome) {
   bdMudar('stats', id, (e) => {
-    e = e || { id, nome, tempo: 0, sessoes: 0, primeiro: Date.now(), dias: {} };
-    e.sessoes++; e.ultimo = Date.now(); e.nome = nome; estat[id] = e; return e;
+    e = KofGuarda.contarSessao(e, id, nome, APARELHO, Date.now()); estat[id] = KofGuarda.visao(e); return e;
   }).catch(() => {});
 }
 setInterval(registrarTempo, 10000);
@@ -1995,7 +2020,7 @@ function duracao(ms) {
 }
 async function carregarEstat() {
   registrarTempo();
-  try { estat = {}; (await bdTodos('stats')).forEach((e) => { estat[e.id] = e; }); } catch (e) { /* sem banco */ }
+  try { estat = {}; (await bdTodos('stats')).forEach((e) => { estat[e.id] = KofGuarda.visao(e); }); } catch (e) { /* sem banco */ }
 }
 async function mostrarEstat() {
   fecharJanelas(); $('#estatisticas').hidden = false;
@@ -2005,7 +2030,10 @@ async function mostrarEstat() {
   const total = lista.reduce((t, e) => t + e.tempo, 0), sess = lista.reduce((t, e) => t + e.sessoes, 0);
   const cx = (rot, val) => `<div class="est-caixa"><small>${rot}</small><b>${val}</b></div>`;
   const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  let h = '<div class="est-caixas">' + cx('Tempo total', duracao(total)) + cx('Jogos', lista.length) + cx('Sessões', sess)
+  let h = '<div class="est-acoes"><button data-acao="exportar-saves">💾 Fazer backup (.kofsave)</button><button data-acao="importar-saves">📥 Trazer backup</button>'
+    + '<button data-acao="espaco">🗄 Espaço usado</button><label><input type="checkbox" id="bk-estados"> com savestates</label>'
+    + '<label><input type="checkbox" id="bk-config"> trazer configurações</label></div><div id="est-espaco"></div>';
+  h += '<div class="est-caixas">' + cx('Tempo total', duracao(total)) + cx('Jogos', lista.length) + cx('Sessões', sess)
     + cx('Mais jogado', lista[0] ? esc(lista[0].nome) : '—') + '</div>';
   // últimos 7 dias, todos os jogos somados
   const dias = [];
@@ -2026,6 +2054,121 @@ async function mostrarEstat() {
         + `<td>${e.sessoes}</td><td>${e.ultimo ? quando(e.ultimo) : '—'}</td><td>${e.primeiro ? quando(e.primeiro) : '—'}</td></tr>`).join('') + '</table>';
   }
   $('#corpo-estat').innerHTML = h;
+}
+
+// ---------------- backup (.kofsave) e espaço ----------------
+// O pacote leva saves, estatísticas e (marcando) configurações e savestates; nunca ROM. Trazer um pacote JUNTA com o
+// que já existe (KofGuarda.decidir/juntarStats): save mais novo vence e o outro fica como cópia (anterior)
+const NAO_LEVAR = /^(sram\.|aparelho|mudo$|volume$)/;   // configs que não viajam (a lição do Perfil: mudo/volume)
+const nomeAparelho = () => ler('aparelhoNome') || (CELULAR ? 'Celular' : 'PC');
+function baixarArquivo(nome, u8) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([u8], { type: 'application/octet-stream' })); a.download = nome;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+// celular com PS1/N64 nativos: os saves deles são arquivos do app (cartão do PS1, save do N64), lidos pela ponte
+const temNativos = () => typeof KOFnesApk !== 'undefined' && !!KOFnesApk.savesNativos;
+const paraB64 = (u8) => { let t = ''; for (let i = 0; i < u8.length; i += 0x8000) t += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(t); };
+async function savesNativos() {
+  if (!temNativos()) return [];
+  const r = [];
+  for (const f of JSON.parse(KOFnesApk.savesNativos() || '[]')) {
+    const b = KOFnesApk.saveNativoLer(f.nome); if (!b) continue;
+    r.push(await KofGuarda.empacotarSave(KofGuarda.deTexto(atob(b)), { chave: 'nativo/' + f.nome, nome: f.nome.replace(/^.*\//, '').replace(/\.[^.]+$/, ''), quando: f.quando, aparelho: APARELHO }));
+  }
+  return r;
+}
+async function exportarSaves(comEstados) {
+  registrarTempo(); salvarSram(); await assentarRascunhos();
+  const config = {};
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('kofnes.') && !NAO_LEVAR.test(k.slice(7))) config[k.slice(7)] = localStorage.getItem(k); } } catch (e) { /* sem armazenamento */ }
+  const estados = [];
+  if (comEstados) for (const e of await bdTodos('estados')) { const c = Object.assign({}, e, { dados: new Uint8Array(await e.dados.arrayBuffer()) }); delete c.n; estados.push(c); }
+  const u = await KofGuarda.criarPacote({ versao: 1, aparelho: APARELHO, nome: nomeAparelho(), quando: Date.now(), saves: (await bdTodos('saves')).concat(await savesNativos()),
+    stats: (await bdTodos('stats')).map((e) => (e.partes ? e : KofGuarda.migrarStats(e, APARELHO, e.id, e.nome))), config, estados });   // formato antigo vira a parte deste aparelho
+  baixarArquivo('KOFstation ' + nomeAparelho() + ' ' + hoje(Date.now()) + '.kofsave', u);
+  return u.length;
+}
+async function importarSaves(u8, comConfig) {
+  const p = await KofGuarda.lerPacote(u8), r = { trazidos: 0, mantidos: 0, iguais: 0, stats: 0, estados: 0, config: 0 };
+  salvarSram(); await assentarRascunhos();
+  const nativos = temNativos() ? await savesNativos() : [];
+  for (const fora of p.saves || []) {
+    if (temNativos() && fora.chave.startsWith('nativo/')) {   // save de PS1/N64 nativo: vai pro arquivo do app
+      const aqui = nativos.find((x) => x.chave === fora.chave), d = KofGuarda.decidir(aqui, fora);
+      if (d === 'trazer') { KOFnesApk.saveNativoGravar(fora.chave.slice(7), paraB64(await KofGuarda.abrirSave(fora)), fora.quando || 0); r.trazidos++; }
+      else if (d === 'manter') { await bdGuardar('saves', Object.assign({}, fora, { chave: 'copia/' + fora.chave })); r.mantidos++; }
+      else r.iguais++;
+      continue;
+    }
+    const aqui = await bdPegar('saves', fora.chave), d = KofGuarda.decidir(aqui, fora), copia = (x) => x && { dados: x.dados, cheio: x.cheio, hash: x.hash, quando: x.quando, aparelho: x.aparelho };
+    if (d === 'trazer') {
+      await bdGuardar('saves', Object.assign({}, fora, { anterior: copia(aqui) || fora.anterior })); r.trazidos++;
+      if (snes && fora.chave === chaveSram && snes.cart.hasSram()) {   // o jogo aberto passa a usar o save trazido já
+        const b = await KofGuarda.abrirSave(fora);
+        for (let i = 0; i < snes.cart.sram.length; i++) snes.cart.sram[i] = i < b.length ? b[i] : 0xFF;
+        sramAntes = textoSram();
+      }
+    } else if (d === 'manter') {
+      if (!aqui.anterior || aqui.anterior.hash !== fora.hash) await bdGuardar('saves', Object.assign({}, aqui, { anterior: copia(fora) }));
+      r.mantidos++;
+    } else r.iguais++;
+  }
+  for (let fora of p.stats || []) {
+    if (!fora) continue;
+    if (!fora.partes) fora = KofGuarda.migrarStats(fora, p.aparelho || 'outro', fora.id, fora.nome);
+    let aqui = await bdPegar('stats', fora.id);
+    if (aqui && !aqui.partes) aqui = KofGuarda.migrarStats(aqui, APARELHO, aqui.id, aqui.nome);
+    await bdGuardar('stats', KofGuarda.juntarStats(aqui, fora)); r.stats++;
+  }
+  if ((p.estados || []).length) {
+    const ja = new Set((await bdTodos('estados')).map((e) => e.jogo + '|' + e.quando));
+    for (const e of p.estados) if (!ja.has(e.jogo + '|' + e.quando)) { await bdGuardar('estados', Object.assign({}, e, { dados: new Blob([e.dados]) })); r.estados++; }
+  }
+  if (comConfig) for (const [k, v] of Object.entries(p.config || {})) if (!NAO_LEVAR.test(k)) { guardar(k, v); r.config++; }
+  await carregarEstat();
+  return r;
+}
+function resumoImport(r, p) {
+  return `📥 backup trazido: ${r.trazidos} save(s) novo(s)` + (r.mantidos ? `, ${r.mantidos} mais velho(s) guardado(s) como cópia` : '')
+    + `, ${r.stats} jogo(s) nas estatísticas` + (r.estados ? `, ${r.estados} savestate(s)` : '') + (r.config ? `, ${r.config} configuração(ões) (vale ao reabrir)` : '');
+}
+function escolherBackup() {
+  const e = document.createElement('input'); e.type = 'file'; e.accept = '.kofsave,application/octet-stream';
+  e.onchange = async () => {
+    const f = e.files[0]; if (!f) return;
+    try { const r = await importarSaves(new Uint8Array(await f.arrayBuffer()), !!($('#bk-config') || {}).checked); avisar(resumoImport(r), 6000); if (!$('#estatisticas').hidden) mostrarEstat(); }
+    catch (er) { avisar('não consegui trazer o backup: ' + er.message, 5000); }
+  };
+  e.click();
+}
+// quanto ocupa cada coisa no banco (lê registro por registro: só quando a pessoa pede)
+async function calcularEspaco() {
+  const tam = (v) => v == null ? 0 : v instanceof Blob ? v.size : v.byteLength != null ? v.byteLength : typeof v === 'string' ? v.length : Object.values(v).reduce((t, x) => t + tam(x), 0);
+  const nomes = { roms: 'ROMs (cartuchos)', estados: 'Savestates', autos: 'Estados automáticos', jogos: 'Biblioteca e prints', capas: 'Capas baixadas', saves: 'Saves', stats: 'Estatísticas', musicas: 'Jukebox', bios: 'BIOS', c: 'Configurações' };
+  const b = await abrirBanco(), r = [];
+  for (const loja of Object.keys(nomes)) {
+    if (!b.objectStoreNames.contains(loja)) continue;
+    const t = await new Promise((ok) => {
+      let soma = 0, n = 0; const q = b.transaction(loja).objectStore(loja).openCursor();
+      q.onsuccess = () => { const c = q.result; if (!c) { ok([soma, n]); return; } soma += tam(c.value); n++; c.continue(); };
+      q.onerror = () => ok([soma, n]);
+    });
+    r.push({ loja, nome: nomes[loja], bytes: t[0], n: t[1] });
+  }
+  let est = null, fixo = false;
+  try { est = await navigator.storage.estimate(); fixo = await navigator.storage.persisted(); } catch (e) { /* sem suporte */ }
+  return { lojas: r.sort((a, c) => c.bytes - a.bytes), usado: est && est.usage, cota: est && est.quota, fixo };
+}
+const tamanho = (b) => b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(0) + ' KB' : b < 1073741824 ? (b / 1048576).toFixed(1) + ' MB' : (b / 1073741824).toFixed(2) + ' GB';
+async function mostrarEspaco() {
+  const el = $('#est-espaco'); if (!el) return;
+  el.innerHTML = '<p class="dica">calculando…</p>';
+  const e = await calcularEspaco();
+  el.innerHTML = '<h3>Espaço usado</h3><table class="est-tab"><tr><th>O quê</th><th>Itens</th><th>Tamanho</th><th></th></tr>'
+    + e.lojas.filter((l) => l.n).map((l) => `<tr><td>${l.nome}</td><td>${l.n}</td><td>${tamanho(l.bytes)}</td><td>`
+      + (l.loja === 'capas' ? '<button data-acao="limpar-capas">apagar (baixam de novo)</button>' : l.loja === 'autos' ? '<button data-acao="limpar-autos">apagar</button>' : '') + '</td></tr>').join('')
+    + '</table><p class="dica">' + (e.usado != null ? `No total: ${tamanho(e.usado)} de ${tamanho(e.cota)} que o navegador libera. ` : '')
+    + (e.fixo ? '🔒 Guardado de forma permanente: o navegador não apaga sozinho.' : '⚠️ O navegador pode apagar estes dados se o disco encher: faça um backup de vez em quando.') + '</p>';
 }
 
 $('#arquivo').multiple = true;   // PlayStation: dá pra escolher o .cue junto com os .bin
@@ -2075,9 +2218,18 @@ async function salvarEstado() {
     const dados = await comprimir(JSON.stringify(KofEstado.capturar(snes)));
     await bdGuardar('estados', { jogo: jogoId, nome: romNome, quando: Date.now(), capa: foto(256), dados });
     atualizarCapa();
-    avisar('💾 estado salvo');
+    const apagados = await limitarEstados(jogoId);
+    avisar(apagados ? `💾 estado salvo (limite de ${MAX_ESTADOS} por jogo: apaguei o mais antigo)` : '💾 estado salvo', apagados ? 3500 : 1500);
     if (!$('#estados').hidden) mostrarEstados(jogoId);
   } catch (e) { avisar('não consegui salvar o estado: ' + e.message, 4000); }
+}
+// no máximo MAX_ESTADOS savestates por jogo (cada um tem de 1 a 16 MB): o mais antigo sai
+const MAX_ESTADOS = 20;
+async function limitarEstados(jogo) {
+  const ns = await bdOp('estados', 'readonly', (o) => o.index('jogo').getAllKeys(jogo));
+  const sobra = (ns || []).sort((a, b) => a - b).slice(0, Math.max(0, (ns || []).length - MAX_ESTADOS));
+  for (const n of sobra) await bdApagar('estados', n);
+  return sobra.length;
 }
 async function carregarEstado(est) {
   try {
@@ -3380,6 +3532,11 @@ async function acao(a) {
     case 'fechar-temas': fecharTemas(); if (!snes && telaAtual() === 'jogo') abrirHome(); break;
     case 'estatisticas': await mostrarEstat(); break;
     case 'fechar-estat': voltar(); break;
+    case 'exportar-saves': try { const n = await exportarSaves(!!($('#bk-estados') || {}).checked); avisar('💾 backup pronto (' + tamanho(n) + ')', 3000); } catch (e) { avisar('não consegui fazer o backup: ' + e.message, 5000); } break;
+    case 'importar-saves': escolherBackup(); break;
+    case 'espaco': await mostrarEspaco(); break;
+    case 'limpar-capas': await bdOp('capas', 'readwrite', (o) => o.clear()); await mostrarEspaco(); break;
+    case 'limpar-autos': await bdOp('autos', 'readwrite', (o) => o.clear()); await bdTodos('jogos').then((js) => Promise.all(js.filter((j) => j.temAuto).map((j) => bdMudarJogo(j.id, (x) => x && Object.assign(x, { temAuto: false }))))); await mostrarEspaco(); break;
     case 'controles': abrirGuia('atalhos'); break;
     case 'guia': abrirGuia(); break;
     case 'fechar-guia': voltar(); break;
@@ -3436,7 +3593,7 @@ ajustarEscala();
 if (!temPasta) document.querySelectorAll('[data-acao="pasta"], [data-acao="reler-pasta"]').forEach((b) => { b.hidden = true; });
 if (sofa) mostrarBiblioteca(false); else abrirHome();
 primeiraVez();
-window.KOFnes = { imagemTeste: (rgba, l, a) => { imagemTeste = true; document.body.classList.remove('vazio'); tamanhoTela(l, a); px.set(new Uint32Array(Uint8Array.from(rgba).buffer)); pintar(true); pintar(true); ajustarEscala(); }, mudarMoldura, abrirArquivo, estado: () => ({ snes: !!snes, pausado, romNome, jogoId }), nucleo: () => snes, botoes: () => estado(), mapa: () => mapa, filtro: () => filtro, aplicarFiltro, notaDoCanal, notas: () => notas, atrasoNotas: () => (juke.apu ? juke.amostras / juke.apu.taxa - notasVisto : 0), mudarSinc, filtrosRuins: () => glRuins.size, auto: () => autoSalvar, webgl: !!gl,
+window.KOFnes = { guarda: { assentarRascunhos, assentarSave, lerSave, exportarSaves, importarSaves, calcularEspaco, limitarEstados, carregarEstat, estat: () => estat, aparelho: APARELHO, bdTodos, bdGuardar, bdPegar }, imagemTeste: (rgba, l, a) => { imagemTeste = true; document.body.classList.remove('vazio'); tamanhoTela(l, a); px.set(new Uint32Array(Uint8Array.from(rgba).buffer)); pintar(true); pintar(true); ajustarEscala(); }, mudarMoldura, abrirArquivo, estado: () => ({ snes: !!snes, pausado, romNome, jogoId }), nucleo: () => snes, botoes: () => estado(), mapa: () => mapa, filtro: () => filtro, aplicarFiltro, notaDoCanal, notas: () => notas, atrasoNotas: () => (juke.apu ? juke.amostras / juke.apu.taxa - notasVisto : 0), mudarSinc, filtrosRuins: () => glRuins.size, auto: () => autoSalvar, webgl: !!gl,
   // pros testes: lista falsa de n jogos (mede a biblioteca) e uma quebra de mentira no núcleo
   testeLista: (n, nomes) => { fecharJanelas(); itens = Array.from({ length: n }, (_, i) => { const nome = nomes ? nomes[i % nomes.length] + (i >= nomes.length ? ' #' + i : '') : 'Jogo de teste ' + i; return { nome, ext: 'SFC', chave: normal(nome), variante: VARIANTE.test(nome) }; }); $('#biblioteca').hidden = false; const t0 = performance.now(); montarLista(); const t1 = performance.now(); for (let k = 0; k < 30; k++) listaTecla({ code: 'ArrowDown', preventDefault() {}, target: null, key: '' }); return { montar: Math.round(t1 - t0), trintaSetas: Math.round(performance.now() - t1) }; },
   forcarErro: () => { const r = snes.runFrame; snes.runFrame = () => { snes.runFrame = r; throw new Error('quebra de teste'); }; },

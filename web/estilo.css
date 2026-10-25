@@ -455,6 +455,10 @@ body { background-image: var(--fundo-img); background-size: cover; }
 /* Estatísticas */
 #estatisticas { width: min(820px, 96vw); max-height: 88vh; overflow-y: auto; text-align: left; }
 #corpo-estat h3 { margin: 16px 0 8px; font-size: 13px; color: var(--fraco); text-transform: uppercase; letter-spacing: 1px; }
+.est-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.est-acoes button, .est-tab button { background: none; color: var(--texto); border: 1px solid var(--borda); border-radius: 8px; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.est-acoes button:hover, .est-tab button:hover { border-color: var(--destaque); color: var(--destaque); }
+.est-acoes label { color: var(--fraco); font-size: 13px; display: flex; gap: 4px; align-items: center; }
 .est-caixas { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
 .est-caixa { background: var(--painel); border: 1px solid var(--borda); border-radius: var(--raio); padding: 10px 12px; min-width: 0; }
 .est-caixa small { display: block; color: var(--fraco); font-size: 12px; }
