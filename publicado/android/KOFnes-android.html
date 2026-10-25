@@ -1880,6 +1880,18 @@ html.celular #biblioteca .bib-botoes .grande { margin: 0; padding: 12px 8px; }
 html.celular #biblioteca .bib-botoes .grande.sec { font-size: 14px; }
 html.celular #biblioteca .bib-botoes [data-acao="do-zero"]:not([hidden]) { grid-column: 1 / 3; order: 3; }
 
+/* o celular como controle do PC: no lugar do jogo, o endereço e a senha pra digitar no PC */
+#modo-controle { position: fixed; left: 0; right: 0; top: 0; height: 42%; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 16px; text-align: center; background: var(--fundo); color: var(--texto); }
+#modo-controle > b { font-size: 20px; }
+#modo-controle span { color: var(--fraco); font-size: 14px; }
+#modo-controle code { font-size: 30px; font-weight: 800; letter-spacing: 1px; color: var(--destaque); background: var(--painel); border: 1px solid var(--borda); border-radius: 12px; padding: 8px 16px; }
+#modo-controle small { color: var(--fraco); }
+#modo-controle button { background: none; color: var(--texto); border: 1px solid var(--borda); border-radius: 10px; padding: 8px 18px; font: inherit; }
+body.modo-controle #tela, body.modo-controle #moldura { visibility: hidden; }
+@media (orientation: landscape) { #modo-controle { height: auto; top: 0; bottom: 0; left: 25%; right: 25%; background: transparent; } }
+body.modo-controle #ctl [data-b="menu"], body.modo-controle #ctl [data-b="turbo"], body.modo-controle #ctl [data-b="rew"] { display: none; }   /* sem jogo aqui: menu e turbo não servem */
+
 </style>
 </head>
 <body>
@@ -1894,6 +1906,7 @@ html.celular #biblioteca .bib-botoes [data-acao="do-zero"]:not([hidden]) { grid-
     <button data-acao="estatisticas">📊 Estatísticas</button>
     <button data-acao="exportar-saves">💾 Backup dos saves (.kofsave)</button>
     <button data-acao="importar-saves">📥 Trazer backup…</button>
+    <button data-acao="controle-celular">📱 Celular como controle…</button>
     <hr>
     <button data-acao="reiniciar">Reiniciar<kbd>F1</kbd></button>
   </div></div>
@@ -2099,6 +2112,7 @@ html.celular #biblioteca .bib-botoes [data-acao="do-zero"]:not([hidden]) { grid-
             <li><b>Menu rápido:</b> botão direito do mouse, F2 ou Select+Start no controle. Salvar, carregar, filtro, moldura, volume… sem sair do jogo.</li>
             <li><b>Savestates:</b> F5 salva, F8 carrega o último, F6 abre a galeria com o print de cada momento (no controle: Select+L e Select+R).</li>
             <li><b>Continuar de onde parou:</b> o salvar automático guarda o jogo sozinho; no Início é só clicar em Continuar.</li>
+            <li><b>📱 Celular como controle:</b> no celular, abra o KOFstation → <b>Controles</b> → <b>Usar este celular como controle do PC</b>; aparecem um endereço e uma senha. No PC, <b>Arquivo → 📱 Celular como controle</b> e digite os dois. Precisa estar na mesma Wi-Fi; nada passa pela internet.</li>
             <li><b>Turbo:</b> segure Tab. <b>Pausa:</b> P ou Esc. Sair da janela também pausa (dá pra desligar em Som).</li>
           </ul>
         </div>
@@ -13421,8 +13435,42 @@ let toque = 0;   // botões apertados na tela de toque (celular)
 const eixosToque = [0, 0];   // analógico da tela de toque (-1..1), nos consoles com analogico
 // console com analógico (N64, PS1...): 'puro' = o analógico não aperta o direcional, 'misto' = aperta também
 const analogico = () => snes && SIS[snes.sistema || 'snes'] && SIS[snes.sistema || 'snes'].analogico;
+// celular como controle (o APK abre um servidor na rede de casa; esta página conecta nele): botões e eixos que chegam
+const remoto = { ws: null, bits: 0, eixos: new Int16Array(4), alvo: null, tentativas: 0, ligado: false };
+function conectarControle(texto) {
+  const m = /^\s*(\d{1,3}(?:\.\d{1,3}){3})(?::(\d+))?\s+(\d{4})\s*$/.exec(texto || '');
+  if (!m) { avisar('digite o endereço e a senha que aparecem no celular, ex.: 192.168.0.15 4821', 6000); return false; }
+  desconectarControle(); guardar('controleUltimo', texto.trim());
+  remoto.alvo = { url: `ws://${m[1]}:${m[2] || 8642}`, senha: m[3] }; remoto.tentativas = 0;
+  abrirControle(); return true;
+}
+function abrirControle() {
+  const a = remoto.alvo; if (!a) return;
+  let ws; try { ws = new WebSocket(a.url); } catch (e) { avisar('📱 não consegui conectar: ' + e.message, 5000); return; }
+  ws.binaryType = 'arraybuffer'; remoto.ws = ws;
+  ws.onopen = () => ws.send('KOF ' + a.senha + ' ' + nomeAparelho());
+  ws.onmessage = (e) => {
+    if (typeof e.data === 'string') {
+      if (e.data === 'ok') { remoto.ligado = true; remoto.tentativas = 0; avisar('📱 celular conectado: já pode jogar com ele', 3000); marcarControle(); }
+      else { avisar('📱 ' + e.data, 5000); remoto.alvo = null; }
+      return;
+    }
+    const u = new Int8Array(e.data); if (u.length < 6) return;
+    remoto.bits = (u[0] & 255) | ((u[1] & 255) << 8);
+    for (let k = 0; k < 4; k++) remoto.eixos[k] = Math.round(u[2 + k] * 32767 / 127);
+  };
+  ws.onclose = () => {
+    if (remoto.ws !== ws) return;
+    const era = remoto.ligado; remoto.ligado = false; remoto.bits = 0; remoto.eixos.fill(0); remoto.ws = null; marcarControle();
+    if (!remoto.alvo) return;
+    if (remoto.tentativas++ < 30) { if (era) avisar('📱 o celular caiu: tentando de novo…', 3000); setTimeout(() => { if (remoto.alvo && !remoto.ws) abrirControle(); }, 2000); }
+    else { avisar('📱 não achei o celular. Ele está na tela "Controle do PC" e na mesma Wi-Fi?', 6000); remoto.alvo = null; }
+  };
+}
+function desconectarControle() { remoto.alvo = null; const w = remoto.ws; remoto.ws = null; remoto.ligado = false; remoto.bits = 0; remoto.eixos.fill(0); if (w) try { w.close(); } catch (e) { /* já fechado */ } marcarControle(); }
+function marcarControle() { const b = $('[data-acao="controle-celular"]'); if (b) b.textContent = remoto.ligado ? '📱 Celular conectado (desconectar)' : '📱 Celular como controle…'; }
 function estado() {
-  let b = teclado | toque;
+  let b = teclado | toque | remoto.bits;
   const puro = analogico() === 'puro';
   for (const g of (navigator.getGamepads ? navigator.getGamepads() : [])) {
     if (!g) continue;
@@ -14028,7 +14076,7 @@ $('#arquivo-spc').addEventListener('change', (e) => { if (e.target.files.length)
 // estado (um marco) e anota os botões de cada quadro dali pra frente. O pacote
 // do bug leva o marco anterior + os botões até agora: rodando de novo, o
 // núcleo (determinístico) chega no mesmo lugar, quadro a quadro.
-const VERSAO = '202610251451 · be72ed1', REPO = 'Marcelao98/KOFSnes';
+const VERSAO = '202610251457 · 842c9e5', REPO = 'Marcelao98/KOFSnes';
 let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAtual = null;
 // eixos pro núcleo (-32767..32767): controle físico (com zona morta) ou a tela de toque; tudo parado = 0 (aí a ponte do N64
 // usa o direcional como analógico, como antes)
@@ -14041,6 +14089,7 @@ function lerEixos() {
     if (!g) continue;
     for (let k = 0; k < 4 && k < g.axes.length; k++) if (!e[k]) e[k] = pos(g.axes[k]);
   }
+  if (!e[0] && !e[1] && !e[2] && !e[3]) e.set(remoto.eixos);   // o celular como controle
   if (!e[0] && !e[1]) { e[0] = pos(eixosToque[0]); e[1] = pos(eixosToque[1]); }
   return e;
 }
@@ -16364,6 +16413,11 @@ async function acao(a) {
     case 'exportar-saves': try { const n = await exportarSaves(!!($('#bk-estados') || {}).checked); avisar('💾 backup pronto (' + tamanho(n) + ')', 3000); } catch (e) { avisar('não consegui fazer o backup: ' + e.message, 5000); } break;
     case 'importar-saves': escolherBackup(); break;
     case 'guia-backup': abrirGuia('backup'); break;
+    case 'modo-controle': if (window.entrarModoControle) window.entrarModoControle(); break;
+    case 'controle-celular':
+      if (remoto.ligado || remoto.alvo) { desconectarControle(); avisar('📱 celular desconectado'); break; }
+      { const t = prompt('No celular, abra o KOFstation → Controles → "Usar como controle do PC".\nDigite aqui o endereço e a senha que aparecem lá (ex.: 192.168.0.15 4821):', ler('controleUltimo') || ''); if (t) { conectarControle(t); avisar('📱 conectando…', 2000); } }
+      break;
     case 'espaco': await mostrarEspaco(); break;
     case 'limpar-capas': await bdOp('capas', 'readwrite', (o) => o.clear()); await mostrarEspaco(); break;
     case 'limpar-autos': await bdOp('autos', 'readwrite', (o) => o.clear()); await bdTodos('jogos').then((js) => Promise.all(js.filter((j) => j.temAuto).map((j) => bdMudarJogo(j.id, (x) => x && Object.assign(x, { temAuto: false }))))); await mostrarEspaco(); break;
@@ -16423,7 +16477,7 @@ ajustarEscala();
 if (!temPasta) document.querySelectorAll('[data-acao="pasta"], [data-acao="reler-pasta"]').forEach((b) => { b.hidden = true; });
 if (sofa) mostrarBiblioteca(false); else abrirHome();
 primeiraVez();
-window.KOFnes = { guarda: { assentarRascunhos, assentarSave, lerSave, exportarSaves, importarSaves, calcularEspaco, limitarEstados, carregarEstat, estat: () => estat, aparelho: APARELHO, bdTodos, bdGuardar, bdPegar }, imagemTeste: (rgba, l, a) => { imagemTeste = true; document.body.classList.remove('vazio'); tamanhoTela(l, a); px.set(new Uint32Array(Uint8Array.from(rgba).buffer)); pintar(true); pintar(true); ajustarEscala(); }, mudarMoldura, abrirArquivo, estado: () => ({ snes: !!snes, pausado, romNome, jogoId }), nucleo: () => snes, botoes: () => estado(), mapa: () => mapa, filtro: () => filtro, aplicarFiltro, notaDoCanal, notas: () => notas, atrasoNotas: () => (juke.apu ? juke.amostras / juke.apu.taxa - notasVisto : 0), mudarSinc, filtrosRuins: () => glRuins.size, auto: () => autoSalvar, webgl: !!gl,
+window.KOFnes = { controle: { conectar: conectarControle, desconectar: desconectarControle, estado: () => ({ ligado: remoto.ligado, bits: remoto.bits, eixos: Array.from(remoto.eixos) }) }, guarda: { assentarRascunhos, assentarSave, lerSave, exportarSaves, importarSaves, calcularEspaco, limitarEstados, carregarEstat, estat: () => estat, aparelho: APARELHO, bdTodos, bdGuardar, bdPegar }, imagemTeste: (rgba, l, a) => { imagemTeste = true; document.body.classList.remove('vazio'); tamanhoTela(l, a); px.set(new Uint32Array(Uint8Array.from(rgba).buffer)); pintar(true); pintar(true); ajustarEscala(); }, mudarMoldura, abrirArquivo, estado: () => ({ snes: !!snes, pausado, romNome, jogoId }), nucleo: () => snes, botoes: () => estado(), mapa: () => mapa, filtro: () => filtro, aplicarFiltro, notaDoCanal, notas: () => notas, atrasoNotas: () => (juke.apu ? juke.amostras / juke.apu.taxa - notasVisto : 0), mudarSinc, filtrosRuins: () => glRuins.size, auto: () => autoSalvar, webgl: !!gl,
   // pros testes: lista falsa de n jogos (mede a biblioteca) e uma quebra de mentira no núcleo
   testeLista: (n, nomes) => { fecharJanelas(); itens = Array.from({ length: n }, (_, i) => { const nome = nomes ? nomes[i % nomes.length] + (i >= nomes.length ? ' #' + i : '') : 'Jogo de teste ' + i; return { nome, ext: 'SFC', chave: normal(nome), variante: VARIANTE.test(nome) }; }); $('#biblioteca').hidden = false; const t0 = performance.now(); montarLista(); const t1 = performance.now(); for (let k = 0; k < 30; k++) listaTecla({ code: 'ArrowDown', preventDefault() {}, target: null, key: '' }); return { montar: Math.round(t1 - t0), trintaSetas: Math.round(performance.now() - t1) }; },
   forcarErro: () => { const r = snes.runFrame; snes.runFrame = () => { snes.runFrame = r; throw new Error('quebra de teste'); }; },
@@ -16505,7 +16559,7 @@ window.KOFnes = { guarda: { assentarRascunhos, assentarSave, lerSave, exportarSa
       if (dy < -0.38) { bits |= 0x0800; nome += 'u '; } if (dy > 0.38) { bits |= 0x0400; nome += 'd '; }
     }
     dpad.dataset.dir = nome.trim();
-    const an = analogico();   // console com analógico: a posição do dedo vai inteira pro analógico
+    const an = modoControle ? 'misto' : analogico();   // console com analógico (ou o celular como controle do PC): a posição do dedo vai pro analógico
     if (an) { eixosToque[0] = d > 1 ? dx / d : mx; eixosToque[1] = d > 1 ? dy / d : my; if (an === 'puro') return 0; }
     return bits;
   }
@@ -16545,8 +16599,9 @@ window.KOFnes = { guarda: { assentarRascunhos, assentarSave, lerSave, exportarSa
   addEventListener('blur', soltarTudo); document.addEventListener('visibilitychange', () => { if (document.hidden) soltarTudo(); });
 
   // ----- quando o controle aparece -----
-  let jogando = false;
+  let jogando = false, modoControle = null;   // modoControle: o celular como controle do PC (abaixo)
   function atualizarJogando() {
+    if (modoControle) return;   // o celular como controle do PC: o controle fica na tela até sair
     const j = !!snes && telaAtual() === 'jogo';
     if (j === jogando) return;
     jogando = j; document.body.classList.toggle('cel-jogo', j);
@@ -16607,17 +16662,61 @@ window.KOFnes = { guarda: { assentarRascunhos, assentarSave, lerSave, exportarSa
     const aj = document.createElement('div'); aj.className = 'ctl-ajustes';
     aj.append(slider('Tamanho', 'tam', 0.7, 1.4, 0.05, cfg.tam, (v) => Math.round(v * 100) + '%'), slider('Transparência', 'opa', 0.25, 1, 0.05, cfg.opa, (v) => Math.round(v * 100) + '%'),
       chave('Vibrar ao tocar', 'vibrar', 'ctlVibrar'), chave('Modo canhoto (troca os lados)', 'canhoto', 'ctlCanhoto'));
-    g.append(lista, aj);
+    const pc = document.createElement('button'); pc.className = 'grande'; pc.dataset.acao = 'modo-controle'; pc.textContent = '📱 Usar este celular como controle do PC';
+    const dpc = document.createElement('p'); dpc.className = 'dica'; dpc.textContent = 'Com o KOFstation aberto no PC, na mesma Wi-Fi: o celular vira o controle, com o analógico e todos os botões.';
+    g.append(pc, dpc, lista, aj);
   };
   montarAjuda = function () { /* a tabela de atalhos de teclado não existe no celular */ };
   { const rp = janela.querySelector('[data-acao="teclas-padrao"]') || [...janela.querySelectorAll('button')].find((b) => /Restaurar/.test(b.textContent));
     if (rp) { rp.dataset.acao = 'ctl-padrao'; rp.addEventListener('click', () => { Object.assign(cfg, { modelo: 'classico', tam: 1, opa: 1, vibrar: true, canhoto: false }); for (const k of ['ctlModelo', 'ctlTam', 'ctlOpa', 'ctlVibrar', 'ctlCanhoto']) guardar(k, ''); aplicar(); montarGrade(); avisar('controle: padrão'); }); } }
   janela.style.width = 'min(560px, 100vw)'; janela.style.maxHeight = '100%'; janela.style.overflowY = 'auto';
 
+  // ----- o celular como controle do PC -----
+  // O APK abre um servidor na rede de casa (ControleServidor.java) e mostra o endereço e a senha; o PC conecta (Arquivo →
+  // Celular como controle). Aqui fica o controle de toque de sempre, sem jogo, mandando botões e eixos a cada mudança
+  function entrarModoControle() {
+    if (!window.KOFnesApk || !KOFnesApk.controleIniciar) { avisar('isso precisa do app KOFstation (APK) no celular', 4000); return; }
+    const r = JSON.parse(KOFnesApk.controleIniciar() || '{}');
+    if (r.erro || !r.ip) { avisar('não consegui abrir o controle: ' + (r.erro || 'o celular está sem Wi-Fi?'), 5000); return; }
+    if (snes) pausado = true;
+    fecharJanelas();
+    const end = r.ip + (r.porta !== 8642 ? ':' + r.porta : '') + ' ' + r.senha;
+    const d = document.createElement('div'); d.id = 'modo-controle';
+    d.innerHTML = '<b>📱 Controle do PC</b><span>No PC: <b>Arquivo → Celular como controle</b> e digite:</span><code></code><small>esperando o PC…</small><button>Sair</button>';
+    d.querySelector('code').textContent = end;
+    d.querySelector('button').addEventListener('click', sairModoControle);
+    document.body.appendChild(d);
+    modoControle = { sisAntes: document.body.dataset.sis, b: -1, e: -1, quando: 0, visto: 0 };
+    document.body.classList.add('modo-controle', 'cel-jogo', 'analogico'); document.body.dataset.sis = 'ps1';   // ps1: mostra L2/R2
+    modoControle.timer = setInterval(enviarControle, 8);
+    requestAnimationFrame(() => ajustarEscala());
+  }
+  function enviarControle() {
+    const m = modoControle; if (!m) return;
+    const b = estado(), e16 = [eixosToque[0], eixosToque[1], 0, 0].map((v) => (Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767)));
+    const e = KofLibretro.empacotar(e16), agora = performance.now();
+    if (b !== m.b || e !== m.e || agora - m.quando > 250) { KOFnesApk.controleEnviar(b, e); m.b = b; m.e = e; m.quando = agora; }
+    if (agora - m.visto > 500) {
+      m.visto = agora; const [n, nome] = String(KOFnesApk.controleEstado() || '0|').split('|');
+      const s = document.querySelector('#modo-controle small'); if (s) s.textContent = +n ? '✅ conectado ao ' + (nome || 'PC') : 'esperando o PC…';
+    }
+  }
+  function sairModoControle() {
+    const m = modoControle; if (!m) return;
+    clearInterval(m.timer); modoControle = null; soltarTudo();
+    try { KOFnesApk.controleParar(); } catch (x) { /* sem ponte */ }
+    const d = $('#modo-controle'); if (d) d.remove();
+    document.body.classList.remove('modo-controle', 'cel-jogo'); document.body.classList.toggle('analogico', !!(snes && SIS[snes.sistema] && SIS[snes.sistema].analogico));
+    if (m.sisAntes) document.body.dataset.sis = m.sisAntes; else delete document.body.dataset.sis;
+    jogando = false; atualizarJogando();
+  }
+  window.entrarModoControle = entrarModoControle;
+
   // ----- voltar do Android: no jogo abre o menu rápido; nas telas, volta -----
   history.pushState({ kofnes: 1 }, '');
   addEventListener('popstate', () => {
     history.pushState({ kofnes: 1 }, '');
+    if (modoControle) { sairModoControle(); return; }
     if (rapidoAberto) { fecharRapido(); return; }
     if (snes && telaAtual() === 'jogo') { abrirRapido(); return; }
     acao('voltar');
@@ -16631,7 +16730,7 @@ window.KOFnes = { guarda: { assentarRascunhos, assentarSave, lerSave, exportarSa
     const paginas = {
       comecar: ['👋 Começando', '<h3>👋 Começando</h3><p>O <b>KOFstation</b> é um emulador de Super Nintendo e Game Boy. Toque em <b>Abrir uma ROM</b>, escolha o arquivo do seu jogo e jogue com o controle na tela.</p><p>Este guia tem o resto: biblioteca, controle, voltar no tempo, imagem e som, jukebox e temas.</p>'],
       biblioteca: ['📚 Biblioteca', '<h3>📚 Biblioteca</h3><p>Toque em <b>Abrir uma ROM</b> e escolha o arquivo do jogo (.sfc, .smc, .nes, .gb, .gbc, .md, .sms, .gg ou .zip). Ele fica guardado na <b>Biblioteca</b>: da próxima vez é só tocar nele.</p><p>No <b>Início</b>, <b>Continuar</b> volta exatamente de onde você parou.</p>'],
-      jogando: ['🎮 Jogando', '<h3>🎮 Jogando</h3><p>O controle fica na tela. Dá pra apertar vários botões ao mesmo tempo e deslizar o dedo entre A, B, X e Y.</p><p>Toque em <b>☰</b> pra salvar, carregar, mudar o tema e o filtro. Em <b>Controles</b> (barra de baixo) você troca o modelo do controle, o tamanho e a transparência, e liga o modo canhoto.</p><p>Gire o celular: na horizontal, os botões ficam nos cantos e o jogo ganha a tela.</p>'],
+      jogando: ['🎮 Jogando', '<h3>🎮 Jogando</h3><p>O controle fica na tela. Dá pra apertar vários botões ao mesmo tempo e deslizar o dedo entre A, B, X e Y.</p><p>Toque em <b>☰</b> pra salvar, carregar, mudar o tema e o filtro. Em <b>Controles</b> (barra de baixo) você troca o modelo do controle, o tamanho e a transparência, e liga o modo canhoto.</p><p>Gire o celular: na horizontal, os botões ficam nos cantos e o jogo ganha a tela.</p><p><b>📱 Controle do PC:</b> em <b>Controles</b>, toque em <b>Usar este celular como controle do PC</b>. Aparecem um endereço e uma senha: no PC, <b>Arquivo → Celular como controle</b> e digite os dois. Os dois precisam estar na mesma Wi-Fi.</p>'],
       bugs: ['🐞 Bugs', '<h3>🐞 Bugs</h3><p>O KOFstation é jovem, e cada bug encontrado ajuda o emulador. Toque em <b>☰</b> e em <b>Reportar bug</b>: a página do GitHub abre já preenchida e um pacote é baixado pra reproduzir o bug quadro a quadro. É só anexar o arquivo na página.</p><p>Se o emulador quebrar, ele mesmo oferece reportar.</p>'],
       tempo: ['⏪ Voltar no tempo', '<h3>⏪ Voltar no tempo</h3><p>Segure o <b>⏪</b> e o jogo volta até 5 segundos, em preto e branco. Soltou, continua dali. Depois a ampulheta ⏳ recarrega enquanto você joga.</p><p><b>⏩</b> acelera o jogo enquanto você segura.</p>'],
       backup: ['💾 Saves e backup', backup ? backup.innerHTML : ''],

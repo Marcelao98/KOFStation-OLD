@@ -621,8 +621,42 @@ let toque = 0;   // botões apertados na tela de toque (celular)
 const eixosToque = [0, 0];   // analógico da tela de toque (-1..1), nos consoles com analogico
 // console com analógico (N64, PS1...): 'puro' = o analógico não aperta o direcional, 'misto' = aperta também
 const analogico = () => snes && SIS[snes.sistema || 'snes'] && SIS[snes.sistema || 'snes'].analogico;
+// celular como controle (o APK abre um servidor na rede de casa; esta página conecta nele): botões e eixos que chegam
+const remoto = { ws: null, bits: 0, eixos: new Int16Array(4), alvo: null, tentativas: 0, ligado: false };
+function conectarControle(texto) {
+  const m = /^\s*(\d{1,3}(?:\.\d{1,3}){3})(?::(\d+))?\s+(\d{4})\s*$/.exec(texto || '');
+  if (!m) { avisar('digite o endereço e a senha que aparecem no celular, ex.: 192.168.0.15 4821', 6000); return false; }
+  desconectarControle(); guardar('controleUltimo', texto.trim());
+  remoto.alvo = { url: `ws://${m[1]}:${m[2] || 8642}`, senha: m[3] }; remoto.tentativas = 0;
+  abrirControle(); return true;
+}
+function abrirControle() {
+  const a = remoto.alvo; if (!a) return;
+  let ws; try { ws = new WebSocket(a.url); } catch (e) { avisar('📱 não consegui conectar: ' + e.message, 5000); return; }
+  ws.binaryType = 'arraybuffer'; remoto.ws = ws;
+  ws.onopen = () => ws.send('KOF ' + a.senha + ' ' + nomeAparelho());
+  ws.onmessage = (e) => {
+    if (typeof e.data === 'string') {
+      if (e.data === 'ok') { remoto.ligado = true; remoto.tentativas = 0; avisar('📱 celular conectado: já pode jogar com ele', 3000); marcarControle(); }
+      else { avisar('📱 ' + e.data, 5000); remoto.alvo = null; }
+      return;
+    }
+    const u = new Int8Array(e.data); if (u.length < 6) return;
+    remoto.bits = (u[0] & 255) | ((u[1] & 255) << 8);
+    for (let k = 0; k < 4; k++) remoto.eixos[k] = Math.round(u[2 + k] * 32767 / 127);
+  };
+  ws.onclose = () => {
+    if (remoto.ws !== ws) return;
+    const era = remoto.ligado; remoto.ligado = false; remoto.bits = 0; remoto.eixos.fill(0); remoto.ws = null; marcarControle();
+    if (!remoto.alvo) return;
+    if (remoto.tentativas++ < 30) { if (era) avisar('📱 o celular caiu: tentando de novo…', 3000); setTimeout(() => { if (remoto.alvo && !remoto.ws) abrirControle(); }, 2000); }
+    else { avisar('📱 não achei o celular. Ele está na tela "Controle do PC" e na mesma Wi-Fi?', 6000); remoto.alvo = null; }
+  };
+}
+function desconectarControle() { remoto.alvo = null; const w = remoto.ws; remoto.ws = null; remoto.ligado = false; remoto.bits = 0; remoto.eixos.fill(0); if (w) try { w.close(); } catch (e) { /* já fechado */ } marcarControle(); }
+function marcarControle() { const b = $('[data-acao="controle-celular"]'); if (b) b.textContent = remoto.ligado ? '📱 Celular conectado (desconectar)' : '📱 Celular como controle…'; }
 function estado() {
-  let b = teclado | toque;
+  let b = teclado | toque | remoto.bits;
   const puro = analogico() === 'puro';
   for (const g of (navigator.getGamepads ? navigator.getGamepads() : [])) {
     if (!g) continue;
@@ -1241,6 +1275,7 @@ function lerEixos() {
     if (!g) continue;
     for (let k = 0; k < 4 && k < g.axes.length; k++) if (!e[k]) e[k] = pos(g.axes[k]);
   }
+  if (!e[0] && !e[1] && !e[2] && !e[3]) e.set(remoto.eixos);   // o celular como controle
   if (!e[0] && !e[1]) { e[0] = pos(eixosToque[0]); e[1] = pos(eixosToque[1]); }
   return e;
 }
@@ -3564,6 +3599,11 @@ async function acao(a) {
     case 'exportar-saves': try { const n = await exportarSaves(!!($('#bk-estados') || {}).checked); avisar('💾 backup pronto (' + tamanho(n) + ')', 3000); } catch (e) { avisar('não consegui fazer o backup: ' + e.message, 5000); } break;
     case 'importar-saves': escolherBackup(); break;
     case 'guia-backup': abrirGuia('backup'); break;
+    case 'modo-controle': if (window.entrarModoControle) window.entrarModoControle(); break;
+    case 'controle-celular':
+      if (remoto.ligado || remoto.alvo) { desconectarControle(); avisar('📱 celular desconectado'); break; }
+      { const t = prompt('No celular, abra o KOFstation → Controles → "Usar como controle do PC".\nDigite aqui o endereço e a senha que aparecem lá (ex.: 192.168.0.15 4821):', ler('controleUltimo') || ''); if (t) { conectarControle(t); avisar('📱 conectando…', 2000); } }
+      break;
     case 'espaco': await mostrarEspaco(); break;
     case 'limpar-capas': await bdOp('capas', 'readwrite', (o) => o.clear()); await mostrarEspaco(); break;
     case 'limpar-autos': await bdOp('autos', 'readwrite', (o) => o.clear()); await bdTodos('jogos').then((js) => Promise.all(js.filter((j) => j.temAuto).map((j) => bdMudarJogo(j.id, (x) => x && Object.assign(x, { temAuto: false }))))); await mostrarEspaco(); break;
@@ -3623,7 +3663,7 @@ ajustarEscala();
 if (!temPasta) document.querySelectorAll('[data-acao="pasta"], [data-acao="reler-pasta"]').forEach((b) => { b.hidden = true; });
 if (sofa) mostrarBiblioteca(false); else abrirHome();
 primeiraVez();
-window.KOFnes = { guarda: { assentarRascunhos, assentarSave, lerSave, exportarSaves, importarSaves, calcularEspaco, limitarEstados, carregarEstat, estat: () => estat, aparelho: APARELHO, bdTodos, bdGuardar, bdPegar }, imagemTeste: (rgba, l, a) => { imagemTeste = true; document.body.classList.remove('vazio'); tamanhoTela(l, a); px.set(new Uint32Array(Uint8Array.from(rgba).buffer)); pintar(true); pintar(true); ajustarEscala(); }, mudarMoldura, abrirArquivo, estado: () => ({ snes: !!snes, pausado, romNome, jogoId }), nucleo: () => snes, botoes: () => estado(), mapa: () => mapa, filtro: () => filtro, aplicarFiltro, notaDoCanal, notas: () => notas, atrasoNotas: () => (juke.apu ? juke.amostras / juke.apu.taxa - notasVisto : 0), mudarSinc, filtrosRuins: () => glRuins.size, auto: () => autoSalvar, webgl: !!gl,
+window.KOFnes = { controle: { conectar: conectarControle, desconectar: desconectarControle, estado: () => ({ ligado: remoto.ligado, bits: remoto.bits, eixos: Array.from(remoto.eixos) }) }, guarda: { assentarRascunhos, assentarSave, lerSave, exportarSaves, importarSaves, calcularEspaco, limitarEstados, carregarEstat, estat: () => estat, aparelho: APARELHO, bdTodos, bdGuardar, bdPegar }, imagemTeste: (rgba, l, a) => { imagemTeste = true; document.body.classList.remove('vazio'); tamanhoTela(l, a); px.set(new Uint32Array(Uint8Array.from(rgba).buffer)); pintar(true); pintar(true); ajustarEscala(); }, mudarMoldura, abrirArquivo, estado: () => ({ snes: !!snes, pausado, romNome, jogoId }), nucleo: () => snes, botoes: () => estado(), mapa: () => mapa, filtro: () => filtro, aplicarFiltro, notaDoCanal, notas: () => notas, atrasoNotas: () => (juke.apu ? juke.amostras / juke.apu.taxa - notasVisto : 0), mudarSinc, filtrosRuins: () => glRuins.size, auto: () => autoSalvar, webgl: !!gl,
   // pros testes: lista falsa de n jogos (mede a biblioteca) e uma quebra de mentira no núcleo
   testeLista: (n, nomes) => { fecharJanelas(); itens = Array.from({ length: n }, (_, i) => { const nome = nomes ? nomes[i % nomes.length] + (i >= nomes.length ? ' #' + i : '') : 'Jogo de teste ' + i; return { nome, ext: 'SFC', chave: normal(nome), variante: VARIANTE.test(nome) }; }); $('#biblioteca').hidden = false; const t0 = performance.now(); montarLista(); const t1 = performance.now(); for (let k = 0; k < 30; k++) listaTecla({ code: 'ArrowDown', preventDefault() {}, target: null, key: '' }); return { montar: Math.round(t1 - t0), trintaSetas: Math.round(performance.now() - t1) }; },
   forcarErro: () => { const r = snes.runFrame; snes.runFrame = () => { snes.runFrame = r; throw new Error('quebra de teste'); }; },

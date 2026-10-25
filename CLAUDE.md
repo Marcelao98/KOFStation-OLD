@@ -332,6 +332,16 @@ app/, empacotar/, nativo/  versões antigas: Java (instalador) e nativa Linux s�
 > do PC (chave `sram.<título>.<tam>`) e o `.mcd` do celular são chaves diferentes (resolver na Fase 3). Testes:
 > `testes/navegador/saves.cjs dist/web`, `testes/android/teste-saves-nativos.sh`, `gba.cjs` (save no banco).
 
+> **Celular como controle do PC (branch `controle`, 25/10, NÃO publicada na main, CASCA 11; Fase 2):** `ControleServidor.java`
+> (sem Android, `main` de teste com modo `entrada`): WebSocket mínimo na porta 8642 (ou outra livre), senha de 4 dígitos,
+> `TCP_NODELAY`; o PC manda `KOF <senha> <nome>`, recebe `ok` e depois 6 bytes por mudança (botões no formato do SNES do
+> app + 4 eixos int8). Ponte: `controleIniciar` (liga a tela acesa; JSON ip/porta/senha), `controleEnviar`, `controleEstado`,
+> `controleParar`. Celular: Controles → "Usar este celular como controle do PC" (`entrarModoControle` no android.js: o
+> controle de toque sem jogo, direcional = analógico 'misto', L2/R2 visíveis, manda a cada mudança ou a cada 250 ms; o
+> voltar sai). PC: Arquivo → "📱 Celular como controle…" (`conectarControle('ip[:porta] senha')`, `remoto.bits/eixos`
+> entram no `estado()`/`lerEixos()`, tenta de novo se cair). Testado: página do arquivo (file://) conecta em ws:// de
+> outra máquina; `testes/android/controle.cjs dist/web` (celular → Java de verdade → PC; ~10 ms aqui).
+
 ## Pendências (atualizado 17/10; ver a nota de 20/10 logo abaixo)
 
 > **20/10:** conferido no git: as branches `temas-menu` (126 temas, busca, categorias, Café) e `atualizador-wininet` (aviso

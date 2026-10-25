@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final int PEDIDO_ARQUIVO = 1, PEDIDO_SALVAR = 2, PEDIDO_PASTA = 3;
     // sobe a cada mudança neste Java: página publicada com casca maior pede APK novo (ela pode usar algo que esta não tem)
-    static final int CASCA = 10;
+    static final int CASCA = 11;
     private static final String FONTE = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/publicado/";
     private static final String APK = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/android/apk/KOFstation.apk";
     private File raizWeb;   // pasta da versão baixada (null = a que veio dentro do APK)
@@ -51,6 +51,7 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> escolha;
     private byte[] paraSalvar;
     private Ps1Jogo ps1;   // PlayStation nativo (null = a ponte não carregou: o app usa o WebAssembly)
+    private ControleServidor controle;   // o celular como controle do PC (null = desligado)
     private N64Jogo n64;   // Nintendo 64 nativo (null = sem N64 nesse aparelho)
     private Pasta pasta;
 
@@ -226,6 +227,25 @@ public class MainActivity extends Activity {
             if (us == null) return;
             if (ps1 != null) ps1.ultimaEscolha = us;
             if (n64 != null) n64.ultimaEscolha = us;
+        }
+
+        // ---- o celular como controle do PC (ControleServidor): servidor na rede de casa, a página manda os botões ----
+        @JavascriptInterface
+        public String controleIniciar() {
+            try {
+                if (controle == null) controle = new ControleServidor(ControleServidor.novaSenha(), ControleServidor.PORTA);
+                runOnUiThread(new Runnable() { public void run() { getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); } });
+                return "{\"ip\":\"" + ControleServidor.ipLocal() + "\",\"porta\":" + controle.porta + ",\"senha\":\"" + controle.senha + "\"}";
+            } catch (Exception e) { return "{\"erro\":\"" + String.valueOf(e.getMessage()).replace("\"", "'") + "\"}"; }
+        }
+        @JavascriptInterface
+        public void controleEnviar(int botoes, int eixos) { ControleServidor c = controle; if (c != null) c.enviar(botoes, eixos); }
+        @JavascriptInterface
+        public String controleEstado() { ControleServidor c = controle; return c == null ? "0|" : c.conectados() + "|" + c.nomePc; }
+        @JavascriptInterface
+        public void controleParar() {
+            ControleServidor c = controle; controle = null; if (c != null) c.parar();
+            runOnUiThread(new Runnable() { public void run() { getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); } });
         }
 
         // ---- saves dos consoles nativos (SavesNativos): entram no backup .kofsave ----
