@@ -73,7 +73,7 @@
       if (dy < -0.38) { bits |= 0x0800; nome += 'u '; } if (dy > 0.38) { bits |= 0x0400; nome += 'd '; }
     }
     dpad.dataset.dir = nome.trim();
-    const an = modoControle ? 'misto' : analogico();   // console com analógico (ou o celular como controle do PC): a posição do dedo vai pro analógico
+    const an = modoControle ? modoControle.an || 'misto' : analogico();   // console com analógico (ou o celular como controle do PC): a posição do dedo vai pro analógico
     if (an) { eixosToque[0] = d > 1 ? dx / d : mx; eixosToque[1] = d > 1 ? dy / d : my; if (an === 'puro') return 0; }
     return bits;
   }
@@ -188,34 +188,71 @@
   // ----- o celular como controle do PC -----
   // O APK abre um servidor na rede de casa (ControleServidor.java) e mostra o endereço e a senha; o PC conecta (Arquivo →
   // Celular como controle). Aqui fica o controle de toque de sempre, sem jogo, mandando botões e eixos a cada mudança
+  // Tela "Controle do PC": o controle de toque inteiro e, no lugar do jogo, uma "telinha" com o console e o jogo que o PC
+  // abriu (o PC manda "JOGO <console> <nome>"; o controle troca botões, nomes e cores pros daquele console). O endereço e a
+  // senha só aparecem enquanto o PC nunca conectou (depois ele religa sozinho: a senha deste celular não muda) ou no ⓘ
+  const CONSOLE_PARECIDO = { ps2: 'ps1', gbc: 'gb' };   // console sem controle próprio aqui usa o de um parecido
+  const NOME_CONSOLE = { ps2: 'PlayStation 2', gbc: 'Game Boy Color' };
   function entrarModoControle() {
     if (!window.KOFnesApk || !KOFnesApk.controleIniciar) { avisar('isso precisa do app KOFstation (APK) no celular', 4000); return; }
     const r = JSON.parse(KOFnesApk.controleIniciar() || '{}');
     if (r.erro || !r.ip) { avisar('não consegui abrir o controle: ' + (r.erro || 'o celular está sem Wi-Fi?'), 5000); return; }
     if (snes) pausado = true;
     fecharJanelas();
-    const end = r.ip + (r.porta !== 8642 ? ':' + r.porta : '') + ' ' + r.senha;
     const d = document.createElement('div'); d.id = 'modo-controle';
-    d.innerHTML = '<b>📱 Controle do PC</b><span>No PC: <b>Arquivo → Celular como controle</b> e digite:</span><code></code><small>esperando o PC…</small><em></em><button>Sair</button>';
-    d.querySelector('code').textContent = end;
+    d.innerHTML = '<div class="mc-barra"><i class="mc-luz"></i><span class="mc-status">procurando o PC…</span><button class="mc-info" aria-label="endereço e senha">ⓘ</button><button class="mc-sair" aria-label="sair">✕</button></div>'
+      + '<div class="mc-tela"><small class="mc-sis"></small><b class="mc-jogo"></b></div>'
+      + '<div class="mc-parear"><b>📱 Conectar ao PC</b><span>No PC: <b>Arquivo → Celular como controle</b> e digite:</span><code></code><em></em><small>Só na primeira vez: depois o PC conecta sozinho.</small></div>';
+    d.querySelector('code').textContent = r.ip + (r.porta !== 8642 ? ':' + r.porta : '') + ' ' + r.senha;
     // sem rede de casa o PC não alcança o celular; com ela, o link serve pra testar no navegador do PC se a rede deixa
     d.querySelector('em').textContent = r.casa === false ? '⚠️ o celular não parece estar na Wi-Fi (4G ou VPN?): ligue a Wi-Fi da mesma rede do PC'
       : `Não conectou? No navegador do PC abra http://${r.ip}:${r.porta}`;
-    d.querySelector('button').addEventListener('click', sairModoControle);
+    d.querySelector('.mc-sair').addEventListener('click', sairModoControle);
+    d.querySelector('.mc-info').addEventListener('click', () => { modoControle.info = !modoControle.info; marcarModoControle(); });
     document.body.appendChild(d);
-    modoControle = { sisAntes: document.body.dataset.sis, b: -1, e: -1, quando: 0, visto: 0 };
-    document.body.classList.add('modo-controle', 'cel-jogo', 'analogico'); document.body.dataset.sis = 'ps1';   // ps1: mostra L2/R2
+    modoControle = { sisAntes: document.body.dataset.sis, b: -1, e: -1, quando: 0, visto: 0, n: -1, jogo: null, info: false };
+    document.body.classList.add('modo-controle', 'cel-jogo');
+    consoleDoControle('', '');
+    marcarModoControle();
     modoControle.timer = setInterval(enviarControle, 8);
     requestAnimationFrame(() => ajustarEscala());
+  }
+  // troca o controle pro console do jogo que o PC abriu ('' = nenhum: controle completo, com L2/R2 e analógico)
+  function consoleDoControle(sis, nome) {
+    const base = CONSOLE_PARECIDO[sis] || sis, S = SIS[base];
+    document.body.dataset.sis = S ? base : 'ps1';
+    document.body.classList.toggle('analogico', !S || !!S.analogico);
+    if (modoControle) modoControle.an = S && S.analogico === 'puro' ? 'puro' : 'misto';   // N64: o analógico não aperta o direcional
+    document.body.classList.toggle('so-ab', !!(S && S.botoes && !S.botoes.includes('X')));
+    rotularControle(S ? base : 'ps1');
+    const d = $('#modo-controle'); if (!d) return;
+    d.querySelector('.mc-sis').textContent = sis ? (NOME_CONSOLE[sis] || (S ? S.nome : sis)) : 'nenhum jogo aberto';
+    d.querySelector('.mc-jogo').textContent = sis ? nome || '' : 'abra um jogo no PC';
+    const t = d.querySelector('.mc-tela'); t.classList.remove('mc-troca'); void t.offsetWidth; t.classList.add('mc-troca');   // animação de troca
+    requestAnimationFrame(() => ajustarEscala());
+  }
+  function marcarModoControle() {
+    const m = modoControle, d = $('#modo-controle'); if (!m || !d) return;
+    const ligado = m.n > 0, pareado = ler('controlePareado') === '1';
+    d.classList.toggle('ligado', ligado);
+    d.classList.toggle('pareando', m.info || (!ligado && !pareado));   // endereço e senha à mostra
+    d.querySelector('.mc-status').textContent = ligado ? (m.nomePc || 'PC') : pareado ? 'procurando o PC…' : 'esperando o PC…';
   }
   function enviarControle() {
     const m = modoControle; if (!m) return;
     const b = estado(), e16 = [eixosToque[0], eixosToque[1], 0, 0].map((v) => (Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767)));
     const e = KofLibretro.empacotar(e16), agora = performance.now();
     if (b !== m.b || e !== m.e || agora - m.quando > 250) { KOFnesApk.controleEnviar(b, e); m.b = b; m.e = e; m.quando = agora; }
-    if (agora - m.visto > 500) {
-      m.visto = agora; const [n, nome] = String(KOFnesApk.controleEstado() || '0|').split('|');
-      const s = document.querySelector('#modo-controle small'); if (s) s.textContent = +n ? '✅ conectado ao ' + (nome || 'PC') : 'esperando o PC…';
+    if (agora - m.visto > 300) {
+      m.visto = agora;
+      const t = String(KOFnesApk.controleEstado() || '0');
+      const [n, nomePc, sis = '', jogo = ''] = t.includes('\t') ? t.split('\t') : t.split('|');   // casca antiga: "n|nome"
+      if (+n !== m.n || nomePc !== m.nomePc) {
+        if (+n > 0 && !(m.n > 0)) { guardar('controlePareado', '1'); m.info = false; }
+        m.n = +n; m.nomePc = nomePc; marcarModoControle();
+      }
+      const j = +n > 0 ? sis + '\t' + jogo : '\t';
+      if (j !== m.jogo) { m.jogo = j; consoleDoControle(+n > 0 ? sis : '', jogo); }
     }
   }
   function sairModoControle() {
@@ -224,6 +261,9 @@
     try { KOFnesApk.controleParar(); } catch (x) { /* sem ponte */ }
     const d = $('#modo-controle'); if (d) d.remove();
     document.body.classList.remove('modo-controle', 'cel-jogo'); document.body.classList.toggle('analogico', !!(snes && SIS[snes.sistema] && SIS[snes.sistema].analogico));
+    const sisJogo = snes ? snes.sistema || 'snes' : '';   // o controle volta a ser o do jogo deste celular
+    document.body.classList.toggle('so-ab', !!(sisJogo && SIS[sisJogo] && SIS[sisJogo].botoes && !SIS[sisJogo].botoes.includes('X')));
+    rotularControle(sisJogo);
     if (m.sisAntes) document.body.dataset.sis = m.sisAntes; else delete document.body.dataset.sis;
     jogando = false; atualizarJogando();
   }

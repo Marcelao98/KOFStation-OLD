@@ -622,12 +622,13 @@ const eixosToque = [0, 0];   // analógico da tela de toque (-1..1), nos console
 // console com analógico (N64, PS1...): 'puro' = o analógico não aperta o direcional, 'misto' = aperta também
 const analogico = () => snes && SIS[snes.sistema || 'snes'] && SIS[snes.sistema || 'snes'].analogico;
 // celular como controle (o APK abre um servidor na rede de casa; esta página conecta nele): botões e eixos que chegam
-const remoto = { ws: null, bits: 0, eixos: new Int16Array(4), alvo: null, tentativas: 0, ligado: false };
-function conectarControle(texto) {
+const remoto = { ws: null, bits: 0, eixos: new Int16Array(4), alvo: null, tentativas: 0, ligado: false, calado: false };
+// silencioso = religar sozinho com o último celular (abriu o KOFstation): tenta quieto até o celular entrar no modo controle
+function conectarControle(texto, silencioso) {
   const m = /^\s*(\d{1,3}(?:\.\d{1,3}){3})(?::(\d+))?\s+(\d{4})\s*$/.exec(texto || '');
   if (!m) { avisar('digite o endereço e a senha que aparecem no celular, ex.: 192.168.0.15 4821', 6000); return false; }
   desconectarControle(); guardar('controleUltimo', texto.trim());
-  remoto.alvo = { url: `ws://${m[1]}:${m[2] || 8642}`, senha: m[3] }; remoto.tentativas = 0;
+  remoto.alvo = { url: `ws://${m[1]}:${m[2] || 8642}`, senha: m[3] }; remoto.tentativas = 0; remoto.calado = !!silencioso;
   abrirControle(); return true;
 }
 function abrirControle() {
@@ -637,8 +638,8 @@ function abrirControle() {
   ws.onopen = () => ws.send('KOF ' + a.senha + ' ' + nomeAparelho());
   ws.onmessage = (e) => {
     if (typeof e.data === 'string') {
-      if (e.data === 'ok') { remoto.ligado = true; remoto.tentativas = 0; avisar('📱 celular conectado: já pode jogar com ele', 3000); marcarControle(); }
-      else { avisar('📱 ' + e.data, 5000); remoto.alvo = null; }
+      if (e.data === 'ok') { remoto.ligado = true; remoto.tentativas = 0; remoto.calado = false; guardar('controleAuto', '1'); avisar('📱 celular conectado: já pode jogar com ele', 3000); marcarControle(); contarJogoAoControle(); }
+      else { if (!remoto.calado) avisar('📱 ' + e.data, 5000); remoto.alvo = null; guardar('controleAuto', '0'); }
       return;
     }
     const u = new Int8Array(e.data); if (u.length < 6) return;
@@ -649,6 +650,7 @@ function abrirControle() {
     if (remoto.ws !== ws) return;
     const era = remoto.ligado; remoto.ligado = false; remoto.bits = 0; remoto.eixos.fill(0); remoto.ws = null; marcarControle();
     if (!remoto.alvo) return;
+    if (remoto.calado) { setTimeout(() => { if (remoto.alvo && !remoto.ws) abrirControle(); }, 5000); return; }   // quieto, sem desistir
     if (!era && !remoto.tentativas) explicarFalhaControle(a.url);
     if (remoto.tentativas++ < 30) { if (era) avisar('📱 o celular caiu: tentando de novo…', 3000); setTimeout(() => { if (remoto.alvo && !remoto.ws) abrirControle(); }, 2000); }
     else { avisar('📱 não achei o celular. Ele está na tela "Controle do PC" e na mesma Wi-Fi?', 6000); remoto.alvo = null; }
@@ -663,6 +665,14 @@ async function explicarFalhaControle(url) {
   if (lna === 'denied') avisar('📱 o navegador está bloqueando o acesso à rede local: libere "Acesso à rede local" no cadeado/configurações do site, ou abra o KOFstation pelo KOFstation.exe/kofnes.sh atualizados. Sigo tentando…', 12000);
   else avisar(`📱 ainda não achei o celular (sigo tentando). Abra ${http} no navegador do PC: abriu "✅ Celular achado"? então é o navegador bloqueando a rede local (abra pelo KOFstation.exe/kofnes.sh atualizados). Não abriu? PC e celular precisam estar na mesma Wi-Fi (Wi-Fi de visitante isola os aparelhos).`, 15000);
 }
+// conta pro celular qual jogo está aberto: ele troca o controle pro daquele console (botões, nomes e cores)
+function contarJogoAoControle() {
+  if (!remoto.ligado || !remoto.ws) return;
+  const sis = snes ? snes.sistema || 'snes' : '';
+  try { remoto.ws.send('JOGO ' + sis + '\t' + (snes ? romNome.replace(/[\t\n]/g, ' ').slice(0, 80) : '')); } catch (e) { /* caiu: manda de novo ao religar */ }
+}
+// abriu o KOFstation e da última vez o celular conectou: tenta de novo sozinho (a senha do celular não muda)
+setTimeout(() => { if (ler('controleAuto') === '1' && ler('controleUltimo') && !remoto.alvo) conectarControle(ler('controleUltimo'), true); }, 1500);
 function desconectarControle() { remoto.alvo = null; const w = remoto.ws; remoto.ws = null; remoto.ligado = false; remoto.bits = 0; remoto.eixos.fill(0); if (w) try { w.close(); } catch (e) { /* já fechado */ } marcarControle(); }
 function marcarNucleoSnes() { const b = $('[data-acao="nucleo-snes"]'); if (b) b.textContent = 'Núcleo do SNES: ' + (nucleoSnes() === 'kof' ? 'Kof' : 'Snes9x'); }
 setTimeout(marcarNucleoSnes, 0);
@@ -2026,6 +2036,7 @@ async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
     autoAntes = Date.now();
   } catch (e) { console.warn('biblioteca indisponível', e); }
   contarSessao(jogoId, romNome);
+  contarJogoAoControle();
 }
 async function atualizarCapa() {   // print do jogo atual vira a capa dele na biblioteca
   if (!snes || !jogoId) return;
@@ -3659,7 +3670,7 @@ async function acao(a) {
       break;
     }
     case 'controle-celular':
-      if (remoto.ligado || remoto.alvo) { desconectarControle(); avisar('📱 celular desconectado'); break; }
+      if (remoto.ligado || (remoto.alvo && !remoto.calado)) { desconectarControle(); guardar('controleAuto', '0'); avisar('📱 celular desconectado'); break; }
       { const t = prompt('No celular, abra o KOFstation → Controles → "Usar como controle do PC".\nDigite aqui o endereço e a senha que aparecem lá (ex.: 192.168.0.15 4821):', ler('controleUltimo') || ''); if (t) { conectarControle(t); avisar('📱 conectando…', 2000); } }
       break;
     case 'espaco': await mostrarEspaco(); break;

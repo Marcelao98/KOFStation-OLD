@@ -36,6 +36,16 @@
   4. Depois: **Fase 3** (sincronizar saves/estatísticas pela conexão do controle; resolver chave do save do PS1 PC × .mcd
      do celular), **PS2** com o Play! (plano de ataque aprovado, não começado; Play! usa threads → precisa de
      SharedArrayBuffer, que file:// não tem: lançador com opção ou localhost).
+  6. **Controle 2 (branch `controle2`, 25/10, FEITO e testado aqui, NÃO publicado; CASCA 13, APK novo em android/apk na
+     branch):** o PC manda `JOGO <sis>\t<nome>` (texto, depois do `ok`; `contarJogoAoControle` no fim do `abrirBytes` e ao
+     conectar); `ControleServidor.jogo` + `controleEstado` = `n\tnomePc\tsis\tjogo` (a página aceita o "n|nome" antigo); o
+     celular troca o controle (`consoleDoControle`: data-sis, so-ab, analógico puro no N64, `rotularControle`; ps2 usa o do
+     ps1) e mostra a "telinha" console + jogo. **Senha fixa por celular** (prefs `controle`/`senha`) e o PC religa sozinho
+     (`controleAuto`, `conectarControle(t, silencioso)`: tenta quieto a cada 5 s). IP/senha só até o 1º pareamento
+     (`kofnes.controlePareado` no celular) ou no ⓘ. Cores por console no modelo clássico (PS ✕○□△, MD preto, Neo Geo, N64,
+     NES, GB/GBA). Teste: `testes/android/controle.cjs` (ROMs de MD e NES geradas no teste). `testes/montar-sem-kof.sh <pasta>`
+     monta os 2 html sem Kof/emscripten; APK: `.so` tiradas do APK anterior pra `android/nativo/lib/arm64-v8a/` + apt
+     (aapt apksigner zipalign libandroid-23-java dalvik-exchange android-sdk-platform-23) + `android/construir-apk.sh`.
 - **N64 e PS1 nativos ainda sem teste de jogo de verdade confirmado pelo Marcelo** (o PS1 voltou a abrir depois do
   conserto de 25/10; o N64 recebia "failed to read rom", corrigido na casca 7 entregando a ROM na memória).
 - Ambiente desta sessão (some no container novo): Kof4j em `/home/user/Kof4j`, núcleos compilados em

@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final int PEDIDO_ARQUIVO = 1, PEDIDO_SALVAR = 2, PEDIDO_PASTA = 3;
     // sobe a cada mudança neste Java: página publicada com casca maior pede APK novo (ela pode usar algo que esta não tem)
-    static final int CASCA = 12;
+    static final int CASCA = 13;
     private static final String FONTE = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/publicado/";
     private static final String APK = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/android/apk/KOFstation.apk";
     private File raizWeb;   // pasta da versão baixada (null = a que veio dentro do APK)
@@ -233,7 +233,13 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String controleIniciar() {
             try {
-                if (controle == null) controle = new ControleServidor(ControleServidor.novaSenha(), ControleServidor.PORTA);
+                if (controle == null) {
+                    // senha fixa por celular: o PC guarda e na próxima vez conecta sozinho, sem digitar nada
+                    android.content.SharedPreferences p = getSharedPreferences("controle", MODE_PRIVATE);
+                    String senha = p.getString("senha", "");
+                    if (senha.length() != 4) { senha = ControleServidor.novaSenha(); p.edit().putString("senha", senha).apply(); }
+                    controle = new ControleServidor(senha, ControleServidor.PORTA);
+                }
                 runOnUiThread(new Runnable() { public void run() { getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON); } });
                 String ip = ControleServidor.ipLocal();
                 return "{\"ip\":\"" + ip + "\",\"casa\":" + ControleServidor.redeDeCasa(ip) + ",\"porta\":" + controle.porta + ",\"senha\":\"" + controle.senha + "\"}";
@@ -242,7 +248,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void controleEnviar(int botoes, int eixos) { ControleServidor c = controle; if (c != null) c.enviar(botoes, eixos); }
         @JavascriptInterface
-        public String controleEstado() { ControleServidor c = controle; return c == null ? "0|" : c.conectados() + "|" + c.nomePc; }
+        public String controleEstado() { ControleServidor c = controle; return c == null ? "0\t\t" : c.conectados() + "\t" + c.nomePc + "\t" + c.jogo; }   // conectados, nome do PC, console e jogo
         @JavascriptInterface
         public void controleParar() {
             ControleServidor c = controle; controle = null; if (c != null) c.parar();

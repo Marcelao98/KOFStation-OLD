@@ -15,7 +15,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  * O celular como controle do PC: um servidor WebSocket mínimo na rede de casa (nada passa pela internet). A página do
  * KOFstation no PC conecta em ws://<ip do celular>:<porta>, manda "KOF <senha>" e, aceita, recebe 6 bytes a cada mudança:
- * botões (2 bytes, no formato do registrador do SNES que o app usa) e os 4 eixos (1 byte com sinal cada). Sem nada de
+ * botões (2 bytes, no formato do registrador do SNES que o app usa) e os 4 eixos (1 byte com sinal cada). O PC manda de
+ * volta "JOGO <console>\t<nome>" quando abre um jogo: a página do celular troca o controle pro daquele console. Sem nada de
  * Android dentro: dá pra testar no Linux (testes/android/teste-controle.sh).
  */
 final class ControleServidor {
@@ -26,6 +27,7 @@ final class ControleServidor {
     final String senha;
     final int porta;
     volatile String nomePc = "";
+    volatile String jogo = "";   // "<console>\t<nome do jogo>" do último "JOGO" que o PC mandou ("" = nenhum jogo aberto)
 
     ControleServidor(String senha, int porta) throws Exception {
         this.senha = senha;
@@ -63,6 +65,9 @@ final class ControleServidor {
     }
 
     int conectados() { return clientes.size(); }
+
+    /** Chamado quando o PC muda o jogo (os testes usam pra repassar; o app lê o jogo pelo controleEstado). */
+    volatile Runnable ouvinte;
 
     void parar() {
         try { servidor.close(); } catch (Exception e) { /* já fechado */ }
@@ -119,6 +124,11 @@ final class ControleServidor {
                     aceito = true; clientes.add(c);
                     mandar(c, 0x81, "ok".getBytes("UTF-8"));
                     mandar(c, 0x82, ultimo);
+                    continue;
+                }
+                if (op == 1) {   // depois de aceito: o PC conta qual jogo abriu
+                    String t = new String(d, "UTF-8");
+                    if (t.startsWith("JOGO")) { jogo = t.substring(4).trim(); if (ouvinte != null) ouvinte.run(); }
                 }
             }
         } catch (Exception e) { /* caiu */ }
@@ -178,6 +188,12 @@ final class ControleServidor {
         ControleServidor s = new ControleServidor(a.length > 0 ? a[0] : "1234", a.length > 1 ? Integer.parseInt(a[1]) : PORTA);
         System.out.println("porta " + s.porta + " ip " + ipLocal());
         if (a.length > 2 && a[2].equals("entrada")) {   // o teste repassa o que a página do celular mandou: "botoes eixos" por linha
+            final ControleServidor srv = s;   // e lê aqui o estado que a página do celular mostraria (o controleEstado do app)
+            s.ouvinte = new Runnable() { public void run() { System.out.println("ESTADO " + srv.conectados() + "\t" + srv.nomePc + "\t" + srv.jogo); System.out.flush(); } };
+            new Thread(new Runnable() { public void run() {
+                int antes = -1;
+                while (true) { int n = srv.conectados(); if (n != antes) { antes = n; srv.ouvinte.run(); } try { Thread.sleep(50); } catch (Exception e) { return; } }
+            } }).start();
             java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(System.in));
             for (String l; (l = r.readLine()) != null; ) { String[] p = l.trim().split(" "); s.enviar(Integer.parseInt(p[0]), Integer.parseInt(p[1])); }
             return;
