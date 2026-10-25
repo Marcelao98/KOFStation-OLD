@@ -6,7 +6,10 @@
   como controle do PC, busca por gênero/empresa, pasta de ROMs no APK, painel de desempenho (F3), **SNES do PC = Snes9x**
   (Kof como opção em Emulação). Detalhes de cada um nas notas abaixo.
 - **Aberto / a fazer, nesta ordem:**
-  0. **PRIORIDADE (Marcelo, 25/10): consertar o celular como controle (item 2).** Depois da 1ª parte da otimização ele
+  0. **ATUALIZAÇÃO 25/10 (última mensagem do chat): o Marcelo disse "deu certo, muito foda"** logo depois de receber as
+     instruções do controle: tudo indica que o **celular como controle conectou**. Confirmar com ele no começo do chat novo
+     antes de mexer no item 2; se estiver ok, o próximo é o que ele pedir (Fase 3 sync, PS2, motor novo...).
+     Antes: **PRIORIDADE (Marcelo, 25/10): consertar o celular como controle (item 2).** Depois da 1ª parte da otimização ele
      disse que **já está rodando liso**: o motor novo (item 1) fica pra depois, só se ele pedir.
   1. **Lentidão (prioridade do Marcelo, "tem que rodar liso, PC e celular, todos os consoles"):** 1ª parte feita (painel,
      rebobinar sem cópias, Snes9x no PC). Esperando ele mandar print do painel (F3) no PC e no celular. Próximo = **motor
@@ -15,7 +18,7 @@
      Nativo no celular pro SNES etc. só se ainda não ficar liso (perde filtros/molduras). Medir com
      `/tmp`-style script: Playwright + `Emulation.setCPUThrottlingRate` 4 ≈ celular médio; `KOFnes.desempenho()`.
      Cuidado: engasgos no container com janela grande são do SwiftShader (placa imitada), teste com janela pequena.
-  2. **Celular como controle: conserto PUBLICADO (202610251829), falta o Marcelo testar.** Feito: (a) `ControleServidor`
+  2. **Celular como controle: FUNCIONOU no aparelho dele (25/10, vídeo: celular controlando o PC ligado na TV).** Conserto publicado na 202610251829. Feito: (a) `ControleServidor`
      responde GET com a página "✅ Celular achado" (e OPTIONS com `Access-Control-Allow-Private-Network`); (b) o PC explica
      na 1ª falha (`explicarFalhaControle`: link http://ip:porta, mesma Wi-Fi, e se a permissão `local-network-access`
      está negada); (c) celular mostra o link de teste e avisa se o IP não é de rede de casa (`casa` no JSON; `ipLocal`
