@@ -292,7 +292,7 @@ app/, empacotar/, nativo/  versões antigas: Java (instalador) e nativa Linux s�
 > corrotina), glMapBufferRange com leitura na ponte, instância nova por jogo. **A ponte (e a nativa) agora guardam o padrão
 > das opções do `SET_VARIABLES`**, como o RetroArch (sem isso o Mupen ficava sem emulação de framebuffer); os outros núcleos
 > só ganham isso quando forem recompilados. Falta o Marcelo testar jogo de N64 de verdade no PC e no celular.
-> **Busca com base de jogos (branch `busca`, 25/10, não publicada):** `web/jogos/montar.py` lê os `rdb/*.rdb` do
+> **Busca com base de jogos (PUBLICADA 25/10, versão 202610251330, na main):** `web/jogos/montar.py` lê os `rdb/*.rdb` do
 > libretro-database (`web/jogos/rdb.py` = leitor de MessagePack; .rdb baixados em `web/jogos/.rdb/`, fora do git) e grava
 > `web/jogos/jogos.json.gz` (~600 KB, versões/regiões juntadas pelo título sem parênteses e com o artigo na frente, gêneros
 > traduzidos em ~25 (`GENERO`), jogos sem informação fora; PS1 junta por código do disco; Neo Geo pelo set pai, sem gênero
