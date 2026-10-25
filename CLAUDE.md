@@ -318,6 +318,20 @@ app/, empacotar/, nativo/  versões antigas: Java (instalador) e nativa Linux s�
 > de baixo com capa, botõezinhos, Jogar/Estados; 1º toque abre a ficha, 2º joga; Voltar fecha). Teste:
 > `testes/android/pasta-apk.cjs <html> <pasta> [prints]`. APK montado com as `.so` tiradas do APK anterior
 > (`android/nativo/lib/`, fora do git) e o html montado sem Kof/emscripten. Falta testar no celular de verdade.
+> **Saves e backup (PUBLICADA na main 25/10, CASCA 10; Fase 1 do plano saves → controle → sync):**
+> `web/guarda.js` (`KofGuarda`, testado no Node: `testes/node/guarda.cjs`): save comprimido (gzip, sem o fim 0xFF, hash da
+> parte com conteúdo), `decidir` (igual/trazer/manter pelo hash e `quando`), estatísticas por aparelho (`partes[aparelho]`,
+> dias `[nº do dia, s]` → meses depois de 400 dias, `horas[24]`; `visao()` dá o formato antigo pra tela), pacote `.kofsave`
+> (`KOFSAVE1` + JSON gzip + blocos binários). app.js: banco **v8** com a loja `saves` (keyPath `chave`); o save cai no
+> `localStorage` como **rascunho** (síncrono, seguro ao fechar) e `assentarSave` leva pro banco e apaga o rascunho (o mesmo
+> código migra os saves antigos); `APARELHO` (código por aparelho); `storage.persist()`; no máximo 20 savestates por jogo
+> (`limitarEstados`); Estatísticas ganharam backup/trazer backup/Espaço usado (+ Arquivo); abrir/arrastar um `.kofsave`
+> traz o backup (junta: save mais novo vence, o outro vira `anterior`; configs só com a caixinha, nunca mudo/volume;
+> savestates só se exportados com a caixinha). Celular: `SavesNativos.java` (cartão do PS1 e save do N64 nativos pela
+> ponte `savesNativos/saveNativoLer/saveNativoGravar`, chave `nativo/<pasta>/<arquivo>`). Ainda não juntam: o save do PS1
+> do PC (chave `sram.<título>.<tam>`) e o `.mcd` do celular são chaves diferentes (resolver na Fase 3). Testes:
+> `testes/navegador/saves.cjs dist/web`, `testes/android/teste-saves-nativos.sh`, `gba.cjs` (save no banco).
+
 ## Pendências (atualizado 17/10; ver a nota de 20/10 logo abaixo)
 
 > **20/10:** conferido no git: as branches `temas-menu` (126 temas, busca, categorias, Café) e `atualizador-wininet` (aviso

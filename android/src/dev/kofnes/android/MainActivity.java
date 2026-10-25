@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final int PEDIDO_ARQUIVO = 1, PEDIDO_SALVAR = 2, PEDIDO_PASTA = 3;
     // sobe a cada mudança neste Java: página publicada com casca maior pede APK novo (ela pode usar algo que esta não tem)
-    static final int CASCA = 9;
+    static final int CASCA = 10;
     private static final String FONTE = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/publicado/";
     private static final String APK = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/android/apk/KOFstation.apk";
     private File raizWeb;   // pasta da versão baixada (null = a que veio dentro do APK)
@@ -226,6 +226,20 @@ public class MainActivity extends Activity {
             if (us == null) return;
             if (ps1 != null) ps1.ultimaEscolha = us;
             if (n64 != null) n64.ultimaEscolha = us;
+        }
+
+        // ---- saves dos consoles nativos (SavesNativos): entram no backup .kofsave ----
+        @JavascriptInterface
+        public String savesNativos() { return SavesNativos.listar(getFilesDir()); }
+        @JavascriptInterface
+        public String saveNativoLer(String nome) {
+            try { byte[] b = SavesNativos.ler(getFilesDir(), nome); return b == null ? "" : Base64.encodeToString(b, Base64.NO_WRAP); }
+            catch (Exception e) { return ""; }
+        }
+        @JavascriptInterface
+        public boolean saveNativoGravar(String nome, String b64, double quando) {
+            try { return SavesNativos.gravar(getFilesDir(), nome, Base64.decode(b64, Base64.DEFAULT), (long) quando); }
+            catch (Exception e) { return false; }
         }
 
         // ---- PlayStation nativo (Ps1Jogo): a página chama no lugar do núcleo em WebAssembly ----

@@ -126,6 +126,7 @@ partes = {
         + (somfm.read_text() + "\n" + (web / "somfm.js").read_text() + "\n" if somfm.exists() else "")
         + ((web / "neogeo-jogos.js").read_text() + "\n" if nucleos else "")   # lista dos jogos de Neo Geo (reconhecer o zip)
         + ((web / "nucleo.js").read_text().replace("/*{{NUCLEOS}}*/ {}", separar_nucleos()) + "\n" if nucleos else "")   # depois do estado.js: ele troca o savestate pelo do núcleo libretro
+        + (web / "guarda.js").read_text() + "\n"   # saves, estatísticas por aparelho e o pacote .kofsave
         + (web / "jogos.js").read_text() + "\n"   # a busca por gênero/empresa/ano (a base vem em nucleos/jogos-<hash>.js)
         + app_js
     ),
