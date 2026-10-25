@@ -6,6 +6,8 @@
   como controle do PC, busca por gênero/empresa, pasta de ROMs no APK, painel de desempenho (F3), **SNES do PC = Snes9x**
   (Kof como opção em Emulação). Detalhes de cada um nas notas abaixo.
 - **Aberto / a fazer, nesta ordem:**
+  0. **PRIORIDADE (Marcelo, 25/10): consertar o celular como controle (item 2).** Depois da 1ª parte da otimização ele
+     disse que **já está rodando liso**: o motor novo (item 1) fica pra depois, só se ele pedir.
   1. **Lentidão (prioridade do Marcelo, "tem que rodar liso, PC e celular, todos os consoles"):** 1ª parte feita (painel,
      rebobinar sem cópias, Snes9x no PC). Esperando ele mandar print do painel (F3) no PC e no celular. Próximo = **motor
      novo**: emulação num Web Worker + som por **AudioWorklet** ditando o ritmo (hoje `ScriptProcessorNode` 2048 a 32 kHz na
