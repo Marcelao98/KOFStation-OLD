@@ -403,6 +403,12 @@ const KofLibretro = (() => {
       }
       return new Uint8Array(mod.HEAPU8.buffer, this.estadoBuf, this.tamEstado).slice();
     }
+    // o estado salvo direto na memória do núcleo, como palavras de 32 bits (pro rebobinar comparar sem copiar)
+    estadoVivo() {
+      const mod = this.mod, r = mod._lr_state_save(this.estadoBuf, this.tamEstado);
+      if (!(mod._lr_ok ? mod._lr_ok() : r)) return null;
+      return new Int32Array(mod.HEAPU8.buffer, this.estadoBuf, (this.tamEstado + 3) >> 2);
+    }
     desserializar(u8) {
       if (u8.length > this.tamEstado) { this.mod._free(this.estadoBuf); this.tamEstado = u8.length; this.estadoBuf = this.mod._lr_alloc((u8.length + 3) & ~3); }
       this.mod.HEAPU8.set(u8, this.estadoBuf);
@@ -410,31 +416,31 @@ const KofLibretro = (() => {
       return !!(this.mod._lr_ok ? this.mod._lr_ok() : r);
     }
   }
-  // rebobinar: guarda o estado mais recente inteiro e, de cada foto, só os pedaços que mudaram (o valor antigo)
+  // rebobinar: guarda o estado mais recente inteiro e, de cada foto, só os pedaços que mudaram (o valor antigo). A foto
+  // nova é comparada direto na memória do núcleo (estadoVivo), sem copiar o estado inteiro: antes eram duas cópias de
+  // ~820 KB por foto (Snes9x), 30 por segundo, e o coletor de lixo do JavaScript engasgava o jogo no celular
   function Rebobinador(s, limiteBytes, maxFotos) {
     const PEDACO = 4096;
     let cabeca = null, fotos = [], bytes = 0;
-    const palavras = (u8) => new Int32Array(u8.buffer, u8.byteOffset, u8.byteLength >> 2);
     function gravar() {
-      const novo = s.serializar(), pad = new Uint8Array((novo.length + 3) & ~3); pad.set(novo);
-      if (!cabeca || cabeca.length !== pad.length) { cabeca = pad; fotos = []; bytes = 0; return; }
-      const h = palavras(cabeca), w = palavras(pad), pedacos = [];
+      const w = s.estadoVivo(); if (!w) return;
+      if (!cabeca || cabeca.length !== w.length) { cabeca = w.slice(); fotos = []; bytes = 0; return; }
+      const h = cabeca, pedacos = [];
       let tam = 0;
       for (let ini = 0; ini < w.length; ini += PEDACO) {
         const fim = Math.min(w.length, ini + PEDACO);
         let p = ini; while (p < fim && h[p] === w[p]) p++;
         if (p === fim) continue;
-        pedacos.push(ini, h.slice(ini, fim)); tam += (fim - ini) * 4 + 16;
+        pedacos.push(ini, h.slice(ini, fim)); h.set(w.subarray(ini, fim), ini); tam += (fim - ini) * 4 + 16;
       }
-      cabeca = pad;
       fotos.push({ pedacos, tam }); bytes += tam;
       while ((bytes > limiteBytes || fotos.length > (maxFotos || Infinity)) && fotos.length > 1) bytes -= fotos.shift().tam;
     }
     function voltar() {
       if (!cabeca) return false;
       const f = fotos.pop();
-      if (f) { const h = palavras(cabeca); for (let j = 0; j < f.pedacos.length; j += 2) h.set(f.pedacos[j + 1], f.pedacos[j]); bytes -= f.tam; }
-      s.desserializar(cabeca.subarray(0, s.tamEstado));
+      if (f) { for (let j = 0; j < f.pedacos.length; j += 2) cabeca.set(f.pedacos[j + 1], f.pedacos[j]); bytes -= f.tam; }
+      s.desserializar(new Uint8Array(cabeca.buffer, 0, s.tamEstado));
       return !!f;
     }
     return { gravar, voltar, limpar() { cabeca = null; fotos = []; bytes = 0; }, get fotos() { return fotos.length; }, get bytes() { return bytes; } };

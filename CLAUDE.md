@@ -342,6 +342,16 @@ app/, empacotar/, nativo/  versões antigas: Java (instalador) e nativa Linux s�
 > entram no `estado()`/`lerEixos()`, tenta de novo se cair). Testado: página do arquivo (file://) conecta em ws:// de
 > outra máquina; `testes/android/controle.cjs dist/web` (celular → Java de verdade → PC; ~10 ms aqui).
 
+> **Desempenho, 1ª parte (PUBLICADA 25/10):** painel `desemp` (F3 / menu rápido "📈 Painel de desempenho": fps, ms do
+> núcleo/som/tela/rebobinar por quadro, engasgos = quadros atrasados, falta de som; `KOFnes.desempenho()`), medido com
+> `Emulation.setCPUThrottlingRate` (4x ≈ celular médio). Achados: o rebobinar das libretro copiava o estado inteiro 2x por
+> foto (~50 MB/s de lixo no Snes9x) → agora compara direto na memória do núcleo (`estadoVivo()` no nucleo.js), 7,4 → 3,4 ms
+> por foto no 4x; e o **SNES do PC passou pro Snes9x** (núcleo 5,5 → 1,1 ms; o Kof gerava ~25 engasgos/s), Kof como opção
+> em Emulação (`kofnes.nucleoSnes`, `nucleoSnes()`); estado salvo com o outro núcleo reabre o jogo nele
+> (`nucleoDoEstado`). juntar.py agora leva o snes9x pro PC. Teste: `testes/navegador/nucleo-snes.cjs dist/web rom.sfc`.
+> Próximo (2ª parte, combinado): motor novo = emulação num Worker + som por AudioWorklet ditando o ritmo (hoje
+> ScriptProcessor na linha principal), depois recompilar núcleos com -flto/-msimd128; nativo no celular só se precisar.
+
 ## Pendências (atualizado 17/10; ver a nota de 20/10 logo abaixo)
 
 > **20/10:** conferido no git: as branches `temas-menu` (126 temas, busca, categorias, Café) e `atualizador-wininet` (aviso

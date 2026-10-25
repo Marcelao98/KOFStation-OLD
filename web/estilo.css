@@ -1544,3 +1544,6 @@ html.celular body.com-visual #palco { padding-right: 0; padding-bottom: 58vh; }
 .mold-card small { color: var(--fraco); font-size: 12px; }
 .mold-opcoes { margin-top: 12px; text-align: left; }
 .mold-opcoes .grande { width: auto; }
+
+/* painel de desempenho (F3 / menu rápido) */
+#desempenho { position: fixed; left: 8px; top: 8px; z-index: 60; max-width: calc(100vw - 16px); padding: 6px 10px; border-radius: 8px; background: #000c; color: #9f9; font: 12px/1.4 ui-monospace, monospace; pointer-events: none; }

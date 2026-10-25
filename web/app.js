@@ -476,7 +476,7 @@ function ligarSom() {
       // relógio da jukebox: a amostra que começa este bloco sai no alto-falante em ev.playbackTime (o piano usa isso)
       if (jk) { jkRelogio.amostra = juke.amostras - ((fim - ini) & (FILA - 1)); jkRelogio.ctx = ev.playbackTime || audio.currentTime; }
       for (let i = 0; i < l.length; i++) {
-        if (ini === fim || mudo || (pausado && !jk)) { l[i] = r[i] = 0; continue; }
+        if (ini === fim || mudo || (pausado && !jk)) { if (ini === fim && !pausado && !mudo && snes) desemp.faltas++; l[i] = r[i] = 0; continue; }
         l[i] = fila[ini * 2]; r[i] = fila[ini * 2 + 1];
         pos += taxa;
         while (pos >= 1 && ini !== fim) { pos -= 1; ini = (ini + 1) & (FILA - 1); }
@@ -534,7 +534,7 @@ const BOTOES_SNES = [
   ['L2', 0x0008, 'KeyE'], ['R2', 0x0004, 'KeyR'],   // só o PlayStation usa (bits livres do registrador do SNES)
 ];
 // atalhos do emulador: não podem virar botão do jogo
-const RESERVADAS = ['Escape', 'Tab', 'Backspace', 'F7', 'F9', 'F1', 'F2', 'F5', 'F6', 'F8', 'F11', 'KeyP', 'KeyM', 'Minus', 'Equal', 'NumpadSubtract', 'NumpadAdd'];
+const RESERVADAS = ['Escape', 'Tab', 'Backspace', 'F7', 'F9', 'F1', 'F2', 'F3', 'F5', 'F6', 'F8', 'F11', 'KeyP', 'KeyM', 'Minus', 'Equal', 'NumpadSubtract', 'NumpadAdd'];
 let mapa = {};   // nome do botão -> código da tecla (KeyboardEvent.code)
 let TECLAS = {}; // código da tecla -> bit
 function carregarMapa() {
@@ -654,6 +654,8 @@ function abrirControle() {
   };
 }
 function desconectarControle() { remoto.alvo = null; const w = remoto.ws; remoto.ws = null; remoto.ligado = false; remoto.bits = 0; remoto.eixos.fill(0); if (w) try { w.close(); } catch (e) { /* já fechado */ } marcarControle(); }
+function marcarNucleoSnes() { const b = $('[data-acao="nucleo-snes"]'); if (b) b.textContent = 'Núcleo do SNES: ' + (nucleoSnes() === 'kof' ? 'Kof' : 'Snes9x'); }
+setTimeout(marcarNucleoSnes, 0);
 function marcarControle() { const b = $('[data-acao="controle-celular"]'); if (b) b.textContent = remoto.ligado ? '📱 Celular conectado (desconectar)' : '📱 Celular como controle…'; }
 function estado() {
   let b = teclado | toque | remoto.bits;
@@ -703,6 +705,7 @@ addEventListener('keydown', (e) => {
   }
   if (e.code === 'F2') { e.preventDefault(); acao('rapido'); return; }
   if (e.code === 'F4') { e.preventDefault(); acao('visual'); return; }
+  if (e.code === 'F3') { e.preventDefault(); alternarDesempenho(); return; }
   if (e.code === 'Escape' && !$('#visual').hidden) { e.preventDefault(); fecharVisual(); return; }
   if (e.code === 'Escape' && !$('#molduras').hidden) { e.preventDefault(); fecharMolduras(); return; }
   if (e.code === 'Minus' || e.code === 'NumpadSubtract') { e.preventDefault(); mudarVolume(-10); return; }
@@ -735,9 +738,13 @@ addEventListener('keyup', (e) => {
 addEventListener('blur', () => { teclado = 0; turbo = false; voltandoTecla = false; });
 
 // ---------------- laço principal ----------------
+// desemp: quanto cada parte do quadro gasta (painel de desempenho: F3 no PC, menu rápido no celular)
+const desemp = { nucleo: 0, som: 0, tela: 0, rebob: 0, quadros: 0, lentos: 0, faltas: 0, maior: 0, ultimoT: 0, visivel: ler('desempenho') === '1' };
 let ultimo = 0, sobra = 0, contados = 0, marco = 0;
 function laco(t) {
   requestAnimationFrame(laco);
+  if (desemp.ultimoT && snes && !pausado) { const d = t - desemp.ultimoT; if (d > 1.5 * QUADRO_MS + 4) desemp.lentos++; if (d > desemp.maior) desemp.maior = d; }
+  desemp.ultimoT = t;
   if (gl && (!snes || pausado) && (performance.now() - ligaIni < 700 || (KofVisual.animado(visual.v) && (!$('#visual').hidden || (snes && telaAtual() === 'jogo'))))) pintar(false);   // chiado/fita mexendo mesmo parado
   const querVoltar = snes && voltando() && !pausado && !rapidoAberto && $('#biblioteca').hidden && $('#bug').hidden && $('#home').hidden;
   if (querVoltar && rebob && (rebobinou || rebobPronto())) { rebobinarPasso(); ultimo = marco = t; contados = 0; return; }
@@ -759,7 +766,9 @@ function laco(t) {
         const naFila = (fim - ini) & (FILA - 1), alvo = (snes.taxaAudio || 32000) * 0.15;
         snes.atrasado = sobra >= 2 * QUADRO_MS || (!!audio && audio.state === 'running' && naFila < alvo * 0.2);
         snes.ocupacao = Math.min(100, Math.round(naFila * 100 / alvo));
-        rodarQuadro(); empurrarSom(); sobra -= QUADRO_MS; vezes++;
+        const t0 = performance.now(); rodarQuadro(); const t1 = performance.now(); empurrarSom();
+        desemp.nucleo += t1 - t0; desemp.som += performance.now() - t1; desemp.quadros++;
+        sobra -= QUADRO_MS; vezes++;
       }
     }
   } catch (e) {
@@ -767,9 +776,11 @@ function laco(t) {
     if (cacador) abrirBug(e);
     return;
   }
+  const t2 = performance.now();
   if (vezes && !snes.nativo) desenhar();   // nativo: a imagem vem por uma tela do Android por cima; a página não precisa redesenhar
+  const t3 = performance.now(); desemp.tela += t3 - t2;
   desdeFoto += vezes;
-  if (rebobLigado && rebob && desdeFoto >= 2) { rebob.gravar(); desdeFoto = 0; }   // ~30 fotos por segundo
+  if (rebobLigado && rebob && desdeFoto >= 2) { rebob.gravar(); desdeFoto = 0; desemp.rebob += performance.now() - t3; }   // ~30 fotos por segundo
   if (rebobRecarga > 0) {
     rebobRecarga -= vezes;
     if (rebobRecarga <= 0) { rebobRecarga = 0; avisar('⏳ rebobinar pronto', 1500); }
@@ -778,10 +789,29 @@ function laco(t) {
   contados += vezes;
   if (t - marco >= 1000) {
     $('#st-fps').textContent = (pausado ? 'pausado · ' : '') + Math.round(contados * 1000 / (t - marco)) + ' fps';
+    mostrarDesempenho(contados * 1000 / (t - marco), t - marco);
     contados = 0; marco = t; salvarSram();
   }
 }
 requestAnimationFrame(laco);
+// painel: fps e, por quadro, quantos ms foram pro núcleo, som, tela e rebobinar; "lentos" = atualizações da tela que
+// chegaram atrasadas (engasgo), "falta de som" = vezes em que o som acabou antes do próximo quadro (picote)
+function mostrarDesempenho(fps, janela) {
+  const d = desemp, q = Math.max(1, d.quadros), ms = (x) => (x / q).toFixed(2);
+  const linha = { fps: Math.round(fps), nucleo: ms(d.nucleo), som: ms(d.som), tela: (d.tela / Math.max(1, contados)).toFixed(2), rebob: (d.rebob * 2 / q).toFixed(2), lentos: d.lentos, faltas: d.faltas, maior: Math.round(d.maior) };
+  desemp.ultimo = linha;
+  if (d.visivel) {
+    let el = $('#desempenho');
+    if (!el) { el = document.createElement('div'); el.id = 'desempenho'; document.body.appendChild(el); }
+    el.textContent = `${linha.fps} fps · núcleo ${linha.nucleo} ms · som ${linha.som} · tela ${linha.tela} · rebobinar ${linha.rebob} · engasgos ${linha.lentos}/s (pior ${linha.maior} ms) · falta de som ${linha.faltas}` + (snes ? ' · ' + (snes.nucleo || 'kof') : '');
+  }
+  Object.assign(d, { nucleo: 0, som: 0, tela: 0, rebob: 0, quadros: 0, lentos: 0, faltas: 0, maior: 0 });
+}
+function alternarDesempenho() {
+  desemp.visivel = !desemp.visivel; guardar('desempenho', desemp.visivel ? '1' : '0');
+  if (!desemp.visivel) { const el = $('#desempenho'); if (el) el.remove(); }
+  avisar(desemp.visivel ? '📈 painel de desempenho ligado (F3 desliga)' : '📈 painel de desempenho desligado');
+}
 
 // ---------------- jukebox ----------------
 // A música do SNES roda num computador à parte (SPC700 + DSP + 64 KB). Guardar
@@ -1903,8 +1933,16 @@ async function carregarBios() {
 }
 const biosProntas = carregarBios().catch(() => {});
 // no celular os núcleos são libretro em WebAssembly (nucleo.js); no PC, SNES é o núcleo Kof e os outros sistemas, libretro
+// SNES no PC: o Snes9x (o núcleo do RetroArch, em WebAssembly) é o padrão; o núcleo em Kof fica como opção (Emulação).
+// extras.nucleoSnes força um dos dois (estado salvo com o outro núcleo: o jogo reabre no núcleo do estado)
+function nucleoSnes(extras) {
+  const pedido = (extras && extras.nucleoSnes) || ler('nucleoSnes') || 'snes9x';
+  return pedido === 'kof' || typeof KofLibretro === 'undefined' || !KofLibretro.disponivel('snes') ? 'kof' : 'snes9x';
+}
+// o estado (já aberto do JSON) é de outro núcleo de SNES que o do jogo aberto? devolve o núcleo dele
+const nucleoDoEstado = (o) => (CELULAR || !snes || (snes.sistema || 'snes') !== 'snes' ? null : (o && o.lr) ? (snes.lr ? null : 'snes9x') : (snes.lr ? 'kof' : null));
 async function novoNucleo(bytes, sis, nome, extras) {
-  if (sis === 'snes' && !CELULAR && typeof KofNucleo !== 'undefined') return new KofNucleo.Snes(Int32Array.from(bytes));
+  if (sis === 'snes' && !CELULAR && typeof KofNucleo !== 'undefined' && nucleoSnes(extras) === 'kof') return new KofNucleo.Snes(Int32Array.from(bytes));
   await biosProntas;
   if (snes && snes.nativo && !(extras && extras.nativo && extras.nativo.sistema === snes.sistema)) snes.fecharNativo();   // saiu do nativo pra outro console
   if (extras && extras.nativo) return extras.nativo;
@@ -2275,7 +2313,9 @@ async function carregarEstado(est) {
       const { bytes, extras } = await bytesDoJogo(j);
       await abrirBytes(j.arquivo || j.nome, bytes, false, extras);
     }
-    KofEstado.restaurar(snes, JSON.parse(await descomprimir(est.dados)));
+    const obj = JSON.parse(await descomprimir(est.dados)), outro = nucleoDoEstado(obj);
+    if (outro) await abrirBytes(romArquivo, romAtual, false, { nucleoSnes: outro });   // estado do outro núcleo de SNES: reabre nele
+    KofEstado.restaurar(snes, obj);
     snes.apu.dsp.outCount = 0; ini = fim = 0; sobra = 0; pausado = false; novoRebob();
     fecharJanelas();
     snes.runFrame(); snes.apu.dsp.outCount = 0; desenhar();
@@ -2287,7 +2327,9 @@ async function continuar(j) {
   const auto = j.temAuto ? await bdPegar('autos', j.id) : null;
   await abrirBytes(j.arquivo || j.nome, bytes, false, extras);
   if (!auto) return;
-  KofEstado.restaurar(snes, JSON.parse(auto));
+  const obj = JSON.parse(auto), outro = nucleoDoEstado(obj);
+  if (outro) await abrirBytes(j.arquivo || j.nome, bytes, false, Object.assign({}, extras, { nucleoSnes: outro }));   // continuar de um estado do outro núcleo
+  KofEstado.restaurar(snes, obj);
   snes.apu.dsp.outCount = 0; ini = fim = 0; sobra = 0; novoRebob();
   snes.runFrame(); snes.apu.dsp.outCount = 0; desenhar();
   avisar('continuando de ' + quando(j.autoQuando));
@@ -2895,6 +2937,7 @@ const ITENS_RAPIDO = [
   { t: '🐞 Reportar bug', so: () => !nativo(), f: () => { fecharRapido(); abrirBug(); } },
   { t: '🗂 Estados salvos', f: () => { fecharRapido(); acao('estados'); } },
   { t: '☕ Biblioteca', f: () => { fecharRapido(); acao('biblioteca'); } },
+  { t: '📈 Painel de desempenho', v: () => (desemp.visivel ? 'ligado' : 'desligado'), aj: () => alternarDesempenho(), f: () => { alternarDesempenho(); fecharRapido(); } },
   { t: '🎨 Tema', v: () => TODOS_TEMAS.find(([k]) => k === temaSalvo)[1], aj: (d) => tema(ciclar(TODOS_TEMAS, temaSalvo, d)), f: () => { fecharRapido(); acao('temas'); } },
   { t: 'Filtro', so: () => !nativo(), v: () => (FILTROS.find(([k]) => k === filtro) || [0, 'Meu jeito'])[1], aj: (d) => aplicarFiltro(ciclar(FILTROS, FILTROS.some(([k]) => k === filtro) ? filtro : 'original', d)) },
   { t: 'Cores do Game Boy', so: () => !!(snes && snes.sistema === 'gb'), v: () => PALETAS_GB.find(([k]) => k === paletaGb)[1], aj: (d) => mudarPaletaGb(ciclar(PALETAS_GB, paletaGb, d)) },
@@ -3600,6 +3643,11 @@ async function acao(a) {
     case 'importar-saves': escolherBackup(); break;
     case 'guia-backup': abrirGuia('backup'); break;
     case 'modo-controle': if (window.entrarModoControle) window.entrarModoControle(); break;
+    case 'nucleo-snes': {
+      const novo = nucleoSnes() === 'kof' ? 'snes9x' : 'kof'; guardar('nucleoSnes', novo); marcarNucleoSnes();
+      avisar(novo === 'kof' ? 'SNES: núcleo Kof (o feito no Brasil) a partir do próximo jogo' : 'SNES: Snes9x (o mais rápido) a partir do próximo jogo', 4000);
+      break;
+    }
     case 'controle-celular':
       if (remoto.ligado || remoto.alvo) { desconectarControle(); avisar('📱 celular desconectado'); break; }
       { const t = prompt('No celular, abra o KOFstation → Controles → "Usar como controle do PC".\nDigite aqui o endereço e a senha que aparecem lá (ex.: 192.168.0.15 4821):', ler('controleUltimo') || ''); if (t) { conectarControle(t); avisar('📱 conectando…', 2000); } }
@@ -3663,7 +3711,7 @@ ajustarEscala();
 if (!temPasta) document.querySelectorAll('[data-acao="pasta"], [data-acao="reler-pasta"]').forEach((b) => { b.hidden = true; });
 if (sofa) mostrarBiblioteca(false); else abrirHome();
 primeiraVez();
-window.KOFnes = { controle: { conectar: conectarControle, desconectar: desconectarControle, estado: () => ({ ligado: remoto.ligado, bits: remoto.bits, eixos: Array.from(remoto.eixos) }) }, guarda: { assentarRascunhos, assentarSave, lerSave, exportarSaves, importarSaves, calcularEspaco, limitarEstados, carregarEstat, estat: () => estat, aparelho: APARELHO, bdTodos, bdGuardar, bdPegar }, imagemTeste: (rgba, l, a) => { imagemTeste = true; document.body.classList.remove('vazio'); tamanhoTela(l, a); px.set(new Uint32Array(Uint8Array.from(rgba).buffer)); pintar(true); pintar(true); ajustarEscala(); }, mudarMoldura, abrirArquivo, estado: () => ({ snes: !!snes, pausado, romNome, jogoId }), nucleo: () => snes, botoes: () => estado(), mapa: () => mapa, filtro: () => filtro, aplicarFiltro, notaDoCanal, notas: () => notas, atrasoNotas: () => (juke.apu ? juke.amostras / juke.apu.taxa - notasVisto : 0), mudarSinc, filtrosRuins: () => glRuins.size, auto: () => autoSalvar, webgl: !!gl,
+window.KOFnes = { desempenho: () => desemp.ultimo, controle: { conectar: conectarControle, desconectar: desconectarControle, estado: () => ({ ligado: remoto.ligado, bits: remoto.bits, eixos: Array.from(remoto.eixos) }) }, guarda: { assentarRascunhos, assentarSave, lerSave, exportarSaves, importarSaves, calcularEspaco, limitarEstados, carregarEstat, estat: () => estat, aparelho: APARELHO, bdTodos, bdGuardar, bdPegar }, imagemTeste: (rgba, l, a) => { imagemTeste = true; document.body.classList.remove('vazio'); tamanhoTela(l, a); px.set(new Uint32Array(Uint8Array.from(rgba).buffer)); pintar(true); pintar(true); ajustarEscala(); }, mudarMoldura, abrirArquivo, estado: () => ({ snes: !!snes, pausado, romNome, jogoId }), nucleo: () => snes, botoes: () => estado(), mapa: () => mapa, filtro: () => filtro, aplicarFiltro, notaDoCanal, notas: () => notas, atrasoNotas: () => (juke.apu ? juke.amostras / juke.apu.taxa - notasVisto : 0), mudarSinc, filtrosRuins: () => glRuins.size, auto: () => autoSalvar, webgl: !!gl,
   // pros testes: lista falsa de n jogos (mede a biblioteca) e uma quebra de mentira no núcleo
   testeLista: (n, nomes) => { fecharJanelas(); itens = Array.from({ length: n }, (_, i) => { const nome = nomes ? nomes[i % nomes.length] + (i >= nomes.length ? ' #' + i : '') : 'Jogo de teste ' + i; return { nome, ext: 'SFC', chave: normal(nome), variante: VARIANTE.test(nome) }; }); $('#biblioteca').hidden = false; const t0 = performance.now(); montarLista(); const t1 = performance.now(); for (let k = 0; k < 30; k++) listaTecla({ code: 'ArrowDown', preventDefault() {}, target: null, key: '' }); return { montar: Math.round(t1 - t0), trintaSetas: Math.round(performance.now() - t1) }; },
   forcarErro: () => { const r = snes.runFrame; snes.runFrame = () => { snes.runFrame = r; throw new Error('quebra de teste'); }; },
