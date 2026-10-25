@@ -57,6 +57,11 @@
      **celular do cliente como controle por QR code, sem instalar nada** (precisa de uma página de controle no navegador,
      servida pela própria box; hoje o controle exige o APK). Hardware barato combinado: TV box primeiro, depois Orange Pi
      Zero 3 com versão nativa leve. Jogos em comércio: SÓ homebrew com autorização (exibição pública agrava).
+     **Fliperama de bar com jukebox** (um amigo dele monta gabinete): comando/botões por placa USB "zero delay" (vira
+     controle comum), moedeiro = um botão "ficha"; ideia de software: modo fliperama (créditos, tela de atração, ranking de
+     recordes do bar, contador do que rendeu), Pix depois (Mercado Pago/PagSeguro). Jukebox de bar: música de verdade só
+     com licença (ECAD é do bar; Spotify proíbe uso comercial) → domínio público + artistas locais autorizados. Nunca dar
+     prêmio (vira jogo de azar). Modelo: dividir as fichas com o dono do bar.
 - **N64 e PS1 nativos ainda sem teste de jogo de verdade confirmado pelo Marcelo** (o PS1 voltou a abrir depois do
   conserto de 25/10; o N64 recebia "failed to read rom", corrigido na casca 7 entregando a ROM na memória).
 - Ambiente desta sessão (some no container novo): Kof4j em `/home/user/Kof4j`, núcleos compilados em
