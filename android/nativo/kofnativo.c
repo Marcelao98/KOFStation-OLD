@@ -118,10 +118,14 @@ static const char *valorOpcao(const char *chave) {   // opcoes = "chave=valor\n.
     return NULL;
 }
 
+static char ultimoAviso[200];
 static void anotar(enum retro_log_level nivel, const char *fmt, ...) {
     char b[512]; va_list ap; va_start(ap, fmt); vsnprintf(b, sizeof b, fmt, ap); va_end(ap);
-    if (nivel >= RETRO_LOG_WARN) ANOTAR("%s", b);
-    (void)nivel;
+    if (nivel >= RETRO_LOG_WARN) {
+        ANOTAR("%s", b);
+        size_t n = strlen(b); while (n && (b[n - 1] == '\n' || b[n - 1] == '\r')) b[--n] = 0;   // a última vai na mensagem de erro
+        if (n) strncpy(ultimoAviso, b, sizeof ultimoAviso - 1);
+    }
 }
 
 static bool ambiente(unsigned cmd, void *dado) {
@@ -139,7 +143,10 @@ static bool ambiente(unsigned cmd, void *dado) {
     }
     case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE: *(bool *)dado = false; return true;
     case RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION: *(unsigned *)dado = 0; return true;
+#ifdef KOF_GL
+    // só o N64: o PCSX abria os jogos sem isso, e o Crash parou de abrir na versão que passou a usar (25/10)
     case RETRO_ENVIRONMENT_SET_VARIABLES: guardarPadroes(dado); return true;
+#endif
 #ifdef KOF_GL
     case RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER: *(unsigned *)dado = RETRO_HW_CONTEXT_OPENGLES3; return true;
     case RETRO_ENVIRONMENT_SET_HW_RENDER: {
@@ -257,7 +264,13 @@ JNIEXPORT jstring JNICALL J(abrir)(JNIEnv *env, jclass c, jstring jogo, jstring 
 #ifdef KOF_GL
     hwPronto = 0;
 #endif
-    if (!retro_load_game(&g)) return (*env)->NewStringUTF(env, "o núcleo nativo não abriu esse jogo");
+    ultimoAviso[0] = 0;
+    if (!retro_load_game(&g)) {
+        char m[300];
+        snprintf(m, sizeof m, "o núcleo nativo não abriu esse jogo%s%s", ultimoAviso[0] ? ": " : "", ultimoAviso);
+        for (char *q = m; *q; q++) if (*q == '"' || *q == '\\') *q = '\'';   // vai dentro de um JSON
+        return (*env)->NewStringUTF(env, m);
+    }
     retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
     carregado = 1; cartaoLer();
     struct retro_system_av_info av; retro_get_system_av_info(&av);

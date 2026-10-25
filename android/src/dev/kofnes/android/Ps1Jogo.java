@@ -75,7 +75,7 @@ final class Ps1Jogo implements Runnable {
             String erro;
             synchronized (trava) {
                 erro = Ps1.abrir(principal.getAbsolutePath(), sistema.getAbsolutePath(), saves.getAbsolutePath(),
-                        new File(saves, base + ".mcd").getAbsolutePath(), "pcsx_rearmed_drc=enabled\npcsx_rearmed_frameskip_type=disabled\npcsx_rearmed_spu_thread=enabled\n", info);
+                        new File(saves, base + ".mcd").getAbsolutePath(), "pcsx_rearmed_drc=enabled\npcsx_rearmed_frameskip_type=disabled\n", info);
             }
             if (!erro.isEmpty()) return "{\"erro\":\"" + erro + "\"}";
             iniciarSom(info[3] > 0 ? info[3] : 44100);
