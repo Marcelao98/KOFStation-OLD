@@ -2032,7 +2032,8 @@ async function mostrarEstat() {
   const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   let h = '<div class="est-acoes"><button data-acao="exportar-saves">💾 Fazer backup (.kofsave)</button><button data-acao="importar-saves">📥 Trazer backup</button>'
     + '<button data-acao="espaco">🗄 Espaço usado</button><label><input type="checkbox" id="bk-estados"> com savestates</label>'
-    + '<label><input type="checkbox" id="bk-config"> trazer configurações</label></div><div id="est-espaco"></div>';
+    + '<label><input type="checkbox" id="bk-config"> trazer configurações</label><button class="hm-link" data-acao="guia-backup">❓ como funciona</button></div>'
+    + '<p class="dica">O backup (.kofsave) leva seus saves e estatísticas pro outro aparelho: faça aqui, mande o arquivo (WhatsApp, Drive, pendrive) e abra no KOFstation de lá. Nada se perde: o save mais novo fica e o outro vira cópia.</p><div id="est-espaco"></div>';
   h += '<div class="est-caixas">' + cx('Tempo total', duracao(total)) + cx('Jogos', lista.length) + cx('Sessões', sess)
     + cx('Mais jogado', lista[0] ? esc(lista[0].nome) : '—') + '</div>';
   // últimos 7 dias, todos os jogos somados
@@ -3534,6 +3535,7 @@ async function acao(a) {
     case 'fechar-estat': voltar(); break;
     case 'exportar-saves': try { const n = await exportarSaves(!!($('#bk-estados') || {}).checked); avisar('💾 backup pronto (' + tamanho(n) + ')', 3000); } catch (e) { avisar('não consegui fazer o backup: ' + e.message, 5000); } break;
     case 'importar-saves': escolherBackup(); break;
+    case 'guia-backup': abrirGuia('backup'); break;
     case 'espaco': await mostrarEspaco(); break;
     case 'limpar-capas': await bdOp('capas', 'readwrite', (o) => o.clear()); await mostrarEspaco(); break;
     case 'limpar-autos': await bdOp('autos', 'readwrite', (o) => o.clear()); await bdTodos('jogos').then((js) => Promise.all(js.filter((j) => j.temAuto).map((j) => bdMudarJogo(j.id, (x) => x && Object.assign(x, { temAuto: false }))))); await mostrarEspaco(); break;

@@ -190,6 +190,7 @@
         <button data-guia="biblioteca">📚 Biblioteca</button>
         <button data-guia="jogando">🎮 Jogando</button>
         <button data-guia="tempo">⏪ Voltar no tempo</button>
+        <button data-guia="backup">💾 Saves e backup</button>
         <button data-guia="imagem">🖼 Imagem e som</button>
         <button data-guia="jukebox">🎵 Jukebox</button>
         <button data-guia="temas">🎨 Temas e início</button>
@@ -226,6 +227,33 @@
             <li><b>Continuar de onde parou:</b> o salvar automático guarda o jogo sozinho; no Início é só clicar em Continuar.</li>
             <li><b>Turbo:</b> segure Tab. <b>Pausa:</b> P ou Esc. Sair da janela também pausa (dá pra desligar em Som).</li>
           </ul>
+        </div>
+        <div data-pagina="backup" hidden>
+          <h3>💾 Saves e backup</h3>
+          <p>O KOFstation guarda sozinho o save de cada jogo (a "bateria" do cartucho, o cartão de memória), comprimido, ocupando quase nada. O <b>backup</b> é um arquivo <b>.kofsave</b> com tudo o que é seu: saves, estatísticas e, se quiser, savestates e configurações. ROM nunca vai junto.</p>
+          <p class="gu-botoes"><button class="hm-link" data-acao="exportar-saves">💾 Fazer backup agora</button> <button class="hm-link" data-acao="importar-saves">📥 Trazer um backup</button> <button class="hm-link" data-acao="estatisticas">📊 Abrir Estatísticas</button></p>
+          <h4>Fazer um backup</h4>
+          <ol>
+            <li>Abra <b>📊 Estatísticas</b> (menu da esquerda, ou <span class="so-pc">Arquivo → </span><b>💾 Backup dos saves</b>).</li>
+            <li>Se quiser levar também os savestates ou o seu tema e configurações, marque <b>com savestates</b>.</li>
+            <li>Toque em <b>💾 Fazer backup (.kofsave)</b>. <span class="so-pc">O arquivo vai pra pasta de downloads.</span><span class="so-cel">O Android pergunta onde guardar.</span></li>
+          </ol>
+          <h4>Levar pro outro aparelho (PC ↔ celular)</h4>
+          <ol>
+            <li>Mande o arquivo .kofsave pro outro aparelho: WhatsApp, e-mail, pendrive, Google Drive…</li>
+            <li>No outro aparelho, abra o arquivo no KOFstation: <b>📥 Trazer backup</b> nas Estatísticas, <span class="so-pc">arrastar pra janela</span><span class="so-cel">ou escolher em Abrir uma ROM</span>.</li>
+            <li>Pronto. Marque <b>trazer configurações</b> antes, se quiser o mesmo tema e controles dos dois lados.</li>
+          </ol>
+          <h4>O que acontece quando os dois têm o mesmo jogo</h4>
+          <ul>
+            <li><b>Saves:</b> fica o mais novo. O outro <b>não é apagado</b>: vira uma cópia guardada.</li>
+            <li><b>Estatísticas:</b> somam. Cada aparelho conta a sua parte, então trazer o mesmo backup duas vezes não conta em dobro.</li>
+            <li><b>Savestates:</b> só os que ainda não existem entram. No máximo 20 por jogo: o mais antigo sai.</li>
+            <li>Mudo e volume nunca viajam: cada aparelho fica com o seu.</li>
+          </ul>
+          <h4>Espaço usado</h4>
+          <p>Em Estatísticas → <b>🗄 Espaço usado</b> você vê quanto ocupa cada coisa e pode apagar as capas (elas baixam de novo) e os estados automáticos.</p>
+          <p class="dica">💡 Faça um backup de vez em quando: se o navegador ou o celular apagar os dados do app, é ele que salva os seus jogos. Em breve: o celular sincronizando sozinho com o PC na mesma Wi-Fi.</p>
         </div>
         <div data-pagina="tempo" hidden>
           <h3>⏪ Voltar no tempo</h3>

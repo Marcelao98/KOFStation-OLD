@@ -668,6 +668,8 @@ body.cheia #lateral, body.sofa #lateral { display: none; }
 .gu-menu button:hover { background: var(--sel); }
 .gu-menu button.ativo { background: var(--sel); box-shadow: inset 3px 0 0 var(--destaque); }
 .gu-texto { overflow-y: auto; padding-right: 6px; line-height: 1.55; }
+.gu-texto h4 { margin: 16px 0 6px; font-size: 15px; color: var(--destaque); }
+.gu-botoes { display: flex; flex-wrap: wrap; gap: 8px 14px; }
 .gu-texto h3 { margin: 2px 0 10px; font-size: 20px; text-transform: var(--caixa); }
 .gu-texto li { margin: 6px 0; }
 .gu-texto b { color: var(--destaque); }

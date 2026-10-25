@@ -680,6 +680,8 @@ body.cheia #lateral, body.sofa #lateral { display: none; }
 .gu-menu button:hover { background: var(--sel); }
 .gu-menu button.ativo { background: var(--sel); box-shadow: inset 3px 0 0 var(--destaque); }
 .gu-texto { overflow-y: auto; padding-right: 6px; line-height: 1.55; }
+.gu-texto h4 { margin: 16px 0 6px; font-size: 15px; color: var(--destaque); }
+.gu-botoes { display: flex; flex-wrap: wrap; gap: 8px 14px; }
 .gu-texto h3 { margin: 2px 0 10px; font-size: 20px; text-transform: var(--caixa); }
 .gu-texto li { margin: 6px 0; }
 .gu-texto b { color: var(--destaque); }
@@ -1999,6 +2001,7 @@ body.analogico #ctl .dpad::after { left: 28%; top: 28%; width: 44%; height: 44%;
         <button data-guia="biblioteca">📚 Biblioteca</button>
         <button data-guia="jogando">🎮 Jogando</button>
         <button data-guia="tempo">⏪ Voltar no tempo</button>
+        <button data-guia="backup">💾 Saves e backup</button>
         <button data-guia="imagem">🖼 Imagem e som</button>
         <button data-guia="jukebox">🎵 Jukebox</button>
         <button data-guia="temas">🎨 Temas e início</button>
@@ -2035,6 +2038,33 @@ body.analogico #ctl .dpad::after { left: 28%; top: 28%; width: 44%; height: 44%;
             <li><b>Continuar de onde parou:</b> o salvar automático guarda o jogo sozinho; no Início é só clicar em Continuar.</li>
             <li><b>Turbo:</b> segure Tab. <b>Pausa:</b> P ou Esc. Sair da janela também pausa (dá pra desligar em Som).</li>
           </ul>
+        </div>
+        <div data-pagina="backup" hidden>
+          <h3>💾 Saves e backup</h3>
+          <p>O KOFstation guarda sozinho o save de cada jogo (a "bateria" do cartucho, o cartão de memória), comprimido, ocupando quase nada. O <b>backup</b> é um arquivo <b>.kofsave</b> com tudo o que é seu: saves, estatísticas e, se quiser, savestates e configurações. ROM nunca vai junto.</p>
+          <p class="gu-botoes"><button class="hm-link" data-acao="exportar-saves">💾 Fazer backup agora</button> <button class="hm-link" data-acao="importar-saves">📥 Trazer um backup</button> <button class="hm-link" data-acao="estatisticas">📊 Abrir Estatísticas</button></p>
+          <h4>Fazer um backup</h4>
+          <ol>
+            <li>Abra <b>📊 Estatísticas</b> (menu da esquerda, ou <span class="so-pc">Arquivo → </span><b>💾 Backup dos saves</b>).</li>
+            <li>Se quiser levar também os savestates ou o seu tema e configurações, marque <b>com savestates</b>.</li>
+            <li>Toque em <b>💾 Fazer backup (.kofsave)</b>. <span class="so-pc">O arquivo vai pra pasta de downloads.</span><span class="so-cel">O Android pergunta onde guardar.</span></li>
+          </ol>
+          <h4>Levar pro outro aparelho (PC ↔ celular)</h4>
+          <ol>
+            <li>Mande o arquivo .kofsave pro outro aparelho: WhatsApp, e-mail, pendrive, Google Drive…</li>
+            <li>No outro aparelho, abra o arquivo no KOFstation: <b>📥 Trazer backup</b> nas Estatísticas, <span class="so-pc">arrastar pra janela</span><span class="so-cel">ou escolher em Abrir uma ROM</span>.</li>
+            <li>Pronto. Marque <b>trazer configurações</b> antes, se quiser o mesmo tema e controles dos dois lados.</li>
+          </ol>
+          <h4>O que acontece quando os dois têm o mesmo jogo</h4>
+          <ul>
+            <li><b>Saves:</b> fica o mais novo. O outro <b>não é apagado</b>: vira uma cópia guardada.</li>
+            <li><b>Estatísticas:</b> somam. Cada aparelho conta a sua parte, então trazer o mesmo backup duas vezes não conta em dobro.</li>
+            <li><b>Savestates:</b> só os que ainda não existem entram. No máximo 20 por jogo: o mais antigo sai.</li>
+            <li>Mudo e volume nunca viajam: cada aparelho fica com o seu.</li>
+          </ul>
+          <h4>Espaço usado</h4>
+          <p>Em Estatísticas → <b>🗄 Espaço usado</b> você vê quanto ocupa cada coisa e pode apagar as capas (elas baixam de novo) e os estados automáticos.</p>
+          <p class="dica">💡 Faça um backup de vez em quando: se o navegador ou o celular apagar os dados do app, é ele que salva os seus jogos. Em breve: o celular sincronizando sozinho com o PC na mesma Wi-Fi.</p>
         </div>
         <div data-pagina="tempo" hidden>
           <h3>⏪ Voltar no tempo</h3>
@@ -13935,7 +13965,7 @@ $('#arquivo-spc').addEventListener('change', (e) => { if (e.target.files.length)
 // estado (um marco) e anota os botões de cada quadro dali pra frente. O pacote
 // do bug leva o marco anterior + os botões até agora: rodando de novo, o
 // núcleo (determinístico) chega no mesmo lugar, quadro a quadro.
-const VERSAO = '202610251436 · 4cf915f', REPO = 'Marcelao98/KOFSnes';
+const VERSAO = '202610251446 · e1507a1', REPO = 'Marcelao98/KOFSnes';
 let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAtual = null;
 // eixos pro núcleo (-32767..32767): controle físico (com zona morta) ou a tela de toque; tudo parado = 0 (aí a ponte do N64
 // usa o direcional como analógico, como antes)
@@ -14739,7 +14769,8 @@ async function mostrarEstat() {
   const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   let h = '<div class="est-acoes"><button data-acao="exportar-saves">💾 Fazer backup (.kofsave)</button><button data-acao="importar-saves">📥 Trazer backup</button>'
     + '<button data-acao="espaco">🗄 Espaço usado</button><label><input type="checkbox" id="bk-estados"> com savestates</label>'
-    + '<label><input type="checkbox" id="bk-config"> trazer configurações</label></div><div id="est-espaco"></div>';
+    + '<label><input type="checkbox" id="bk-config"> trazer configurações</label><button class="hm-link" data-acao="guia-backup">❓ como funciona</button></div>'
+    + '<p class="dica">O backup (.kofsave) leva seus saves e estatísticas pro outro aparelho: faça aqui, mande o arquivo (WhatsApp, Drive, pendrive) e abra no KOFstation de lá. Nada se perde: o save mais novo fica e o outro vira cópia.</p><div id="est-espaco"></div>';
   h += '<div class="est-caixas">' + cx('Tempo total', duracao(total)) + cx('Jogos', lista.length) + cx('Sessões', sess)
     + cx('Mais jogado', lista[0] ? esc(lista[0].nome) : '—') + '</div>';
   // últimos 7 dias, todos os jogos somados
@@ -16241,6 +16272,7 @@ async function acao(a) {
     case 'fechar-estat': voltar(); break;
     case 'exportar-saves': try { const n = await exportarSaves(!!($('#bk-estados') || {}).checked); avisar('💾 backup pronto (' + tamanho(n) + ')', 3000); } catch (e) { avisar('não consegui fazer o backup: ' + e.message, 5000); } break;
     case 'importar-saves': escolherBackup(); break;
+    case 'guia-backup': abrirGuia('backup'); break;
     case 'espaco': await mostrarEspaco(); break;
     case 'limpar-capas': await bdOp('capas', 'readwrite', (o) => o.clear()); await mostrarEspaco(); break;
     case 'limpar-autos': await bdOp('autos', 'readwrite', (o) => o.clear()); await bdTodos('jogos').then((js) => Promise.all(js.filter((j) => j.temAuto).map((j) => bdMudarJogo(j.id, (x) => x && Object.assign(x, { temAuto: false }))))); await mostrarEspaco(); break;
@@ -16504,12 +16536,14 @@ window.KOFnes = { guarda: { assentarRascunhos, assentarSave, lerSave, exportarSa
   const guia = $('#guia');
   if (guia) {
     const nav = guia.querySelector('nav'), conteudo = guia.querySelectorAll('[data-pagina]');
+    const backup = guia.querySelector('[data-pagina="backup"]');   // a do PC já tem os trechos do celular (.so-cel)
     const paginas = {
       comecar: ['👋 Começando', '<h3>👋 Começando</h3><p>O <b>KOFstation</b> é um emulador de Super Nintendo e Game Boy. Toque em <b>Abrir uma ROM</b>, escolha o arquivo do seu jogo e jogue com o controle na tela.</p><p>Este guia tem o resto: biblioteca, controle, voltar no tempo, imagem e som, jukebox e temas.</p>'],
       biblioteca: ['📚 Biblioteca', '<h3>📚 Biblioteca</h3><p>Toque em <b>Abrir uma ROM</b> e escolha o arquivo do jogo (.sfc, .smc, .nes, .gb, .gbc, .md, .sms, .gg ou .zip). Ele fica guardado na <b>Biblioteca</b>: da próxima vez é só tocar nele.</p><p>No <b>Início</b>, <b>Continuar</b> volta exatamente de onde você parou.</p>'],
       jogando: ['🎮 Jogando', '<h3>🎮 Jogando</h3><p>O controle fica na tela. Dá pra apertar vários botões ao mesmo tempo e deslizar o dedo entre A, B, X e Y.</p><p>Toque em <b>☰</b> pra salvar, carregar, mudar o tema e o filtro. Em <b>Controles</b> (barra de baixo) você troca o modelo do controle, o tamanho e a transparência, e liga o modo canhoto.</p><p>Gire o celular: na horizontal, os botões ficam nos cantos e o jogo ganha a tela.</p>'],
       bugs: ['🐞 Bugs', '<h3>🐞 Bugs</h3><p>O KOFstation é jovem, e cada bug encontrado ajuda o emulador. Toque em <b>☰</b> e em <b>Reportar bug</b>: a página do GitHub abre já preenchida e um pacote é baixado pra reproduzir o bug quadro a quadro. É só anexar o arquivo na página.</p><p>Se o emulador quebrar, ele mesmo oferece reportar.</p>'],
       tempo: ['⏪ Voltar no tempo', '<h3>⏪ Voltar no tempo</h3><p>Segure o <b>⏪</b> e o jogo volta até 5 segundos, em preto e branco. Soltou, continua dali. Depois a ampulheta ⏳ recarrega enquanto você joga.</p><p><b>⏩</b> acelera o jogo enquanto você segura.</p>'],
+      backup: ['💾 Saves e backup', backup ? backup.innerHTML : ''],
       imagem: ['🖼 Imagem e som', '<h3>🖼 Imagem e som</h3><p>No <b>☰</b>: filtro (tela de tubo, LCD, Game Boy…), proporção, moldura e volume. O som precisa estar ligado no aparelho.</p>'],
       jukebox: ['🎵 Jukebox', '<h3>🎵 Jukebox</h3><p>No meio do jogo, toque em <b>☰</b> e em <b>Guardar esta música</b>: a trilha que está tocando vai pra Jukebox, e você ouve depois, sem o jogo. Também dá pra abrir arquivos <b>.spc</b>.</p><p>As 8 vozes do chip de som aparecem ao vivo: toque numa pra silenciar e ouvir só o baixo ou a percussão.</p>'],
       temas: ['🎨 Temas', '<h3>🎨 Temas</h3><p>São <span class="n-temas">126</span> temas, com busca e categorias. Toque em <b>Tema</b> na barra de baixo. O modelo de controle <b>Segue o tema</b> usa as cores do tema escolhido.</p>'],
