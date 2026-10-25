@@ -1,5 +1,35 @@
 # KOFstation (antigo KOFnes) — contexto pra próxima sessão
 
+## ⏩ ONDE PAROU (25/10, fim do chat longo; leia isto primeiro)
+- **main publicada: versão 202610251737, CASCA 11** (repositório agora é `Marcelao98/KOFStation`; o nome antigo redireciona).
+  Na main: N64 (PC wasm + celular nativo), PS1 nativo, analógico (N64/PS1), saves no banco + backup `.kofsave`, celular
+  como controle do PC, busca por gênero/empresa, pasta de ROMs no APK, painel de desempenho (F3), **SNES do PC = Snes9x**
+  (Kof como opção em Emulação). Detalhes de cada um nas notas abaixo.
+- **Aberto / a fazer, nesta ordem:**
+  1. **Lentidão (prioridade do Marcelo, "tem que rodar liso, PC e celular, todos os consoles"):** 1ª parte feita (painel,
+     rebobinar sem cópias, Snes9x no PC). Esperando ele mandar print do painel (F3) no PC e no celular. Próximo = **motor
+     novo**: emulação num Web Worker + som por **AudioWorklet** ditando o ritmo (hoje `ScriptProcessorNode` 2048 a 32 kHz na
+     linha principal, `ligarSom()` no app.js, e o laço é `laco()` com rAF); depois recompilar núcleos com `-flto -msimd128`.
+     Nativo no celular pro SNES etc. só se ainda não ficar liso (perde filtros/molduras). Medir com
+     `/tmp`-style script: Playwright + `Emulation.setCPUThrottlingRate` 4 ≈ celular médio; `KOFnes.desempenho()`.
+     Cuidado: engasgos no container com janela grande são do SwiftShader (placa imitada), teste com janela pequena.
+  2. **Celular como controle NÃO conectou no aparelho dele** (mensagem exata desconhecida). Suspeitas: o "Acesso à rede
+     local" novo do Chrome/Edge bloqueando a página file:// de falar com 192.168.x.x (mais provável); roteador isolando
+     clientes; IP errado (4G/VPN). Plano combinado: (a) ControleServidor responder GET http comum com página "✅ achado"
+     (pedi pra ele testar `http://<ip>:8642` no navegador do PC), (b) mensagens de erro específicas no PC, (c) celular avisar
+     se não está na Wi-Fi, (d) lançador (`kofnes.sh`/exe) abrir o navegador liberando a rede local só pra janela do
+     KOFstation, (e) WebRTC só se precisar.
+  3. "Não atualizou direto" (última mensagem dele, incompleta): conferir se o `kofnes.sh` do Linux dele pegou a versão
+     202610251737 (pedir o que aparece / o log). Ele migrou pro **Linux** (Fedora ou parecido; não tem apt).
+  4. Depois: **Fase 3** (sincronizar saves/estatísticas pela conexão do controle; resolver chave do save do PS1 PC × .mcd
+     do celular), **PS2** com o Play! (plano de ataque aprovado, não começado; Play! usa threads → precisa de
+     SharedArrayBuffer, que file:// não tem: lançador com opção ou localhost).
+- **N64 e PS1 nativos ainda sem teste de jogo de verdade confirmado pelo Marcelo** (o PS1 voltou a abrir depois do
+  conserto de 25/10; o N64 recebia "failed to read rom", corrigido na casca 7 entregando a ROM na memória).
+- Ambiente desta sessão (some no container novo): Kof4j em `/home/user/Kof4j`, núcleos compilados em
+  `nucleo-libretro/saida/` (fora do git), libs nativas em `android/nativo/lib/` (fora do git; `android/nativo/construir.sh`
+  baixa do LemuroidCores). ROMs livres: PeterLemon SNES/N64/PSX, cubo do PS1 montado com genisoimage.
+
 > **Nome:** desde 19/10 o produto se chama **KOFstation** (SNES + Game Boy). O que o usuário vê, o README, o APK
 > (`android/apk/KOFstation.apk`, rótulo do app) e os pacotes (`dist/KOFstation-windows.zip`/`-linux.tar.gz`) usam o nome novo.
 > **De propósito ficaram com o nome antigo** (trocar apagaria dados ou travaria a atualização de quem já usa):

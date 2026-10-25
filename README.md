@@ -37,8 +37,8 @@ Dois cliques no `KOFstation.exe` (no PC) ou no app do **Android** e você cai nu
 |---|---|
 | 🏠 **Início** | continuar de onde parou (com print), jogados recentemente, atalhos e dica do dia. Até a frase de boas-vindas muda com o tema |
 | 🧭 **Navegação** | menu lateral, botão **Voltar** com histórico (`Alt+←`, `Esc`, botão voltar do mouse) e um **Guia do KOFstation** dentro do próprio emulador |
-| 🕹️ **Sistemas** | **Super Nintendo** (`.sfc`, `.smc`), **NES** (`.nes`), **Game Boy / Game Boy Color** (`.gb`, `.gbc`), **Mega Drive** (`.md`, `.gen`, `.bin`), **Master System** (`.sms`) e **Game Gear** (`.gg`), **Game Boy Advance** (`.gba`), **Neo Geo** (o `.zip` do fliperama + a sua BIOS `neogeo.zip`) e **PlayStation** (`.cue` + `.bin`, `.chd`, `.pbp`, `.iso`, ou o `.zip` com eles; BIOS opcional; no celular ainda não está otimizado) na mesma biblioteca, com o rótulo do sistema. No PC o SNES roda no núcleo em Kof; os outros em núcleos libretro em WebAssembly: [FCEUmm](https://github.com/libretro/libretro-fceumm), [Gambatte](https://github.com/libretro/gambatte-libretro) [Genesis Plus GX](https://github.com/libretro/Genesis-Plus-GX), [mGBA](https://github.com/libretro/mgba), [FBNeo](https://github.com/libretro/FBNeo) e [PCSX-ReARMed](https://github.com/libretro/pcsx_rearmed) |
-| 📱 **Android** | APK com controle virtual na tela (6 modelos, multitoque, canhoto; ✕ ○ □ △ e L2/R2 no PlayStation), em pé ou deitado. Todos os consoles; o SNES roda no [Snes9x](https://github.com/libretro/snes9x). **Se atualiza sozinho**, sem reinstalar. O PlayStation no celular ainda não está otimizado (jogos 3D travam) |
+| 🕹️ **Sistemas** | **Super Nintendo** (`.sfc`, `.smc`), **NES** (`.nes`), **Game Boy / Game Boy Color** (`.gb`, `.gbc`), **Mega Drive** (`.md`, `.gen`, `.bin`), **Master System** (`.sms`) e **Game Gear** (`.gg`), **Game Boy Advance** (`.gba`), **Neo Geo** (o `.zip` do fliperama + a sua BIOS `neogeo.zip`), **PlayStation** (`.cue` + `.bin`, `.chd`, `.pbp`, `.iso`, ou o `.zip` com eles; BIOS opcional) e **Nintendo 64** (`.z64`, `.n64`, `.v64`) na mesma biblioteca, com o rótulo do sistema. O SNES roda no [Snes9x](https://github.com/libretro/snes9x) (o núcleo em Kof, feito no Brasil, fica como opção em **Emulação → Núcleo do SNES**); os outros em núcleos libretro em WebAssembly: [FCEUmm](https://github.com/libretro/libretro-fceumm), [Gambatte](https://github.com/libretro/gambatte-libretro) [Genesis Plus GX](https://github.com/libretro/Genesis-Plus-GX), [mGBA](https://github.com/libretro/mgba), [FBNeo](https://github.com/libretro/FBNeo), [PCSX-ReARMed](https://github.com/libretro/pcsx_rearmed) e [Mupen64Plus-Next](https://github.com/libretro/mupen64plus-libretro-nx). **Analógico** no N64 e no PS1 (na tela de toque e no controle físico) |
+| 📱 **Android** | APK com controle virtual na tela (6 modelos, multitoque, canhoto; ✕ ○ □ △ e L2/R2 no PlayStation), em pé ou deitado. Todos os consoles; **PlayStation e Nintendo 64 nativos** (os mesmos núcleos ARM64 do [Lemuroid](https://github.com/Swordfish90/Lemuroid)), escolha da pasta de ROMs inteira e **se atualiza sozinho**, sem reinstalar |
 | 📚 **Biblioteca** | estilo ZSNES: escolha a pasta de ROMs uma vez, busque por palavras em qualquer ordem, esconda hacks e variantes com **Só os principais**, capas oficiais ([libretro-thumbnails](https://github.com/libretro-thumbnails)) e **modo sofá** (grade de capas pra jogar de longe, com o controle) |
 | 🎨 **126 temas** | café, consoles, computador antigo, animes, animais, bem brasileiro e clássicos do SNES, com galeria de prévias ao vivo ([guia com as cores de todos](docs/guia-de-temas.html)) |
 | 📺 **Imagem** | **painel de imagem** (`F4`) com 30 predefinições e 51 ajustes: TV de tubo em luz linear (linhas, máscara de fósforo, curva), monitor de fliperama, locadora VHS, Game Boy, HD de mentirinha (xBR), pintura (Kuwahara), desenho animado, Polaroid, filmadora, synthwave, gibi, cinema mudo, CGA, correção de daltonismo; comparar antes/depois e salvar o seu jeito. Proporção 4:3 / 8:7 / esticar e tela cheia |
@@ -48,7 +48,10 @@ Dois cliques no `KOFstation.exe` (no PC) ou no app do **Android** e você cai nu
 | 💾 **Savestates** | por jogo, com print do momento, e **salvar automático** pra continuar de onde parou |
 | ⏪ **Rebobinar** | deu ruim? segure `Backspace` (ou `Select+Y`) e o jogo volta no tempo, em preto e branco, até 5 s. Depois uma ampulheta ⏳ recarrega enquanto você joga, estilo Príncipe da Pérsia |
 | 🎵 **Jukebox** | `F7` guarda a música que está tocando (todos os consoles, menos o PlayStation); abre e exporta `.spc` e `.wav`; mostra os canais do chip de som ao vivo e deixa silenciar cada um. **〰 Ondas** vira um osciloscópio (a forma da onda de cada canal, com **Mudo** e **Solo**) e **🎹 Notas** vira um piano: as notas de cada canal passando, achadas na própria onda pelo método YIN, com **sincronia** ajustável pro seu fone |
-| 📊 **Estatísticas** | tempo jogado por jogo, sessões, primeira e última vez e o gráfico dos últimos 7 dias |
+| 📊 **Estatísticas** | tempo jogado por jogo, sessões, primeira e última vez e o gráfico dos últimos 7 dias; cada aparelho (PC, celular) conta a sua parte e o total soma tudo |
+| 💾 **Saves e backup** | saves guardados comprimidos (quase não ocupam espaço) e **backup `.kofsave`**: leva saves, estatísticas e, se quiser, savestates e configurações pro outro aparelho (WhatsApp, Drive, pendrive). Ao trazer, junta sem perder nada: fica o save mais novo e o outro vira cópia. Tela de **Espaço usado** |
+| 📱 **Celular como controle** | o celular vira o controle do PC na mesma Wi-Fi (Controles → *Usar este celular como controle do PC*; no PC, Arquivo → *Celular como controle*), com analógico, sem nada passar pela internet |
+| 📈 **Desempenho** | painel (`F3`, ou no menu ☰ do celular) com fps, quanto cada parte gasta por quadro, engasgos e falhas de som |
 | 🐞 **Caçador de bugs** | `F9` abre uma issue no GitHub já preenchida, com um pacote pra reproduzir o bug quadro a quadro |
 | 🎮 **Conforto** | controle USB/Xbox, volume, mudo, turbo, pausa sozinho quando você sai da janela, teclas configuráveis |
 
@@ -220,12 +223,18 @@ O Kof é uma linguagem brasileira nova, da **Mel Santos**: [github.com/KofLang/K
 - [x] 🕹️ **Game Boy Advance** (mGBA; BIOS opcional em Arquivo > BIOS…)
 - [x] 🕹️ **Neo Geo** (FBNeo; modo AES, o zip inteiro do jogo, clones acham o zip do pai na biblioteca; a BIOS é sua)
 - [x] 🕹️ **PlayStation** (PCSX-ReARMed; `.cue`/`.bin`, `.chd`, `.pbp`; BIOS opcional)
-- [ ] 📱 PlayStation otimizado no celular (no PC roda liso; no celular ainda trava nos jogos 3D, os outros consoles rodam bem)
+- [x] 📱 PlayStation e Nintendo 64 **nativos** no celular
+- [x] 🕹️ **Nintendo 64** (no PC em WebAssembly; no celular nativo) e **analógico** no N64 e no PS1
+- [x] 💾 Saves no banco, estatísticas por aparelho e **backup `.kofsave`**
+- [x] 📱 **Celular como controle do PC** (em teste)
+- [ ] ⚡ Motor novo: emulação numa linha separada e som pelo `AudioWorklet` ditando o ritmo (liso em qualquer aparelho)
+- [ ] 🔄 PC e celular sincronizando saves e estatísticas sozinhos na mesma Wi-Fi
+- [ ] 🕹️ PlayStation 2 (pelo [Play!](https://github.com/jpd002/Play-), que roda no navegador)
 - [x] 🎨 Painel de filtros e efeitos, galeria de molduras e traduções por patch
 - [x] 🎹 Jukebox com piano (notas de cada canal) e o app do Android se atualizando sozinho
 - [ ] 🖥️ Jogar pelo PC no celular (o PC emula e o celular vira tela e controle)
-- [ ] 🕹️ Analógico do PlayStation e mais sistemas (Nintendo 64, Saturn...)
-- [ ] 📱 Play Store e escolher a pasta de ROMs inteira no Android
+- [ ] 🕹️ Mais sistemas (Saturn, Dreamcast, PSP...)
+- [ ] 📱 Play Store
 - [ ] 🏆 **Conquistas**
 - [ ] Chips de cartucho que faltam: SA-1, DSP-1, Cx4, S-DD1, SPC7110
 
