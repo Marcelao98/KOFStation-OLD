@@ -69,6 +69,13 @@ const KofLibretro = (() => {
       opcoes: { 'mupen64plus-rdp-plugin': 'gliden64', 'mupen64plus-cpucore': 'cached_interpreter', 'mupen64plus-43screensize': '320x240',
         'mupen64plus-EnableNativeResFactor': '1', 'mupen64plus-ThreadedRenderer': 'False', 'mupen64plus-pak1': 'memory' },
       botoes: ['Cima', 'Baixo', 'Esquerda', 'Direita', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'] },
+    // PlayStation 2: Play! (BSD-2, nucleo-ps2/) em WebAssembly com threads, só no PC. Não é libretro: roda sozinho nas threads
+    // dele e desenha num canvas próprio por cima da área do jogo; o app fala com ele por uma "fachada" (web/ps2.js), como os
+    // nativos do celular. .iso/.chd são reconhecidos pelo conteúdo (SYSTEM.CNF com BOOT2; o PS1 também usa essas extensões).
+    // BIOS não precisa (o Play! imita). O DVD não é copiado: o Play! lê pedaços do arquivo escolhido
+    ps2: { nome: 'PlayStation 2', curto: 'PS2', ext: ['elf', 'cso', 'isz'], nucleo: 'play', analogico: 'misto', largura: 640, altura: 448, tv43: true,
+      semRebob: true, musica: false, minimo: 0, grande: true, canais: [],
+      botoes: ['Cima', 'Baixo', 'Esquerda', 'Direita', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'] },
   };
   const extensao = (nome) => (/\.([^.]+)$/.exec(nome || '') || [])[1]?.toLowerCase() || '';
   // set do Neo Geo pelo nome do zip ('mslug.zip' -> 'mslug'), se estiver na lista do FBNeo
@@ -508,6 +515,6 @@ const KofLibretro = (() => {
       fechar() { mod._lr_sonda(0); this.mudas(0); },
     };
   }
-  return { criar, mascara, mascaraN64, empacotar, iniciar, titulo, sistemaDe, disponivel, tocador, opcao, bios, temBios, sistemaDaBios, setNeoGeo, setNeoGeoDoZip, NEOGEO, SISTEMAS, EXTENSOES, ARQUIVOS };
+  return { criar, buscar, mascara, mascaraN64, empacotar, iniciar, titulo, sistemaDe, disponivel, tocador, opcao, bios, temBios, sistemaDaBios, setNeoGeo, setNeoGeoDoZip, NEOGEO, SISTEMAS, EXTENSOES, ARQUIVOS };
 })();
 if (typeof module !== 'undefined') module.exports = KofLibretro;

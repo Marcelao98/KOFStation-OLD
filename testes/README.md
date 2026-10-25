@@ -27,6 +27,7 @@ node testes/navegador/abertura.cjs  dist/web rom.gb saida/   # abertura da prime
 node testes/navegador/trilha.cjs    dist/web   # trilha no som do Mega Drive: Início (depois do 1º toque), escolha da música, jukebox
 node testes/navegador/capas-wav.cjs dist/web som.gba neogeo.zip mslug.zip   # capas de GBA e Neo Geo + exportar .wav
 node testes/navegador/neogeo.cjs  dist/web neogeo.zip mslug.zip 2020bb.zip 2020bba-split.zip saida/   # Neo Geo com zips FALSOS (testes/neogeo/zip-falso.py)
+node testes/navegador/ps2.cjs     dist/web cube.elf "Cubo PS2.iso" saida/   # PS2 (Play!): .elf, DVD .iso, pausa, savestate, cartão de memória, aviso sem o lançador novo (DVD: testes/ps2/montar-dvd.py)
 ```
 
 Os outros: `auto` (salvar automático), `sofa`, `teclas`, `bug` (caçador de bugs),

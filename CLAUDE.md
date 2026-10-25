@@ -31,13 +31,37 @@
   3. "Não atualizou direto" (última mensagem dele, incompleta): conferir se o `kofnes.sh` do Linux dele pegou a versão
      202610251737 (pedir o que aparece / o log). Ele migrou pro **Linux** (Fedora ou parecido; não tem apt).
   4. Depois: **Fase 3** (sincronizar saves/estatísticas pela conexão do controle; resolver chave do save do PS1 PC × .mcd
-     do celular), **PS2** com o Play! (plano de ataque aprovado, não começado; Play! usa threads → precisa de
-     SharedArrayBuffer, que file:// não tem: lançador com opção ou localhost).
+     do celular).
+  5. **PS2 no PC (branch `ps2`, 25/10, FEITO e testado aqui, NÃO publicado; falta o Marcelo testar com jogo de verdade):**
+     ver a nota "PlayStation 2" abaixo. Pacote de teste pro Linux dele: html + nucleos/ + kofnes.sh (LANCADOR=5) +
+     `nao-atualizar`. Publicar = juntar na main + `publicar.sh` (lançador 10 / LANCADOR=5 levam a opção do navegador).
 - **N64 e PS1 nativos ainda sem teste de jogo de verdade confirmado pelo Marcelo** (o PS1 voltou a abrir depois do
   conserto de 25/10; o N64 recebia "failed to read rom", corrigido na casca 7 entregando a ROM na memória).
 - Ambiente desta sessão (some no container novo): Kof4j em `/home/user/Kof4j`, núcleos compilados em
   `nucleo-libretro/saida/` (fora do git), libs nativas em `android/nativo/lib/` (fora do git; `android/nativo/construir.sh`
   baixa do LemuroidCores). ROMs livres: PeterLemon SNES/N64/PSX, cubo do PS1 montado com genisoimage.
+
+> **PlayStation 2 (branch `ps2`, 25/10, não publicado):** núcleo **Play!** (github.com/jpd002/Play-, BSD-2, commit 505dac73)
+> em WebAssembly, só no PC. `nucleo-ps2/construir.sh` (emscripten **4.0.1** do emsdk, cmake + ninja; ~15 min na 1ª vez)
+> aplica `nucleo-ps2/play-kof.patch` (Main.cpp: `setPad(máscara libretro, 4 eixos int8)` por um provedor de entrada
+> "cru", `pauseVm`/`resumeVm` SEM esperar a thread da máquina (o Pause/Resume normal trava: a máquina espera a linha
+> principal ler o DVD), `saveState/loadState/estadoPronto` (arquivo no disco virtual, feito na thread da máquina),
+> `setVolume` (OpenAL); CMake: `SINGLE_FILE`, sem ES6) e grava `nucleo-libretro/saida/play.js` = o código numa string
+> (`KofPlayCodigo`, `Nucleo_play()`): numa página file:// os Workers das threads não abrem arquivo, então `web/ps2.js` faz
+> um Blob e passa como `mainScriptUrlOrBlob`. **SharedArrayBuffer em file://**: só com o navegador aberto com
+> `--enable-features=SharedArrayBuffer` (testado: funciona sem isolamento e sem localhost, então o banco/saves continuam
+> os mesmos); lançador **10** (exe) e **LANCADOR=5** (kofnes.sh) passam a opção; sem ela o app avisa pra abrir pelo
+> lançador. `web/ps2.js` entra por dentro do app.js só no html do PC (juntar.py, quando existe o play.js; o celular não
+> leva o play): fachada igual aos nativos do celular (`nativo: true`; o canvas `#outputCanvas` 640x480 do Play! fica por
+> cima do `#tela`; sem runFrame por 250 ms = pausa e some), `ehPs2` (.elf/.cso/.isz; .iso/.img pelo SYSTEM.CNF com BOOT2;
+> .chd > 900 MB), DVD lido aos pedaços do File (`discImageDevice`, nada vai pro banco de ROMs; da biblioteca reabre pela
+> pasta de ROMs, `ps2Jogo`), savestate assíncrono (`estadoAsync/restaurarAsync`; app.js usa `capturarEstado/
+> restaurarEstado`; ~135 KB no teste), cartão de memória = pasta `vfs/mc0` inteira num save só `ps2/mc0` (vai no
+> `.kofsave`; guardado ao pausar, a cada 30 s e ao fechar). BIOS não precisa (o Play! imita). Sem filtros/molduras/capa
+> (a imagem não passa pelo WebGL do app). Teste: `testes/navegador/ps2.cjs` com o cube.elf dos exemplos do ps2sdk
+> (toolchain pronto: github.com/ps2dev/ps2dev releases `ps2dev-ubuntu-latest.tar.gz`, `make` em samples/draw/cube) e o
+> DVD de `testes/ps2/montar-dvd.py` (pycdlib): ~60 fps no SwiftShader. Montar o html sem Kof: extrair o KofNucleo do
+> `publicado/KOFstation.html` como Default.mjs + runtime vazio, núcleos de `publicado/nucleos/` sem o hash + play.js.
 
 > **Nome:** desde 19/10 o produto se chama **KOFstation** (SNES + Game Boy). O que o usuário vê, o README, o APK
 > (`android/apk/KOFstation.apk`, rótulo do app) e os pacotes (`dist/KOFstation-windows.zip`/`-linux.tar.gz`) usam o nome novo.

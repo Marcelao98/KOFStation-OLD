@@ -1,0 +1,199 @@
+diff --git a/Source/PS2VM.h b/Source/PS2VM.h
+index c4f8be0..2a13efe 100644
+--- a/Source/PS2VM.h
++++ b/Source/PS2VM.h
+@@ -105,6 +105,19 @@ public:
+ 	ExecutableReloadedHandler BeforeExecutableReloaded;
+ 	ExecutableReloadedHandler AfterExecutableReloaded;
+ 
++	// KOFstation (ui_js): estado e chamadas na thread da máquina
++	void KofCall(std::function<void()> f) { m_mailBox.SendCall(std::move(f)); }
++	bool KofSaveState(const fs::path& p) { return SaveVMState(p); }
++	bool KofLoadState(const fs::path& p) { return LoadVMState(p); }
++	// sem esperar a thread da máquina: ela pode estar esperando a linha principal ler o DVD (o JS lê o arquivo)
++	void KofResume()
++	{
++		m_mailBox.SendCall([this]() {
++			ResumeImpl();
++			OnRunningStateChange();
++		});
++	}
++
+ protected:
+ 	virtual void CreateVM();
+ 	void ResumeImpl();
+diff --git a/Source/ui_js/CMakeLists.txt b/Source/ui_js/CMakeLists.txt
+index cf3518e..95b0e08 100644
+--- a/Source/ui_js/CMakeLists.txt
++++ b/Source/ui_js/CMakeLists.txt
+@@ -53,8 +53,9 @@ target_link_libraries(Play PUBLIC ${UI_JS_PROJECT_LIBS})
+ 
+ target_link_options(Play PRIVATE "--bind")
+ target_link_options(Play PRIVATE "-sMODULARIZE=1")
+-target_link_options(Play PRIVATE "-sEXPORT_ES6=1")
++target_link_options(Play PRIVATE "-sEXPORT_ES6=0")
+ target_link_options(Play PRIVATE "-sUSE_ES6_IMPORT_META=0")
++target_link_options(Play PRIVATE "-sSINGLE_FILE=1")
+ target_link_options(Play PRIVATE "-sEXPORTED_FUNCTIONS=['_main', '_initVm', '_EmptyBlockHandler', '_MemoryUtils_GetByteProxy', '_MemoryUtils_GetHalfProxy', '_MemoryUtils_GetWordProxy', '_MemoryUtils_GetDoubleProxy', '_MemoryUtils_SetByteProxy', '_MemoryUtils_SetHalfProxy', '_MemoryUtils_SetWordProxy', '_MemoryUtils_SetDoubleProxy', '_LWL_Proxy', '_LWR_Proxy', '_LDL_Proxy', '_LDR_Proxy', '_SWL_Proxy', '_SWR_Proxy', '_SDL_Proxy', '_SDR_Proxy']")
+ target_link_options(Play PRIVATE "-sEXPORTED_RUNTIME_METHODS=['ccall', 'FS']")
+ target_link_options(Play PRIVATE "-sFORCE_FILESYSTEM")
+diff --git a/Source/ui_js/InputProviderEmscripten.cpp b/Source/ui_js/InputProviderEmscripten.cpp
+index 763bc0f..869437e 100644
+--- a/Source/ui_js/InputProviderEmscripten.cpp
++++ b/Source/ui_js/InputProviderEmscripten.cpp
+@@ -111,3 +111,13 @@ void CInputProviderEmscripten::OnKeyUp(const EM_UTF8* code)
+ {
+ 	OnInput(MakeBindingTarget(code), 0);
+ }
++
++BINDINGTARGET CInputProviderEmscripten::MakeRawTarget(uint32 code)
++{
++	return BINDINGTARGET(PROVIDER_ID, DeviceIdType{{0}}, code, BINDINGTARGET::KEYTYPE::BUTTON);
++}
++
++void CInputProviderEmscripten::SetRaw(uint32 code, uint32 value)
++{
++	OnInput(MakeRawTarget(code), value);
++}
+diff --git a/Source/ui_js/InputProviderEmscripten.h b/Source/ui_js/InputProviderEmscripten.h
+index dbd0592..09dab02 100644
+--- a/Source/ui_js/InputProviderEmscripten.h
++++ b/Source/ui_js/InputProviderEmscripten.h
+@@ -11,6 +11,9 @@ public:
+ 
+ 	static BINDINGTARGET MakeBindingTarget(const EM_UTF8* code);
+ 
++	static BINDINGTARGET MakeRawTarget(uint32);
++	void SetRaw(uint32, uint32);
++
+ 	void OnKeyDown(const EM_UTF8*);
+ 	void OnKeyUp(const EM_UTF8*);
+ };
+diff --git a/Source/ui_js/Main.cpp b/Source/ui_js/Main.cpp
+index 999e24c..63d1025 100644
+--- a/Source/ui_js/Main.cpp
++++ b/Source/ui_js/Main.cpp
+@@ -1,4 +1,6 @@
+ #include <cstdio>
++#include <atomic>
++#include <AL/al.h>
+ #include <emscripten/bind.h>
+ #include "Ps2VmJs.h"
+ #include "GSH_OpenGLJs.h"
+@@ -38,6 +40,8 @@ EM_BOOL keyboardCallback(int eventType, const EmscriptenKeyboardEvent* keyEvent,
+ 	return true;
+ }
+ 
++static void kofLigarControle();
++
+ extern "C" void initVm()
+ {
+ 	EmscriptenWebGLContextAttributes attr;
+@@ -108,6 +112,8 @@ extern "C" void initVm()
+ 		g_virtualMachine->CreateSoundHandler(CSH_OpenALProxy::GetFactoryFunction(g_soundHandler));
+ 	}
+ 
++	kofLigarControle();
++
+ 	g_gsNewFrameConnection = g_virtualMachine->GetGSHandler()->OnNewFrame.Connect(std::bind(&CStatsManager::OnGsNewFrame, &CStatsManager::GetInstance(), std::placeholders::_1));
+ 
+ 	EMSCRIPTEN_RESULT result = EMSCRIPTEN_RESULT_SUCCESS;
+@@ -129,6 +135,85 @@ void bootDiscImage(std::string path)
+ 	g_virtualMachine->BootDiscImage(path);
+ }
+ 
++// KOFstation: o app manda os botões (máscara do libretro) e os 4 eixos (int8 cada, num uint32) a cada quadro
++// libretro: B Y Select Start Cima Baixo Esq Dir A X L R L2 R2 L3 R3 -> botões do PS2
++static const PS2::CControllerInfo::BUTTON KOF_BOTOES[16] = {
++	PS2::CControllerInfo::CROSS, PS2::CControllerInfo::SQUARE, PS2::CControllerInfo::SELECT, PS2::CControllerInfo::START,
++	PS2::CControllerInfo::DPAD_UP, PS2::CControllerInfo::DPAD_DOWN, PS2::CControllerInfo::DPAD_LEFT, PS2::CControllerInfo::DPAD_RIGHT,
++	PS2::CControllerInfo::CIRCLE, PS2::CControllerInfo::TRIANGLE, PS2::CControllerInfo::L1, PS2::CControllerInfo::R1,
++	PS2::CControllerInfo::L2, PS2::CControllerInfo::R2, PS2::CControllerInfo::L3, PS2::CControllerInfo::R3};
++static const PS2::CControllerInfo::BUTTON KOF_EIXOS[4] = {
++	PS2::CControllerInfo::ANALOG_LEFT_X, PS2::CControllerInfo::ANALOG_LEFT_Y,
++	PS2::CControllerInfo::ANALOG_RIGHT_X, PS2::CControllerInfo::ANALOG_RIGHT_Y};
++static uint32 g_kofBotoes = 0, g_kofEixos = 0;
++
++static void kofLigarControle()
++{
++	auto padHandler = static_cast<CPH_GenericInput*>(g_virtualMachine->GetPadHandler());
++	auto& bindingManager = padHandler->GetBindingManager();
++	for(int i = 0; i < 16; i++)
++		bindingManager.SetSimpleBinding(0, KOF_BOTOES[i], CInputProviderEmscripten::MakeRawTarget(0x10000 + i));
++	for(int i = 0; i < 4; i++)
++	{
++		bindingManager.SetSimpleBinding(0, KOF_EIXOS[i], CInputProviderEmscripten::MakeRawTarget(0x10100 + i));
++		g_inputProvider->SetRaw(0x10100 + i, 0x80);
++	}
++}
++
++void setPad(uint32 botoes, uint32 eixos)
++{
++	uint32 mudou = botoes ^ g_kofBotoes;
++	for(int i = 0; i < 16; i++)
++		if(mudou & (1 << i)) g_inputProvider->SetRaw(0x10000 + i, (botoes >> i) & 1);
++	if(eixos != g_kofEixos)
++		for(int i = 0; i < 4; i++)
++			g_inputProvider->SetRaw(0x10100 + i, static_cast<uint8>(static_cast<int8>(eixos >> (i * 8)) + 0x80));
++	g_kofBotoes = botoes;
++	g_kofEixos = eixos;
++}
++
++// pausar/continuar sem esperar (o Pause/Resume normal espera a thread da máquina, que pode estar esperando esta linha
++// ler um pedaço do DVD: as duas travariam)
++void pauseVm()
++{
++	g_virtualMachine->PauseAsync();
++}
++
++void resumeVm()
++{
++	g_virtualMachine->KofResume();
++}
++
++int vmStatus()
++{
++	return g_virtualMachine->GetStatus();
++}
++
++// estado: roda na thread da máquina; o JS espera o 1 (ok) ou 2 (falhou) em estadoPronto()
++static std::atomic<int> g_kofEstado{0};
++void saveState(std::string path)
++{
++	g_kofEstado = 0;
++	g_virtualMachine->KofCall([path]() { g_kofEstado = g_virtualMachine->KofSaveState(path) ? 1 : 2; });
++}
++
++void loadState(std::string path)
++{
++	g_kofEstado = 0;
++	g_virtualMachine->KofCall([path]() { g_kofEstado = g_virtualMachine->KofLoadState(path) ? 1 : 2; });
++}
++
++int estadoPronto()
++{
++	return g_kofEstado;
++}
++
++// volume do app (0..1); o OpenAL do emscripten roda na linha principal, de onde o JS chama isto
++void setVolume(float v)
++{
++	alListenerf(AL_GAIN, v);
++}
++
+ int getFrames()
+ {
+ 	return CStatsManager::GetInstance().GetFrames();
+@@ -147,4 +232,12 @@ EMSCRIPTEN_BINDINGS(Play)
+ 	function("bootDiscImage", &bootDiscImage);
+ 	function("getFrames", &getFrames);
+ 	function("clearStats", &clearStats);
++	function("setPad", &setPad);
++	function("pauseVm", &pauseVm);
++	function("resumeVm", &resumeVm);
++	function("vmStatus", &vmStatus);
++	function("setVolume", &setVolume);
++	function("saveState", &saveState);
++	function("loadState", &loadState);
++	function("estadoPronto", &estadoPronto);
+ }
