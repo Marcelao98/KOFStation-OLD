@@ -240,7 +240,13 @@ function nativoAbrir(c, nome) {
   });
 }
 const marcaNativa = (c, nome) => new TextEncoder().encode((c + ' nativo ' + nome).padEnd(16)).slice(0, 16);   // o "arquivo" que o app guarda
-async function nativoJogo(c, nome) {   // da biblioteca: o Java reabre o último jogo que copiou
+async function nativoJogo(c, nome, j) {   // da biblioteca: o Java copia de novo da pasta de ROMs, ou reabre o último que copiou
+  if (pastaApk && KOFnesApk.pastaNome()) {
+    const l = await lerPasta(false).catch(() => []), n = (nome || '').toLowerCase(), b = baseCd(n);
+    // o CD que veio de um zip fica com o nome de dentro do zip: acha o zip pelo nome sem extensão
+    const it = l.find((x) => x.arquivo.toLowerCase() === n) || l.find((x) => /\.zip$/i.test(x.arquivo) && baseCd(x.arquivo).toLowerCase() === b);
+    if (it && it.h.uri) { KOFnesApk.pastaPreparar(it.h.uri); nome = it.arquivo; }
+  }
   const r = await nativoAbrir(c, nome);
   return { bytes: marcaNativa(c, r.principal), extras: { nativo: fachada(c, r) } };
 }
@@ -261,6 +267,7 @@ async function nativoArquivo(arq) {
   const c = await consoleNativo(arq);
   if (!c) return false;
   avisar(c === 'ps1' ? '💿 preparando o CD do PlayStation…' : '🎮 preparando o cartucho do Nintendo 64…', 30000);
+  if (arq.uri) KOFnesApk.pastaPreparar(arq.uri);   // veio da pasta de ROMs: o Java copia de lá (com as faixas do CD)
   const r = await nativoAbrir(c, arq.name);
   await abrirBytes(r.principal, marcaNativa(c, r.principal), true, { nativo: fachada(c, r) });
   avisar(c === 'ps1' ? '💿 PlayStation nativo' : '🎮 Nintendo 64 nativo', 1500);
@@ -284,3 +291,44 @@ function fachada(c, r) {
     desserializar(u) { let t = ''; for (let i = 0; i < u.length; i += 0x8000) t += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return KOFnesApk[c + 'CarregarEstado'](btoa(t)); },
   };
 }
+
+// ---------- pasta de ROMs no APK (Pasta.java) ----------
+// Escolhida uma vez pelo seletor de pasta do Android; cada arquivo vira um "arquivo" que a página lê aos pedaços pelo
+// endereço /pasta?u=... (cabeçalho Range): zip e CD grande não são lidos inteiros só pra ver o que tem dentro.
+function arquivoApk(nome, u, tam, ini = 0, fim = tam) {
+  const url = '/pasta?u=' + encodeURIComponent(u), inteiro = tam < 0;
+  const pedir = () => fetch(url, inteiro ? {} : { headers: { Range: `bytes=${ini}-${fim - 1}` } }).then((r) => {
+    if (!r.ok) throw new Error('não consegui ler ' + nome + ' da pasta de ROMs (ela ainda está no celular?)');
+    return r;
+  });
+  const a = {
+    name: nome, size: inteiro ? 0 : fim - ini, type: '', uri: u,
+    async arrayBuffer() { return !inteiro && fim <= ini ? new ArrayBuffer(0) : (await pedir()).arrayBuffer(); },
+    async text() { return new TextDecoder().decode(await a.arrayBuffer()); },
+  };
+  if (!inteiro) {   // tamanho conhecido: dá pra ler um pedaço (como o slice de um File)
+    a.slice = (x = 0, y = fim - ini) => {
+      const t = fim - ini, de = x < 0 ? Math.max(0, t + x) : Math.min(x, t), ate = y < 0 ? Math.max(0, t + y) : Math.min(y, t);
+      return arquivoApk(nome, u, tam, ini + de, ini + Math.max(de, ate));
+    };
+    a.stream = () => { const ts = new TransformStream(); pedir().then((r) => r.body.pipeTo(ts.writable)).catch((e) => ts.writable.abort(e).catch(() => {})); return ts.readable; };
+  }
+  return a;
+}
+function listarPastaApk() {
+  return new Promise((ok) => {
+    window.__pastaLida = (l) => {
+      window.__pastaLida = null;
+      ok((l || []).map((x) => ({ nome: x.n, h: { kind: 'file', uri: x.u, getFile: async () => arquivoApk(x.n, x.u, x.t) } })));
+    };
+    KOFnesApk.pastaListar(EXT_ROM.source + '|\\.zip$');
+  });
+}
+function escolherPastaApk() {
+  return new Promise((ok) => {
+    window.__pastaEscolhida = (sim) => { window.__pastaEscolhida = null; if (sim) avisar('📁 pasta escolhida: ' + KOFnesApk.pastaNome(), 2500); ok(!!sim); };
+    KOFnesApk.pastaEscolher();
+  });
+}
+// no APK o botão da pasta aparece em todo lugar (no PWA o navegador do celular não deixa escolher pasta)
+if (pastaApk) document.querySelectorAll('[data-acao="pasta"].so-pc').forEach((b) => b.classList.remove('so-pc'));
