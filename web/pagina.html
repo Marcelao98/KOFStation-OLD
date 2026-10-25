@@ -141,7 +141,9 @@
       <button class="x" data-acao="fechar-biblioteca" title="voltar ao jogo (Esc)">×</button></span></div>
     <div class="bib">
       <div class="bib-esq">
-        <input id="filtro" placeholder="digite pra procurar…" autocomplete="off" spellcheck="false">
+        <input id="filtro" placeholder="procure por nome, gênero, empresa ou ano…" autocomplete="off" spellcheck="false">
+        <div id="bib-filtros" hidden></div>
+        <div id="bib-pop" hidden></div>
         <p id="bib-estado" class="dica" hidden></p>
         <ul id="roms"></ul>
         <p id="lista-vazia" class="dica"></p>
@@ -150,6 +152,7 @@
         <div class="capa"><img id="capa-img" alt=""><span id="capa-vazia">☕</span><img id="parou-img" alt="onde você parou" title="onde você parou" hidden></div>
         <h2 id="info-nome">KOFstation</h2>
         <p id="info-det" class="dica">Super Nintendo, NES, Game Boy, GBA, Sega, Neo Geo e PlayStation</p>
+        <p id="info-meta" hidden></p>
         <div class="bib-botoes">
           <button class="grande" data-acao="jogar">▶ Jogar</button>
           <button class="grande sec" data-acao="do-zero" hidden>↺ Começar do zero</button>
@@ -209,6 +212,7 @@
             <li><b>Busca:</b> digite qualquer pedaço do nome, em qualquer ordem, sem se preocupar com acento ("mario super" acha "Super Mario World").</li>
             <li><b>🧹 Só os principais:</b> esconde hacks e cópias ruins dos pacotes de ROMs ([h], [b], [o]…) e deixa as traduções [T+Por].</li>
             <li><b>Capas oficiais:</b> baixadas do acervo aberto do RetroArch e guardadas pra funcionar sem internet.</li>
+            <li><b>Busca por gênero, empresa e ano:</b> a lista de jogos vem junto com o app e funciona sem internet. Os dados são do <b>libretro-database</b> (github.com/libretro/libretro-database, a mesma base do RetroArch), licença <b>CC BY-SA 4.0</b>; juntamos as versões de cada jogo e traduzimos os gêneros.</li>
             <li><b>🛋 Modo sofá:</b> a biblioteca vira uma grade de capas em tela cheia, feita pro controle (A joga, X estados, Select liga/desliga).</li>
           </ul>
         </div>

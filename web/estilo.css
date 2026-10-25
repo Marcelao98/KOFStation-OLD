@@ -135,7 +135,35 @@ body.arrastando #palco { outline: 3px dashed var(--destaque); outline-offset: -1
 /* Biblioteca (estilo ZSNES): lista à esquerda, capa e detalhes à direita */
 #biblioteca { width: min(860px, 96vw); height: min(560px, 86vh); display: flex; flex-direction: column; text-align: left; }
 .bib { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; min-height: 0; }
-.bib-esq { display: flex; flex-direction: column; min-height: 0; }
+.bib-esq { display: flex; flex-direction: column; min-height: 0; position: relative; }
+/* busca: filtros por gênero/empresa/ano (botões embaixo da caixa de busca) e a lista de opções que eles abrem */
+#bib-filtros { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip {
+  font: inherit; font-size: 12px; padding: 3px 9px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+  color: var(--texto); background: var(--painel); border: 1px solid var(--borda); max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+.chip:hover { border-color: var(--destaque); }
+.chip.ativo { background: var(--sel); border-color: var(--destaque); color: var(--texto); }
+#bib-pop {
+  position: absolute; z-index: 5; width: 250px; max-height: 300px; display: flex; flex-direction: column; padding: 6px;
+  background: var(--painel2, var(--painel)); border: 1px solid var(--destaque); border-radius: var(--raio); box-shadow: 0 8px 24px #0008;
+}
+#bib-pop[hidden] { display: none; }
+#bib-pop .pop-busca {
+  font: inherit; font-size: 13px; padding: 5px 8px; margin-bottom: 6px; color: var(--texto); background: var(--painel);
+  border: 1px solid var(--borda); border-radius: var(--raio); outline: none;
+}
+#bib-pop .pop-lista { overflow-y: auto; min-height: 0; }
+#bib-pop .pop-lista button {
+  display: flex; justify-content: space-between; gap: 10px; width: 100%; text-align: left; font: inherit; font-size: 13px;
+  padding: 5px 8px; color: var(--texto); background: none; border: 0; border-radius: var(--raio); cursor: pointer;
+}
+#bib-pop .pop-lista button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#bib-pop .pop-lista button small { color: var(--fraco); }
+#bib-pop .pop-lista button:hover, #bib-pop .pop-lista button:focus { background: var(--sel); outline: none; }
+#bib-pop .pop-lista button.ativo { color: var(--destaque); font-weight: 700; }
+#info-meta { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0 10px; }
+#info-meta[hidden], #bib-filtros[hidden] { display: none; }
 .bib-dir { display: flex; flex-direction: column; align-items: center; text-align: center; }
 .bib-dir h2 { margin: 12px 0 2px; font-size: 18px; text-transform: var(--caixa); }
 .capa {
