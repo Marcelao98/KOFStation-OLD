@@ -1,7 +1,7 @@
 # KOFstation (antigo KOFnes) — contexto pra próxima sessão
 
 ## ⏩ ONDE PAROU (25/10, fim do chat longo; leia isto primeiro)
-- **main publicada: versão 202610251829, CASCA 12, lançador 9 (exe) / LANCADOR=4 (kofnes.sh)** (repositório agora é `Marcelao98/KOFStation`; o nome antigo redireciona).
+- **main publicada: versão 202610252216, CASCA 13, lançador 10 (exe) / LANCADOR=5 (kofnes.sh)** (26/10: PS2 no PC + controle 2; publicado com `COMPILAR=web/compilar-sem-kof.sh web/publicar.sh`, sem o compilador Kof, porque snes/ e os núcleos não mudaram; precisa do `nucleo-libretro/saida/play.js` do `nucleo-ps2/construir.sh`) (repositório agora é `Marcelao98/KOFStation`; o nome antigo redireciona).
   Na main: N64 (PC wasm + celular nativo), PS1 nativo, analógico (N64/PS1), saves no banco + backup `.kofsave`, celular
   como controle do PC, busca por gênero/empresa, pasta de ROMs no APK, painel de desempenho (F3), **SNES do PC = Snes9x**
   (Kof como opção em Emulação). Detalhes de cada um nas notas abaixo.
@@ -35,9 +35,9 @@
      202610251737 (pedir o que aparece / o log). Ele migrou pro **Linux** (Fedora ou parecido; não tem apt).
   4. Depois: **Fase 3** (sincronizar saves/estatísticas pela conexão do controle; resolver chave do save do PS1 PC × .mcd
      do celular).
-  5. **PS2 no PC: na main (26/10), NÃO publicado; falta o Marcelo testar com jogo de verdade.** Ver a nota
+  5. **PS2 no PC: PUBLICADO (202610252216); falta o Marcelo testar com jogo de verdade.** Ver a nota
      "PlayStation 2" abaixo. Publicar = `publicar.sh` (lançador 10 / LANCADOR=5 levam a opção do navegador).
-  6. **Controle 2: na main (26/10), NÃO publicado; CASCA 13, APK novo em android/apk.** O PC manda `JOGO <sis>\t<nome>`
+  6. **Controle 2: PUBLICADO (202610252216); CASCA 13, APK novo em android/apk.** O PC manda `JOGO <sis>\t<nome>`
      (texto, depois do `ok`; `contarJogoAoControle` no fim do `abrirBytes` e ao conectar); `ControleServidor.jogo` +
      `controleEstado` = `n\tnomePc\tsis\tjogo` (a página aceita o "n|nome" antigo); o celular troca o controle
      (`consoleDoControle`: data-sis, so-ab, analógico puro no N64, `rotularControle`; ps2 usa o do ps1) e mostra a "telinha"

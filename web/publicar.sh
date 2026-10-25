@@ -6,7 +6,7 @@
 set -euo pipefail
 AQUI="$(cd "$(dirname "$0")" && pwd)"
 RAIZ="$(dirname "$AQUI")"
-"$AQUI/compilar.sh"
+"${COMPILAR:-$AQUI/compilar.sh}"   # COMPILAR=web/compilar-sem-kof.sh: sem o compilador Kof (núcleos iguais aos publicados)
 mkdir -p "$RAIZ/publicado"
 cp "$RAIZ/dist/web/KOFnes.html" "$RAIZ/dist/web/KOFstation.exe" "$RAIZ/dist/web/kofnes.sh" "$RAIZ/dist/web/versao.txt" "$RAIZ/publicado/"
 # o lançador 6+ baixa KOFstation.*; os lançadores antigos (KOFnes.exe 5) e o kofnes.sh ainda baixam KOFnes.*: vão os dois nomes

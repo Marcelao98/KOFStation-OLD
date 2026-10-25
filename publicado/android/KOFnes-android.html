@@ -1883,17 +1883,54 @@ html.celular #biblioteca .bib-botoes .grande { margin: 0; padding: 12px 8px; }
 html.celular #biblioteca .bib-botoes .grande.sec { font-size: 14px; }
 html.celular #biblioteca .bib-botoes [data-acao="do-zero"]:not([hidden]) { grid-column: 1 / 3; order: 3; }
 
-/* o celular como controle do PC: no lugar do jogo, o endereço e a senha pra digitar no PC */
+/* o celular como controle do PC: no lugar do jogo, uma "telinha" com o console e o jogo que o PC abriu; o endereço e a
+   senha só na primeira vez (ou no ⓘ) */
 #modo-controle { position: fixed; left: 0; right: 0; top: 0; height: 42%; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 8px; padding: 16px; text-align: center; background: var(--fundo); color: var(--texto); }
-#modo-controle > b { font-size: 20px; }
-#modo-controle span { color: var(--fraco); font-size: 14px; }
-#modo-controle code { font-size: 30px; font-weight: 800; letter-spacing: 1px; color: var(--destaque); background: var(--painel); border: 1px solid var(--borda); border-radius: 12px; padding: 8px 16px; }
-#modo-controle small { color: var(--fraco); }
-#modo-controle em { color: var(--fraco); font-size: 13px; font-style: normal; text-align: center; padding: 0 16px; }
-#modo-controle button { background: none; color: var(--texto); border: 1px solid var(--borda); border-radius: 10px; padding: 8px 18px; font: inherit; }
+  gap: 10px; padding: 52px 16px 16px; text-align: center; color: var(--texto);
+  background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--destaque) 14%, var(--fundo)), var(--fundo) 70%); }
+#modo-controle button { background: none; color: var(--texto); border: 0; font: inherit; }
+.mc-barra { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; max-width: calc(100% - 20px);
+  padding: 5px 6px 5px 14px; border-radius: 999px; background: color-mix(in srgb, var(--painel) 85%, transparent); border: 1px solid var(--borda);
+  box-shadow: 0 4px 14px rgb(0 0 0 / .25); font-size: 13px; white-space: nowrap; }
+.mc-luz { width: 9px; height: 9px; border-radius: 50%; background: #e0a030; box-shadow: 0 0 8px #e0a030; animation: mc-pisca 1.2s ease-in-out infinite; flex: none; }
+#modo-controle.ligado .mc-luz { background: #3ccf6a; box-shadow: 0 0 8px #3ccf6a; animation: none; }
+@keyframes mc-pisca { 50% { opacity: .3; } }
+.mc-status { overflow: hidden; text-overflow: ellipsis; color: var(--fraco); }
+#modo-controle.ligado .mc-status { color: var(--texto); font-weight: 600; }
+#modo-controle .mc-barra button { width: 30px; height: 30px; border-radius: 50%; font-size: 15px; line-height: 1; flex: none; }
+#modo-controle .mc-barra button:active { background: var(--sel); }
+/* a telinha: parece a tela de um console desligada, com o nome do jogo aceso */
+.mc-tela { display: flex; flex-direction: column; justify-content: center; gap: 6px; width: min(100%, 420px); min-height: 104px; padding: 18px 22px; border-radius: 18px;
+  background: linear-gradient(160deg, #1b1e24, #0d0f13); color: #f2f2f2; border: 1px solid rgb(255 255 255 / .08);
+  box-shadow: inset 0 0 0 3px rgb(0 0 0 / .45), inset 0 0 40px color-mix(in srgb, var(--destaque) 22%, transparent), 0 8px 26px rgb(0 0 0 / .35);
+  background-image: repeating-linear-gradient(0deg, rgb(255 255 255 / .025) 0 1px, transparent 1px 3px), linear-gradient(160deg, #1b1e24, #0d0f13); }
+.mc-sis { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: color-mix(in srgb, var(--destaque) 70%, #fff); }
+.mc-jogo { font-size: 22px; font-weight: 800; line-height: 1.2; text-shadow: 0 0 12px color-mix(in srgb, var(--destaque) 45%, transparent);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mc-troca { animation: mc-troca .45s cubic-bezier(.2, .8, .2, 1); }
+@keyframes mc-troca { from { opacity: 0; transform: scale(.94) translateY(6px); filter: brightness(2.2); } }
+/* parear (1ª vez ou ⓘ): o endereço e a senha no lugar da telinha */
+.mc-parear { display: none; flex-direction: column; align-items: center; gap: 8px; }
+#modo-controle.pareando .mc-parear { display: flex; } #modo-controle.pareando .mc-tela { display: none; }
+.mc-parear > b { font-size: 19px; }
+.mc-parear span, .mc-parear small { color: var(--fraco); font-size: 13px; }
+.mc-parear code { font-size: 28px; font-weight: 800; letter-spacing: 1px; color: var(--destaque); background: var(--painel); border: 1px solid var(--borda); border-radius: 12px; padding: 8px 16px; }
+.mc-parear em { color: var(--fraco); font-size: 12px; font-style: normal; padding: 0 12px; }
 body.modo-controle #tela, body.modo-controle #moldura { visibility: hidden; }
-@media (orientation: landscape) { #modo-controle { height: auto; top: 0; bottom: 0; left: 25%; right: 25%; background: transparent; } }
+@media (orientation: landscape) { #modo-controle { height: auto; top: 0; bottom: 0; left: 24%; right: 24%; background: transparent; padding-top: 56px; } .mc-jogo { font-size: 20px; } }
+/* cores dos botões como no controle de cada console (só no modelo clássico, que é o "como o original") */
+html.celular body[data-sis="ps1"] #ctl.skin-classico :is([data-b="A"], [data-b="B"], [data-b="X"], [data-b="Y"]) { --c: #2b2d33; --fs: 10; }
+html.celular body[data-sis="ps1"] #ctl.skin-classico [data-b="X"] { color: #38d39f; } html.celular body[data-sis="ps1"] #ctl.skin-classico [data-b="A"] { color: #ff5a64; }
+html.celular body[data-sis="ps1"] #ctl.skin-classico [data-b="B"] { color: #7fa6ff; } html.celular body[data-sis="ps1"] #ctl.skin-classico [data-b="Y"] { color: #f08ad0; }
+html.celular body[data-sis="md"] #ctl.skin-classico :is([data-b="A"], [data-b="B"], [data-b="X"], [data-b="Y"], [data-b="L"], [data-b="R"]) { --c: #1d1d22; color: #eaeaea; }
+html.celular body[data-sis="md"] #ctl.skin-classico :is([data-b="L"], [data-b="R"]) { background: radial-gradient(circle at 34% 26%, #fffa 0, #fff0 40%), radial-gradient(circle at 50% 58%, color-mix(in srgb, var(--c) 80%, #fff), var(--c) 56%, color-mix(in srgb, var(--c) 62%, #000));
+  box-shadow: inset 0 -4px 6px #0004, inset 0 2px 3px #fff8, 0 4px 7px #0007, 0 0 0 3px color-mix(in srgb, var(--c) 40%, #2a2a30); }   /* X e Z: redondos e pretos como os outros 4 */
+html.celular body[data-sis="neogeo"] #ctl.skin-classico [data-b="B"] { --c: #d93b3d; } html.celular body[data-sis="neogeo"] #ctl.skin-classico [data-b="A"] { --c: #eab824; }
+html.celular body[data-sis="neogeo"] #ctl.skin-classico [data-b="Y"] { --c: #2fa55d; } html.celular body[data-sis="neogeo"] #ctl.skin-classico [data-b="X"] { --c: #2e6fd8; }
+html.celular body[data-sis="n64"] #ctl.skin-classico [data-b="B"] { --c: #2e6fd8; } html.celular body[data-sis="n64"] #ctl.skin-classico [data-b="Y"] { --c: #2fa55d; }
+html.celular body[data-sis="n64"] #ctl.skin-classico :is([data-b="X"], [data-b="A"]) { --c: #eab824; color: #3b2f00; text-shadow: none; }
+html.celular body[data-sis="nes"] #ctl.skin-classico :is([data-b="A"], [data-b="B"]) { --c: #c8202c; }
+html.celular body:is([data-sis="gb"], [data-sis="gba"]) #ctl.skin-classico :is([data-b="A"], [data-b="B"]) { --c: #8e2a63; }
 body.modo-controle #ctl [data-b="menu"], body.modo-controle #ctl [data-b="turbo"], body.modo-controle #ctl [data-b="rew"] { display: none; }   /* sem jogo aqui: menu e turbo não servem */
 
 </style>
@@ -2364,6 +2401,13 @@ body.modo-controle #ctl [data-b="menu"], body.modo-controle #ctl [data-b="turbo"
 <script>
 const KofNucleo = (() => {
 'use strict';
+function kofArrayGet(array, index) {
+    return array[index];
+}
+function kofArraySet(array, index, value, kind) {
+    if (kind === 0) { array[index] = value; return; }
+}
+
 // Generated by the Kof compiler — KofJS runtime. Do not edit.
 // Reachability-based content: only what the program reaches.
 // kof:seeds kofArrayGet,kofArraySet,kofD2I,kofHashCode,kofListAdd,kofListGet,kofListNew,kofListSize,kofSplit,kofValEq
@@ -12062,6 +12106,7 @@ else if (typeof define === 'function' && define['amd'])
   define([], function() { return Nucleo_somfm; });
 else if (typeof exports === 'object')
   exports["Nucleo_somfm"] = Nucleo_somfm;
+
 // Tocador da trilha do KOFstation no núcleo SÓ DE SOM (nucleo-libretro/somfm.c: YM2612 + PSG do Genesis Plus GX, ~80 KB,
 // embutido no html pelo juntar.py). Recebe a lista de comandos da trilha (web/musicas/trilha.js) e devolve um tocador
 // com a mesma cara dos da jukebox (encher/limpar/mudas/onda), com os 10 canais (6 FM + 4 PSG) no modo Ondas.
@@ -12171,6 +12216,13 @@ const KofLibretro = (() => {
       tv43: true, semRebob: true, musica: false, minimo: 0x1000, canais: [],
       opcoes: { 'mupen64plus-rdp-plugin': 'gliden64', 'mupen64plus-cpucore': 'cached_interpreter', 'mupen64plus-43screensize': '320x240',
         'mupen64plus-EnableNativeResFactor': '1', 'mupen64plus-ThreadedRenderer': 'False', 'mupen64plus-pak1': 'memory' },
+      botoes: ['Cima', 'Baixo', 'Esquerda', 'Direita', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'] },
+    // PlayStation 2: Play! (BSD-2, nucleo-ps2/) em WebAssembly com threads, só no PC. Não é libretro: roda sozinho nas threads
+    // dele e desenha num canvas próprio por cima da área do jogo; o app fala com ele por uma "fachada" (web/ps2.js), como os
+    // nativos do celular. .iso/.chd são reconhecidos pelo conteúdo (SYSTEM.CNF com BOOT2; o PS1 também usa essas extensões).
+    // BIOS não precisa (o Play! imita). O DVD não é copiado: o Play! lê pedaços do arquivo escolhido
+    ps2: { nome: 'PlayStation 2', curto: 'PS2', ext: ['elf', 'cso', 'isz'], nucleo: 'play', analogico: 'misto', largura: 640, altura: 448, tv43: true,
+      semRebob: true, musica: false, minimo: 0, grande: true, canais: [],
       botoes: ['Cima', 'Baixo', 'Esquerda', 'Direita', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'] },
   };
   const extensao = (nome) => (/\.([^.]+)$/.exec(nome || '') || [])[1]?.toLowerCase() || '';
@@ -12611,7 +12663,7 @@ const KofLibretro = (() => {
       fechar() { mod._lr_sonda(0); this.mudas(0); },
     };
   }
-  return { criar, mascara, mascaraN64, empacotar, iniciar, titulo, sistemaDe, disponivel, tocador, opcao, bios, temBios, sistemaDaBios, setNeoGeo, setNeoGeoDoZip, NEOGEO, SISTEMAS, EXTENSOES, ARQUIVOS };
+  return { criar, buscar, mascara, mascaraN64, empacotar, iniciar, titulo, sistemaDe, disponivel, tocador, opcao, bios, temBios, sistemaDaBios, setNeoGeo, setNeoGeoDoZip, NEOGEO, SISTEMAS, EXTENSOES, ARQUIVOS };
 })();
 if (typeof module !== 'undefined') module.exports = KofLibretro;
 
@@ -13449,12 +13501,13 @@ const eixosToque = [0, 0];   // analógico da tela de toque (-1..1), nos console
 // console com analógico (N64, PS1...): 'puro' = o analógico não aperta o direcional, 'misto' = aperta também
 const analogico = () => snes && SIS[snes.sistema || 'snes'] && SIS[snes.sistema || 'snes'].analogico;
 // celular como controle (o APK abre um servidor na rede de casa; esta página conecta nele): botões e eixos que chegam
-const remoto = { ws: null, bits: 0, eixos: new Int16Array(4), alvo: null, tentativas: 0, ligado: false };
-function conectarControle(texto) {
+const remoto = { ws: null, bits: 0, eixos: new Int16Array(4), alvo: null, tentativas: 0, ligado: false, calado: false };
+// silencioso = religar sozinho com o último celular (abriu o KOFstation): tenta quieto até o celular entrar no modo controle
+function conectarControle(texto, silencioso) {
   const m = /^\s*(\d{1,3}(?:\.\d{1,3}){3})(?::(\d+))?\s+(\d{4})\s*$/.exec(texto || '');
   if (!m) { avisar('digite o endereço e a senha que aparecem no celular, ex.: 192.168.0.15 4821', 6000); return false; }
   desconectarControle(); guardar('controleUltimo', texto.trim());
-  remoto.alvo = { url: `ws://${m[1]}:${m[2] || 8642}`, senha: m[3] }; remoto.tentativas = 0;
+  remoto.alvo = { url: `ws://${m[1]}:${m[2] || 8642}`, senha: m[3] }; remoto.tentativas = 0; remoto.calado = !!silencioso;
   abrirControle(); return true;
 }
 function abrirControle() {
@@ -13464,8 +13517,8 @@ function abrirControle() {
   ws.onopen = () => ws.send('KOF ' + a.senha + ' ' + nomeAparelho());
   ws.onmessage = (e) => {
     if (typeof e.data === 'string') {
-      if (e.data === 'ok') { remoto.ligado = true; remoto.tentativas = 0; avisar('📱 celular conectado: já pode jogar com ele', 3000); marcarControle(); }
-      else { avisar('📱 ' + e.data, 5000); remoto.alvo = null; }
+      if (e.data === 'ok') { remoto.ligado = true; remoto.tentativas = 0; remoto.calado = false; guardar('controleAuto', '1'); avisar('📱 celular conectado: já pode jogar com ele', 3000); marcarControle(); contarJogoAoControle(); }
+      else { if (!remoto.calado) avisar('📱 ' + e.data, 5000); remoto.alvo = null; guardar('controleAuto', '0'); }
       return;
     }
     const u = new Int8Array(e.data); if (u.length < 6) return;
@@ -13476,6 +13529,7 @@ function abrirControle() {
     if (remoto.ws !== ws) return;
     const era = remoto.ligado; remoto.ligado = false; remoto.bits = 0; remoto.eixos.fill(0); remoto.ws = null; marcarControle();
     if (!remoto.alvo) return;
+    if (remoto.calado) { setTimeout(() => { if (remoto.alvo && !remoto.ws) abrirControle(); }, 5000); return; }   // quieto, sem desistir
     if (!era && !remoto.tentativas) explicarFalhaControle(a.url);
     if (remoto.tentativas++ < 30) { if (era) avisar('📱 o celular caiu: tentando de novo…', 3000); setTimeout(() => { if (remoto.alvo && !remoto.ws) abrirControle(); }, 2000); }
     else { avisar('📱 não achei o celular. Ele está na tela "Controle do PC" e na mesma Wi-Fi?', 6000); remoto.alvo = null; }
@@ -13490,6 +13544,14 @@ async function explicarFalhaControle(url) {
   if (lna === 'denied') avisar('📱 o navegador está bloqueando o acesso à rede local: libere "Acesso à rede local" no cadeado/configurações do site, ou abra o KOFstation pelo KOFstation.exe/kofnes.sh atualizados. Sigo tentando…', 12000);
   else avisar(`📱 ainda não achei o celular (sigo tentando). Abra ${http} no navegador do PC: abriu "✅ Celular achado"? então é o navegador bloqueando a rede local (abra pelo KOFstation.exe/kofnes.sh atualizados). Não abriu? PC e celular precisam estar na mesma Wi-Fi (Wi-Fi de visitante isola os aparelhos).`, 15000);
 }
+// conta pro celular qual jogo está aberto: ele troca o controle pro daquele console (botões, nomes e cores)
+function contarJogoAoControle() {
+  if (!remoto.ligado || !remoto.ws) return;
+  const sis = snes ? snes.sistema || 'snes' : '';
+  try { remoto.ws.send('JOGO ' + sis + '\t' + (snes ? romNome.replace(/[\t\n]/g, ' ').slice(0, 80) : '')); } catch (e) { /* caiu: manda de novo ao religar */ }
+}
+// abriu o KOFstation e da última vez o celular conectou: tenta de novo sozinho (a senha do celular não muda)
+setTimeout(() => { if (ler('controleAuto') === '1' && ler('controleUltimo') && !remoto.alvo) conectarControle(ler('controleUltimo'), true); }, 1500);
 function desconectarControle() { remoto.alvo = null; const w = remoto.ws; remoto.ws = null; remoto.ligado = false; remoto.bits = 0; remoto.eixos.fill(0); if (w) try { w.close(); } catch (e) { /* já fechado */ } marcarControle(); }
 function marcarNucleoSnes() { const b = $('[data-acao="nucleo-snes"]'); if (b) b.textContent = 'Núcleo do SNES: ' + (nucleoSnes() === 'kof' ? 'Kof' : 'Snes9x'); }
 setTimeout(marcarNucleoSnes, 0);
@@ -14129,7 +14191,7 @@ $('#arquivo-spc').addEventListener('change', (e) => { if (e.target.files.length)
 // estado (um marco) e anota os botões de cada quadro dali pra frente. O pacote
 // do bug leva o marco anterior + os botões até agora: rodando de novo, o
 // núcleo (determinístico) chega no mesmo lugar, quadro a quadro.
-const VERSAO = '202610251829 · 3598e81', REPO = 'Marcelao98/KOFSnes';
+const VERSAO = '202610252216 · 28d5679', REPO = 'Marcelao98/KOFSnes';
 let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAtual = null;
 // eixos pro núcleo (-32767..32767): controle físico (com zona morta) ou a tela de toque; tudo parado = 0 (aí a ponte do N64
 // usa o direcional como analógico, como antes)
@@ -14665,6 +14727,7 @@ async function abrirCdSolto(nome, bytes, soltos) {
 // a ROM de um jogo da biblioteca: do banco; o CD de PlayStation não fica no banco (até 700 MB): vem da pasta de ROMs
 async function bytesDoJogo(j) {
   if (typeof nativoJogo === 'function' && NATIVO[j.sistema]) return nativoJogo(j.sistema, j.arquivo, j);   // APK: PS1/N64 nativos
+  if (typeof ps2Jogo === 'function' && j.sistema === 'ps2') return ps2Jogo(j);   // PC: PS2 (ps2.js), o DVD vem da pasta de ROMs
   const rom = await bdPegar('roms', j.id);
   if (rom) return { bytes: rom };
   if (j.sistema === 'ps1') {
@@ -14693,6 +14756,7 @@ async function bytesDoJogo(j) {
 async function abrirArquivo(arq, soltos = []) {
   try {
     if (typeof nativoArquivo === 'function' && await nativoArquivo(arq)) return;   // APK: CD de PS1 e ROM de N64 vão pro núcleo nativo
+    if (typeof ps2Arquivo === 'function' && await ps2Arquivo(arq)) return;   // PC: DVD de PS2 (ps2.js)
     let nome = arq.name;
     // zip (pelo nome ou pelos primeiros bytes "PK") com CD de PlayStation: abre direto do arquivo, sem ler o zip inteiro
     const cab = arq.slice ? new Uint8Array(await arq.slice(0, 4).arrayBuffer()) : new Uint8Array(4);   // item de dentro de um zip não tem slice
@@ -14810,7 +14874,8 @@ function pedirBios(sis, abrir) {
 }
 async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
   // sistema pela extensão; jogo antigo da biblioteca guardado sem extensão é de SNES
-  const sis = !/\.[a-z0-9]{2,4}$/i.test(nome) ? 'snes' : sistemaDoNome(nome);
+  // fachada (nativos do celular, PS2): ela diz o console (o .iso do PS2 tem a extensão do PS1)
+  const sis = extras && extras.nativo ? extras.nativo.sistema : !/\.[a-z0-9]{2,4}$/i.test(nome) ? 'snes' : sistemaDoNome(nome);
   if (!sis) throw new Error('não conheço esse tipo de arquivo (' + SIS_ATIVOS.map((k) => SIS[k].ext.map((e) => '.' + e).join(' ')).join(' ') + ')');
   if (bytes.length < SIS[sis].minimo && !(extras && extras.nativo)) throw new Error('isso não parece uma ROM de ' + SIS[sis].nome);   // nativo: os bytes são só uma marca
   if (SIS[sis].bios && typeof KofLibretro !== 'undefined') {
@@ -14853,6 +14918,7 @@ async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
     autoAntes = Date.now();
   } catch (e) { console.warn('biblioteca indisponível', e); }
   contarSessao(jogoId, romNome);
+  contarJogoAoControle();
 }
 async function atualizarCapa() {   // print do jogo atual vira a capa dele na biblioteca
   if (!snes || !jogoId) return;
@@ -15111,10 +15177,11 @@ function marcarAuto() {
 }
 async function salvarAuto() {
   if (!autoSalvar || !snes || !jogoId) return;
+  const id = jogoId;   // o estado do PS2 demora: o jogo pode trocar no meio
   try {
-    const texto = JSON.stringify(KofEstado.capturar(snes)), capa = foto(256);
+    const texto = JSON.stringify(await capturarEstado()), capa = foto(256);
+    if (id !== jogoId) return;
     const quandoAgora = Date.now();
-    const id = jogoId;
     await bdPor('autos', id, texto);
     await bdMudarJogo(id, (j) => j && Object.assign(j, { temAuto: true, autoQuando: quandoAgora, autoCapa: capa, capa, ultimo: quandoAgora }));
     autoAntes = Date.now();
@@ -15126,7 +15193,7 @@ setInterval(() => { if (snes && !pausado && Date.now() - autoAntes > (snes.nativ
 async function salvarEstado() {
   if (!snes) { avisar('abra um jogo primeiro'); return; }
   try {
-    const dados = await comprimir(JSON.stringify(KofEstado.capturar(snes)));
+    const dados = await comprimir(JSON.stringify(await capturarEstado()));
     await bdGuardar('estados', { jogo: jogoId, nome: romNome, quando: Date.now(), capa: foto(256), dados });
     atualizarCapa();
     const apagados = await limitarEstados(jogoId);
@@ -15152,13 +15219,16 @@ async function carregarEstado(est) {
     }
     const obj = JSON.parse(await descomprimir(est.dados)), outro = nucleoDoEstado(obj);
     if (outro) await abrirBytes(romArquivo, romAtual, false, { nucleoSnes: outro });   // estado do outro núcleo de SNES: reabre nele
-    KofEstado.restaurar(snes, obj);
+    await restaurarEstado(obj);
     snes.apu.dsp.outCount = 0; ini = fim = 0; sobra = 0; pausado = false; novoRebob();
     fecharJanelas();
     snes.runFrame(); snes.apu.dsp.outCount = 0; desenhar();
     avisar('estado de ' + quando(est.quando) + ' carregado');
   } catch (e) { avisar('não consegui carregar: ' + e.message, 4000); }
 }
+// o PS2 (ps2.js) salva e carrega o estado na thread dele: os outros núcleos respondem na hora
+const capturarEstado = () => (snes.estadoAsync ? snes.estadoAsync() : KofEstado.capturar(snes));
+const restaurarEstado = (obj) => (snes.restaurarAsync ? snes.restaurarAsync(obj) : KofEstado.restaurar(snes, obj));
 async function continuar(j) {
   const { bytes, extras } = await bytesDoJogo(j);
   const auto = j.temAuto ? await bdPegar('autos', j.id) : null;
@@ -15166,7 +15236,7 @@ async function continuar(j) {
   if (!auto) return;
   const obj = JSON.parse(auto), outro = nucleoDoEstado(obj);
   if (outro) await abrirBytes(j.arquivo || j.nome, bytes, false, Object.assign({}, extras, { nucleoSnes: outro }));   // continuar de um estado do outro núcleo
-  KofEstado.restaurar(snes, obj);
+  await restaurarEstado(obj);
   snes.apu.dsp.outCount = 0; ini = fim = 0; sobra = 0; novoRebob();
   snes.runFrame(); snes.apu.dsp.outCount = 0; desenhar();
   avisar('continuando de ' + quando(j.autoQuando));
@@ -16486,7 +16556,7 @@ async function acao(a) {
       break;
     }
     case 'controle-celular':
-      if (remoto.ligado || remoto.alvo) { desconectarControle(); avisar('📱 celular desconectado'); break; }
+      if (remoto.ligado || (remoto.alvo && !remoto.calado)) { desconectarControle(); guardar('controleAuto', '0'); avisar('📱 celular desconectado'); break; }
       { const t = prompt('No celular, abra o KOFstation → Controles → "Usar como controle do PC".\nDigite aqui o endereço e a senha que aparecem lá (ex.: 192.168.0.15 4821):', ler('controleUltimo') || ''); if (t) { conectarControle(t); avisar('📱 conectando…', 2000); } }
       break;
     case 'espaco': await mostrarEspaco(); break;
@@ -16630,7 +16700,7 @@ window.KOFnes = { desempenho: () => desemp.ultimo, controle: { conectar: conecta
       if (dy < -0.38) { bits |= 0x0800; nome += 'u '; } if (dy > 0.38) { bits |= 0x0400; nome += 'd '; }
     }
     dpad.dataset.dir = nome.trim();
-    const an = modoControle ? 'misto' : analogico();   // console com analógico (ou o celular como controle do PC): a posição do dedo vai pro analógico
+    const an = modoControle ? modoControle.an || 'misto' : analogico();   // console com analógico (ou o celular como controle do PC): a posição do dedo vai pro analógico
     if (an) { eixosToque[0] = d > 1 ? dx / d : mx; eixosToque[1] = d > 1 ? dy / d : my; if (an === 'puro') return 0; }
     return bits;
   }
@@ -16745,34 +16815,71 @@ window.KOFnes = { desempenho: () => desemp.ultimo, controle: { conectar: conecta
   // ----- o celular como controle do PC -----
   // O APK abre um servidor na rede de casa (ControleServidor.java) e mostra o endereço e a senha; o PC conecta (Arquivo →
   // Celular como controle). Aqui fica o controle de toque de sempre, sem jogo, mandando botões e eixos a cada mudança
+  // Tela "Controle do PC": o controle de toque inteiro e, no lugar do jogo, uma "telinha" com o console e o jogo que o PC
+  // abriu (o PC manda "JOGO <console> <nome>"; o controle troca botões, nomes e cores pros daquele console). O endereço e a
+  // senha só aparecem enquanto o PC nunca conectou (depois ele religa sozinho: a senha deste celular não muda) ou no ⓘ
+  const CONSOLE_PARECIDO = { ps2: 'ps1', gbc: 'gb' };   // console sem controle próprio aqui usa o de um parecido
+  const NOME_CONSOLE = { ps2: 'PlayStation 2', gbc: 'Game Boy Color' };
   function entrarModoControle() {
     if (!window.KOFnesApk || !KOFnesApk.controleIniciar) { avisar('isso precisa do app KOFstation (APK) no celular', 4000); return; }
     const r = JSON.parse(KOFnesApk.controleIniciar() || '{}');
     if (r.erro || !r.ip) { avisar('não consegui abrir o controle: ' + (r.erro || 'o celular está sem Wi-Fi?'), 5000); return; }
     if (snes) pausado = true;
     fecharJanelas();
-    const end = r.ip + (r.porta !== 8642 ? ':' + r.porta : '') + ' ' + r.senha;
     const d = document.createElement('div'); d.id = 'modo-controle';
-    d.innerHTML = '<b>📱 Controle do PC</b><span>No PC: <b>Arquivo → Celular como controle</b> e digite:</span><code></code><small>esperando o PC…</small><em></em><button>Sair</button>';
-    d.querySelector('code').textContent = end;
+    d.innerHTML = '<div class="mc-barra"><i class="mc-luz"></i><span class="mc-status">procurando o PC…</span><button class="mc-info" aria-label="endereço e senha">ⓘ</button><button class="mc-sair" aria-label="sair">✕</button></div>'
+      + '<div class="mc-tela"><small class="mc-sis"></small><b class="mc-jogo"></b></div>'
+      + '<div class="mc-parear"><b>📱 Conectar ao PC</b><span>No PC: <b>Arquivo → Celular como controle</b> e digite:</span><code></code><em></em><small>Só na primeira vez: depois o PC conecta sozinho.</small></div>';
+    d.querySelector('code').textContent = r.ip + (r.porta !== 8642 ? ':' + r.porta : '') + ' ' + r.senha;
     // sem rede de casa o PC não alcança o celular; com ela, o link serve pra testar no navegador do PC se a rede deixa
     d.querySelector('em').textContent = r.casa === false ? '⚠️ o celular não parece estar na Wi-Fi (4G ou VPN?): ligue a Wi-Fi da mesma rede do PC'
       : `Não conectou? No navegador do PC abra http://${r.ip}:${r.porta}`;
-    d.querySelector('button').addEventListener('click', sairModoControle);
+    d.querySelector('.mc-sair').addEventListener('click', sairModoControle);
+    d.querySelector('.mc-info').addEventListener('click', () => { modoControle.info = !modoControle.info; marcarModoControle(); });
     document.body.appendChild(d);
-    modoControle = { sisAntes: document.body.dataset.sis, b: -1, e: -1, quando: 0, visto: 0 };
-    document.body.classList.add('modo-controle', 'cel-jogo', 'analogico'); document.body.dataset.sis = 'ps1';   // ps1: mostra L2/R2
+    modoControle = { sisAntes: document.body.dataset.sis, b: -1, e: -1, quando: 0, visto: 0, n: -1, jogo: null, info: false };
+    document.body.classList.add('modo-controle', 'cel-jogo');
+    consoleDoControle('', '');
+    marcarModoControle();
     modoControle.timer = setInterval(enviarControle, 8);
     requestAnimationFrame(() => ajustarEscala());
+  }
+  // troca o controle pro console do jogo que o PC abriu ('' = nenhum: controle completo, com L2/R2 e analógico)
+  function consoleDoControle(sis, nome) {
+    const base = CONSOLE_PARECIDO[sis] || sis, S = SIS[base];
+    document.body.dataset.sis = S ? base : 'ps1';
+    document.body.classList.toggle('analogico', !S || !!S.analogico);
+    if (modoControle) modoControle.an = S && S.analogico === 'puro' ? 'puro' : 'misto';   // N64: o analógico não aperta o direcional
+    document.body.classList.toggle('so-ab', !!(S && S.botoes && !S.botoes.includes('X')));
+    rotularControle(S ? base : 'ps1');
+    const d = $('#modo-controle'); if (!d) return;
+    d.querySelector('.mc-sis').textContent = sis ? (NOME_CONSOLE[sis] || (S ? S.nome : sis)) : 'nenhum jogo aberto';
+    d.querySelector('.mc-jogo').textContent = sis ? nome || '' : 'abra um jogo no PC';
+    const t = d.querySelector('.mc-tela'); t.classList.remove('mc-troca'); void t.offsetWidth; t.classList.add('mc-troca');   // animação de troca
+    requestAnimationFrame(() => ajustarEscala());
+  }
+  function marcarModoControle() {
+    const m = modoControle, d = $('#modo-controle'); if (!m || !d) return;
+    const ligado = m.n > 0, pareado = ler('controlePareado') === '1';
+    d.classList.toggle('ligado', ligado);
+    d.classList.toggle('pareando', m.info || (!ligado && !pareado));   // endereço e senha à mostra
+    d.querySelector('.mc-status').textContent = ligado ? (m.nomePc || 'PC') : pareado ? 'procurando o PC…' : 'esperando o PC…';
   }
   function enviarControle() {
     const m = modoControle; if (!m) return;
     const b = estado(), e16 = [eixosToque[0], eixosToque[1], 0, 0].map((v) => (Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767)));
     const e = KofLibretro.empacotar(e16), agora = performance.now();
     if (b !== m.b || e !== m.e || agora - m.quando > 250) { KOFnesApk.controleEnviar(b, e); m.b = b; m.e = e; m.quando = agora; }
-    if (agora - m.visto > 500) {
-      m.visto = agora; const [n, nome] = String(KOFnesApk.controleEstado() || '0|').split('|');
-      const s = document.querySelector('#modo-controle small'); if (s) s.textContent = +n ? '✅ conectado ao ' + (nome || 'PC') : 'esperando o PC…';
+    if (agora - m.visto > 300) {
+      m.visto = agora;
+      const t = String(KOFnesApk.controleEstado() || '0');
+      const [n, nomePc, sis = '', jogo = ''] = t.includes('\t') ? t.split('\t') : t.split('|');   // casca antiga: "n|nome"
+      if (+n !== m.n || nomePc !== m.nomePc) {
+        if (+n > 0 && !(m.n > 0)) { guardar('controlePareado', '1'); m.info = false; }
+        m.n = +n; m.nomePc = nomePc; marcarModoControle();
+      }
+      const j = +n > 0 ? sis + '\t' + jogo : '\t';
+      if (j !== m.jogo) { m.jogo = j; consoleDoControle(+n > 0 ? sis : '', jogo); }
     }
   }
   function sairModoControle() {
@@ -16781,6 +16888,9 @@ window.KOFnes = { desempenho: () => desemp.ultimo, controle: { conectar: conecta
     try { KOFnesApk.controleParar(); } catch (x) { /* sem ponte */ }
     const d = $('#modo-controle'); if (d) d.remove();
     document.body.classList.remove('modo-controle', 'cel-jogo'); document.body.classList.toggle('analogico', !!(snes && SIS[snes.sistema] && SIS[snes.sistema].analogico));
+    const sisJogo = snes ? snes.sistema || 'snes' : '';   // o controle volta a ser o do jogo deste celular
+    document.body.classList.toggle('so-ab', !!(sisJogo && SIS[sisJogo] && SIS[sisJogo].botoes && !SIS[sisJogo].botoes.includes('X')));
+    rotularControle(sisJogo);
     if (m.sisAntes) document.body.dataset.sis = m.sisAntes; else delete document.body.dataset.sis;
     jogando = false; atualizarJogando();
   }
