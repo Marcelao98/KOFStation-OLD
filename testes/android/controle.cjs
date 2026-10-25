@@ -14,14 +14,14 @@ const [,, pasta] = process.argv, RAIZ = path.resolve(__dirname, '../..');
   const PORTA = 18000 + Math.floor(Math.random() * 1000);
   const java = spawn('java', ['-cp', tmp, 'dev.kofnes.android.ControleServidor', '4821', String(PORTA), 'entrada'], { stdio: ['pipe', 'ignore', 'ignore'] });
   await new Promise((ok) => setTimeout(ok, 1500));
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-proxy-server'] });
+  const b = await chromium.launch({ args: ['--no-proxy-server'] });
   // ---- celular: a página do APK com a ponte de mentira; controleEnviar vai pro servidor Java
   const cel = await (await b.newContext({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true })).newPage(), erros = [];
   cel.on('pageerror', (e) => erros.push('cel: ' + e.message));
   await cel.exposeBinding('__enviar', (src, bits, eixos) => { java.stdin.write(bits + ' ' + eixos + '\n'); });
   await cel.addInitScript((porta) => {
     let ligados = 0;
-    window.KOFnesApk = { salvar() {}, versao: () => 'teste', controleIniciar: () => JSON.stringify({ ip: '127.0.0.1', porta, senha: '4821' }),
+    window.KOFnesApk = { salvar() {}, versao: () => 'teste', controleIniciar: () => JSON.stringify({ ip: '127.0.0.1', casa: window.__casa, porta, senha: '4821' }),
       controleEnviar: (b, e) => window.__enviar(b, e), controleEstado: () => ligados + '|PC', controleParar: () => { window.__parou = 1; } };
   }, PORTA);
   await cel.goto('file://' + path.resolve(pasta, 'KOFnes-android.html')); await cel.waitForTimeout(800);
@@ -31,11 +31,22 @@ const [,, pasta] = process.argv, RAIZ = path.resolve(__dirname, '../..');
   await cel.waitForTimeout(400);
   const tela = await cel.evaluate(() => ({ codigo: (document.querySelector('#modo-controle code') || {}).textContent, ctl: getComputedStyle(document.querySelector('#ctl')).display !== 'none', l2: getComputedStyle(document.querySelector('#ctl [data-b="L2"]')).display !== 'none' }));
   conferir(tela.codigo === `127.0.0.1:${PORTA} 4821` && tela.ctl && tela.l2, 'celular mostra o endereço e a senha e o controle inteiro ' + JSON.stringify(tela));
+  conferir((await cel.evaluate(() => document.querySelector('#modo-controle em').textContent)).includes(`http://127.0.0.1:${PORTA}`), 'celular mostra o link pra testar no navegador do PC');
   await cel.screenshot({ path: path.join(tmp, 'celular-controle.png') });
-  // ---- PC: senha errada é recusada
+  // ---- navegador comum no endereço do celular: página "celular achado" (separa problema de rede de bloqueio do navegador)
+  const g = await fetch(`http://127.0.0.1:${PORTA}/`), gt = await g.text();
+  conferir(g.status === 200 && /Celular achado/.test(gt), 'http://ip:porta no navegador responde "✅ Celular achado"');
+  const op = await fetch(`http://127.0.0.1:${PORTA}/`, { method: 'OPTIONS' });
+  conferir(op.status === 204 && op.headers.get('access-control-allow-private-network') === 'true', 'pré-verificação de rede privada respondida');
+  // ---- PC: endereço onde ninguém responde = explica logo o que conferir (antes só depois de 60 s)
   const pc = await (await b.newContext()).newPage();
   pc.on('pageerror', (e) => erros.push('pc: ' + e.message));
   await pc.goto('file://' + path.resolve(pasta, 'KOFnes.html')); await pc.waitForTimeout(800);
+  await pc.evaluate((p) => KOFnes.controle.conectar(`127.0.0.1:${p} 4821`), PORTA + 1000); await pc.waitForTimeout(1200);
+  const av = await pc.evaluate(() => document.querySelector('#aviso').textContent);
+  conferir(av.includes(`http://127.0.0.1:${PORTA + 1000}`) && /mesma Wi-Fi/.test(av), 'sem resposta: o PC explica na hora ' + JSON.stringify(av.slice(0, 80)));
+  await pc.evaluate(() => KOFnes.controle.desconectar());
+  // ---- senha errada é recusada
   await pc.evaluate((p) => KOFnes.controle.conectar(`127.0.0.1:${p} 0000`), PORTA); await pc.waitForTimeout(800);
   conferir(!(await pc.evaluate(() => KOFnes.controle.estado().ligado)) && /senha errada/.test(await pc.evaluate(() => document.querySelector('#aviso').textContent)), 'senha errada: o PC não conecta e avisa');
   // ---- senha certa: o que o dedo aperta no celular chega no PC
@@ -69,6 +80,11 @@ const [,, pasta] = process.argv, RAIZ = path.resolve(__dirname, '../..');
   // ---- sair do modo controle
   await cel.evaluate(() => document.querySelector('#modo-controle button').click()); await cel.waitForTimeout(300);
   conferir(await cel.evaluate(() => !document.querySelector('#modo-controle') && window.__parou === 1 && !document.body.classList.contains('modo-controle')), 'Sair fecha o modo controle e desliga o servidor');
+  // ---- celular fora da rede de casa (4G/VPN): avisa pra ligar a Wi-Fi
+  await cel.evaluate(() => { window.__casa = false; document.querySelector('[data-acao="teclas"]').click(); }); await cel.waitForTimeout(400);
+  await cel.evaluate(() => document.querySelector('[data-acao="modo-controle"]').click()); await cel.waitForTimeout(400);
+  conferir(/não parece estar na Wi-Fi/.test(await cel.evaluate(() => document.querySelector('#modo-controle em').textContent)), 'celular fora da Wi-Fi avisa');
+  await cel.evaluate(() => document.querySelector('#modo-controle button').click());
   await pc.evaluate(() => KOFnes.controle.desconectar());
   conferir(!erros.length, 'sem erro nas páginas ' + erros.join(' | '));
   await b.close();

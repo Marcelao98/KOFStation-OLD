@@ -196,8 +196,11 @@
     fecharJanelas();
     const end = r.ip + (r.porta !== 8642 ? ':' + r.porta : '') + ' ' + r.senha;
     const d = document.createElement('div'); d.id = 'modo-controle';
-    d.innerHTML = '<b>📱 Controle do PC</b><span>No PC: <b>Arquivo → Celular como controle</b> e digite:</span><code></code><small>esperando o PC…</small><button>Sair</button>';
+    d.innerHTML = '<b>📱 Controle do PC</b><span>No PC: <b>Arquivo → Celular como controle</b> e digite:</span><code></code><small>esperando o PC…</small><em></em><button>Sair</button>';
     d.querySelector('code').textContent = end;
+    // sem rede de casa o PC não alcança o celular; com ela, o link serve pra testar no navegador do PC se a rede deixa
+    d.querySelector('em').textContent = r.casa === false ? '⚠️ o celular não parece estar na Wi-Fi (4G ou VPN?): ligue a Wi-Fi da mesma rede do PC'
+      : `Não conectou? No navegador do PC abra http://${r.ip}:${r.porta}`;
     d.querySelector('button').addEventListener('click', sairModoControle);
     document.body.appendChild(d);
     modoControle = { sisAntes: document.body.dataset.sis, b: -1, e: -1, quando: 0, visto: 0 };

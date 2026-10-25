@@ -34,7 +34,7 @@
 #include <stdarg.h>
 #include <time.h>
 
-#define LANCADOR 8
+#define LANCADOR 9
 #define GITHUB L"raw.githubusercontent.com"
 #define MAX_NUCLEOS 32
 #ifndef WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY
@@ -533,7 +533,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
         wcscat(perfil, L"\\navegador");
         swprintf(linha, MAX_PATH * 6,
                  L"\"%ls\" --app=\"%ls\" --user-data-dir=\"%ls\" --no-first-run --no-default-browser-check "
-                 L"--autoplay-policy=no-user-gesture-required --window-size=840,780",
+                 L"--autoplay-policy=no-user-gesture-required --window-size=840,780 "
+                 L"--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests",   // celular como controle: rede local liberada só nesta janela
                  nav, url, perfil);
         STARTUPINFOW si;
         ZeroMemory(&si, sizeof(si));

@@ -10,7 +10,7 @@
 # Os núcleos (Game Boy, NES, Sega...) moram em nucleos/<núcleo>-<hash>.js; o versao.txt lista cada um
 # ("nucleo=<arquivo>:<tamanho>") e o que falta é baixado antes de trocar o html. Um "fonte.txt" do lado
 # do script (ou KOFNES_URL) troca o endereço de onde baixa (pra testar uma branch).
-LANCADOR=3
+LANCADOR=4
 BASE="${KOFNES_URL:-https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/publicado}"
 
 eu="$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")"
@@ -176,8 +176,10 @@ case "$nav" in /snap/*|*/snap/bin/*) perfil="$HOME/snap/$(basename "$nav")/commo
 mkdir -p "$perfil" 2>/dev/null
 anotar "navegador: $nav${flat:+ ($flat)}"
 
+# a rede local liberada é pro celular como controle (a página do arquivo falando com ws://192.168...); só vale nesta janela
 set -- --app="file://$html" --class=KOFnes --no-first-run --no-default-browser-check \
-       --autoplay-policy=no-user-gesture-required --window-size=840,780 --ozone-platform-hint=auto $KOFNES_ARGS
+       --autoplay-policy=no-user-gesture-required --window-size=840,780 --ozone-platform-hint=auto \
+       --disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests $KOFNES_ARGS
 if [ -n "$flat" ]; then
     exec flatpak run "$flat" "$@"      # o Flatpak tem perfil próprio e só enxerga o que o sandbox deixa
 fi

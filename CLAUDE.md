@@ -1,7 +1,7 @@
 # KOFstation (antigo KOFnes) — contexto pra próxima sessão
 
 ## ⏩ ONDE PAROU (25/10, fim do chat longo; leia isto primeiro)
-- **main publicada: versão 202610251737, CASCA 11** (repositório agora é `Marcelao98/KOFStation`; o nome antigo redireciona).
+- **main publicada: versão 202610251829, CASCA 12, lançador 9 (exe) / LANCADOR=4 (kofnes.sh)** (repositório agora é `Marcelao98/KOFStation`; o nome antigo redireciona).
   Na main: N64 (PC wasm + celular nativo), PS1 nativo, analógico (N64/PS1), saves no banco + backup `.kofsave`, celular
   como controle do PC, busca por gênero/empresa, pasta de ROMs no APK, painel de desempenho (F3), **SNES do PC = Snes9x**
   (Kof como opção em Emulação). Detalhes de cada um nas notas abaixo.
@@ -15,7 +15,14 @@
      Nativo no celular pro SNES etc. só se ainda não ficar liso (perde filtros/molduras). Medir com
      `/tmp`-style script: Playwright + `Emulation.setCPUThrottlingRate` 4 ≈ celular médio; `KOFnes.desempenho()`.
      Cuidado: engasgos no container com janela grande são do SwiftShader (placa imitada), teste com janela pequena.
-  2. **Celular como controle NÃO conectou no aparelho dele** (mensagem exata desconhecida). Suspeitas: o "Acesso à rede
+  2. **Celular como controle: conserto PUBLICADO (202610251829), falta o Marcelo testar.** Feito: (a) `ControleServidor`
+     responde GET com a página "✅ Celular achado" (e OPTIONS com `Access-Control-Allow-Private-Network`); (b) o PC explica
+     na 1ª falha (`explicarFalhaControle`: link http://ip:porta, mesma Wi-Fi, e se a permissão `local-network-access`
+     está negada); (c) celular mostra o link de teste e avisa se o IP não é de rede de casa (`casa` no JSON; `ipLocal`
+     agora prefere endereço 192.168/10/172.16 a um do 4G); (d) exe e kofnes.sh abrem o navegador com
+     `--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests`. Se ainda falhar: perguntar o que
+     aparece em http://ip:porta no navegador do PC; WebRTC só se precisar. Histórico do diagnóstico:
+     **Celular como controle NÃO conectou no aparelho dele** (mensagem exata desconhecida). Suspeitas: o "Acesso à rede
      local" novo do Chrome/Edge bloqueando a página file:// de falar com 192.168.x.x (mais provável); roteador isolando
      clientes; IP errado (4G/VPN). Plano combinado: (a) ControleServidor responder GET http comum com página "✅ achado"
      (pedi pra ele testar `http://<ip>:8642` no navegador do PC), (b) mensagens de erro específicas no PC, (c) celular avisar

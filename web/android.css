@@ -329,6 +329,7 @@ html.celular #biblioteca .bib-botoes [data-acao="do-zero"]:not([hidden]) { grid-
 #modo-controle span { color: var(--fraco); font-size: 14px; }
 #modo-controle code { font-size: 30px; font-weight: 800; letter-spacing: 1px; color: var(--destaque); background: var(--painel); border: 1px solid var(--borda); border-radius: 12px; padding: 8px 16px; }
 #modo-controle small { color: var(--fraco); }
+#modo-controle em { color: var(--fraco); font-size: 13px; font-style: normal; text-align: center; padding: 0 16px; }
 #modo-controle button { background: none; color: var(--texto); border: 1px solid var(--borda); border-radius: 10px; padding: 8px 18px; font: inherit; }
 body.modo-controle #tela, body.modo-controle #moldura { visibility: hidden; }
 @media (orientation: landscape) { #modo-controle { height: auto; top: 0; bottom: 0; left: 25%; right: 25%; background: transparent; } }

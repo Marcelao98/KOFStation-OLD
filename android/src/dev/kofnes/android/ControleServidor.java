@@ -41,7 +41,7 @@ final class ControleServidor {
     /** O IPv4 da rede de casa (Wi-Fi): o primeiro endereço local que não seja o 127.0.0.1. */
     static String ipLocal() {
         try {
-            String reserva = null;
+            String local = null, reserva = null;
             for (Enumeration<NetworkInterface> e = NetworkInterface.getNetworkInterfaces(); e != null && e.hasMoreElements(); ) {
                 NetworkInterface ni = e.nextElement();
                 if (!ni.isUp() || ni.isLoopback()) continue;
@@ -49,12 +49,17 @@ final class ControleServidor {
                     InetAddress x = a.nextElement();
                     if (!(x instanceof Inet4Address)) continue;
                     if (x.isSiteLocalAddress() && ni.getName().startsWith("wlan")) return x.getHostAddress();
-                    if (x.isSiteLocalAddress() && reserva == null) reserva = x.getHostAddress();
-                    if (reserva == null) reserva = x.getHostAddress();
+                    if (x.isSiteLocalAddress() && local == null) local = x.getHostAddress();   // 192.168/10/172.16: rede de casa
+                    if (reserva == null) reserva = x.getHostAddress();                        // 4G etc.: o PC não alcança
                 }
             }
-            return reserva == null ? "" : reserva;
+            return local != null ? local : reserva == null ? "" : reserva;
         } catch (Exception e) { return ""; }
+    }
+
+    /** O endereço é de rede de casa (Wi-Fi/roteador)? Se não, o celular provavelmente está no 4G ou numa VPN. */
+    static boolean redeDeCasa(String ip) {
+        try { return !ip.isEmpty() && InetAddress.getByName(ip).isSiteLocalAddress(); } catch (Exception e) { return false; }
     }
 
     int conectados() { return clientes.size(); }
@@ -85,9 +90,9 @@ final class ControleServidor {
     private void atender(Socket c) {
         try {
             InputStream in = c.getInputStream();
-            String chave = null;
+            String chave = null, primeira = linha(in);
             for (String l; !(l = linha(in)).isEmpty(); ) if (l.toLowerCase().startsWith("sec-websocket-key:")) chave = l.substring(18).trim();
-            if (chave == null) { c.close(); return; }
+            if (chave == null) { paginaAchado(c, primeira); return; }
             String aceite = base64(MessageDigest.getInstance("SHA-1").digest((chave + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").getBytes("UTF-8")));
             OutputStream o = c.getOutputStream();
             o.write(("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: " + aceite + "\r\n\r\n").getBytes("UTF-8"));
@@ -118,6 +123,28 @@ final class ControleServidor {
             }
         } catch (Exception e) { /* caiu */ }
         clientes.remove(c);
+        try { c.close(); } catch (Exception e) { /* já fechado */ }
+    }
+
+    /**
+     * Pedido HTTP comum (alguém abriu http://<ip>:<porta> no navegador do PC): responde uma página dizendo que achou o
+     * celular. Serve pra separar "a rede não deixa o PC ver o celular" de "o navegador bloqueia o app de falar com a rede
+     * local". O OPTIONS responde a pré-verificação de rede privada do Chrome.
+     */
+    private static void paginaAchado(Socket c, String primeira) {
+        try {
+            String html = "<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width'><title>KOFstation</title>"
+                + "<body style='font:18px sans-serif;max-width:34em;margin:2em auto;padding:0 1em'><h1>✅ Celular achado</h1>"
+                + "<p>O PC enxerga o KOFstation do celular nesta rede. Volte pro KOFstation do PC e digite o endereço e a senha que "
+                + "aparecem no celular.</p><p>Se esta página abre mas o KOFstation do PC não conecta, é o navegador bloqueando o "
+                + "acesso à rede local: abra o KOFstation pelo KOFstation.exe ou pelo kofnes.sh atualizados (eles liberam isso só "
+                + "pra janela do KOFstation) ou permita \"Acesso à rede local\" quando o navegador perguntar.</p>";
+            byte[] b = primeira.startsWith("OPTIONS ") ? new byte[0] : html.getBytes("UTF-8");
+            String cab = (primeira.startsWith("OPTIONS ") ? "HTTP/1.1 204 No Content" : "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8")
+                + "\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Private-Network: true\r\nAccess-Control-Allow-Local-Network: true"
+                + "\r\nContent-Length: " + b.length + "\r\nConnection: close\r\n\r\n";
+            OutputStream o = c.getOutputStream(); o.write(cab.getBytes("UTF-8")); o.write(b); o.flush();
+        } catch (Exception e) { /* caiu */ }
         try { c.close(); } catch (Exception e) { /* já fechado */ }
     }
 

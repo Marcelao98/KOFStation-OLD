@@ -1,9 +1,9 @@
-versao=202610251737
-tamanho=1058712
-lancador=8
+versao=202610251829
+tamanho=1059876
+lancador=9
 tamanho_exe=96256
-lancador_linux=3
-tamanho_linux=9193
+lancador_linux=4
+tamanho_linux=9409
 nucleo=fbneo-3ffc717a.js:8120825
 nucleo=fceumm-9243119b.js:1559435
 nucleo=gambatte-f3b4deb6.js:872073

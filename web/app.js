@@ -649,9 +649,19 @@ function abrirControle() {
     if (remoto.ws !== ws) return;
     const era = remoto.ligado; remoto.ligado = false; remoto.bits = 0; remoto.eixos.fill(0); remoto.ws = null; marcarControle();
     if (!remoto.alvo) return;
+    if (!era && !remoto.tentativas) explicarFalhaControle(a.url);
     if (remoto.tentativas++ < 30) { if (era) avisar('📱 o celular caiu: tentando de novo…', 3000); setTimeout(() => { if (remoto.alvo && !remoto.ws) abrirControle(); }, 2000); }
     else { avisar('📱 não achei o celular. Ele está na tela "Controle do PC" e na mesma Wi-Fi?', 6000); remoto.alvo = null; }
   };
+}
+// 1ª tentativa sem resposta: diz logo o que conferir (antes só avisava depois de 60 s de tentativas caladas)
+async function explicarFalhaControle(url) {
+  const http = url.replace('ws:', 'http:');
+  let lna = '';
+  try { lna = (await navigator.permissions.query({ name: 'local-network-access' })).state; } catch (e) { /* navegador sem essa permissão */ }
+  if (!remoto.alvo || remoto.ligado) return;
+  if (lna === 'denied') avisar('📱 o navegador está bloqueando o acesso à rede local: libere "Acesso à rede local" no cadeado/configurações do site, ou abra o KOFstation pelo KOFstation.exe/kofnes.sh atualizados. Sigo tentando…', 12000);
+  else avisar(`📱 ainda não achei o celular (sigo tentando). Abra ${http} no navegador do PC: abriu "✅ Celular achado"? então é o navegador bloqueando a rede local (abra pelo KOFstation.exe/kofnes.sh atualizados). Não abriu? PC e celular precisam estar na mesma Wi-Fi (Wi-Fi de visitante isola os aparelhos).`, 15000);
 }
 function desconectarControle() { remoto.alvo = null; const w = remoto.ws; remoto.ws = null; remoto.ligado = false; remoto.bits = 0; remoto.eixos.fill(0); if (w) try { w.close(); } catch (e) { /* já fechado */ } marcarControle(); }
 function marcarNucleoSnes() { const b = $('[data-acao="nucleo-snes"]'); if (b) b.textContent = 'Núcleo do SNES: ' + (nucleoSnes() === 'kof' ? 'Kof' : 'Snes9x'); }
