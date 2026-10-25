@@ -54,7 +54,9 @@ const KofLibretro = (() => {
     // PlayStation (PCSX-ReARMed): o CD fica no disco virtual /jogos enquanto o jogo roda (o núcleo lê o CD aos poucos).
     // .cue precisa dos .bin junto (o app procura na pasta, nos arquivos soltos juntos ou pergunta). BIOS opcional: sem ela o
     // PCSX imita a BIOS (muitos jogos rodam; com a de verdade roda mais). Botões: ✕ ○ □ △ = B A Y X do SNES, L1/R1 = L/R
-    ps1: { nome: 'PlayStation', curto: 'PS1', ext: ['cue', 'chd', 'pbp', 'iso', 'exe'], nucleo: 'pcsx',
+    // analogico: o direcional de toque vira analógico e o controle físico manda os eixos; 'misto' = continua mandando o
+    // direcional junto (jogo de PS1 que só usa o direcional), 'puro' = só o analógico (N64). dispositivo 517 = DualShock
+    ps1: { nome: 'PlayStation', curto: 'PS1', ext: ['cue', 'chd', 'pbp', 'iso', 'exe'], nucleo: 'pcsx', analogico: 'misto', dispositivo: 517,
       // atrasou (celular fraco, jogo 3D): pula o desenho de até 3 quadros seguidos em vez de picotar o som
       opcoes: { pcsx_rearmed_frameskip_type: 'auto', pcsx_rearmed_frameskip_interval: '3' }, largura: 320, altura: 240, dinamico: true, tv43: true, caminho: true,
       botoes: ['Cima', 'Baixo', 'Esquerda', 'Direita', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'], musica: false, minimo: 16, grande: true,   // o .cue é só um texto pequeno
@@ -62,7 +64,7 @@ const KofLibretro = (() => {
       canais: [] },
     // Nintendo 64: Mupen64Plus-Next. No PC em WebAssembly (GLideN64 em WebGL2 num canvas escondido; a ponte lê a imagem de
     // volta); no APK, nativo (android/nativo, com OpenGL ES 3) pela "fachada" do android.js. Estado grande: sem rebobinar
-    n64: { nome: 'Nintendo 64', curto: 'N64', ext: ['z64', 'n64', 'v64'], nucleo: 'mupen64', nativo: 'n64', largura: 320, altura: 240, dinamico: true,
+    n64: { nome: 'Nintendo 64', curto: 'N64', ext: ['z64', 'n64', 'v64'], nucleo: 'mupen64', nativo: 'n64', analogico: 'puro', largura: 320, altura: 240, dinamico: true,
       tv43: true, semRebob: true, musica: false, minimo: 0x1000, canais: [],
       opcoes: { 'mupen64plus-rdp-plugin': 'gliden64', 'mupen64plus-cpucore': 'cached_interpreter', 'mupen64plus-43screensize': '320x240',
         'mupen64plus-EnableNativeResFactor': '1', 'mupen64plus-ThreadedRenderer': 'False', 'mupen64plus-pak1': 'memory' },
@@ -209,6 +211,8 @@ const KofLibretro = (() => {
   // analógico direito); o direcional vira o analógico na ponte
   const BITS_N64 = [[0x8000, 0], [0x4000, 1], [0x1000, 3], [0x0800, 4], [0x0400, 5], [0x0200, 6], [0x0100, 7], [0x0020, 12], [0x0010, 11],
     [0x2000, 10], [0x0040, 16], [0x0080, 17], [0x0008, 18], [0x0004, 19]];
+  // os 4 eixos (-32767..32767) num número só, 1 byte cada (pra ponte nativa do celular): esquerdo X/Y, direito X/Y
+  const empacotar = (e) => e ? ((e[0] >> 8) & 255) | (((e[1] >> 8) & 255) << 8) | (((e[2] >> 8) & 255) << 16) | (((e[3] >> 8) & 255) << 24) : 0;
   const mascaraN64 = (b) => { let m = 0; for (const [bit, id] of BITS_N64) if (b & bit) m |= 1 << id; return m; };
   const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const deB64 = (t) => { const s = atob(t), u8 = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i); return u8; };
@@ -317,6 +321,7 @@ const KofLibretro = (() => {
     depoisDeCarregar() {
       const mod = this.mod;
       mod.kofAtual = this;
+      const d = SISTEMAS[this.sistema].dispositivo; if (d && mod._lr_dispositivo) mod._lr_dispositivo(d);
       const i = mod._lr_info() >> 3, info = mod.HEAPF64;
       this.fps = info[i + 5]; this.taxaAudio = info[i + 6]; this.proporcao = SISTEMAS[this.sistema].proporcao || info[i + 4];
       this.tamEstado = mod._lr_state_size();
@@ -335,6 +340,7 @@ const KofLibretro = (() => {
     runFrame() {
       const mod = this.mod;
       mod._lr_pad(this.sistema === 'n64' ? mascaraN64(this.pad[0]) : mascara(this.pad[0]));
+      const e = this.eixos; if (e && mod._lr_eixos) mod._lr_eixos(e[0], e[1], e[2], e[3]);
       if (mod._lr_audio_status && this.atrasado !== undefined) mod._lr_audio_status(this.ocupacao | 0, this.atrasado ? 1 : 0);   // o app diz se está atrasado
       mod._lr_run(1, 1);
       this.quadros++;
@@ -496,6 +502,6 @@ const KofLibretro = (() => {
       fechar() { mod._lr_sonda(0); this.mudas(0); },
     };
   }
-  return { criar, mascara, mascaraN64, iniciar, titulo, sistemaDe, disponivel, tocador, opcao, bios, temBios, sistemaDaBios, setNeoGeo, setNeoGeoDoZip, NEOGEO, SISTEMAS, EXTENSOES, ARQUIVOS };
+  return { criar, mascara, mascaraN64, empacotar, iniciar, titulo, sistemaDe, disponivel, tocador, opcao, bios, temBios, sistemaDaBios, setNeoGeo, setNeoGeoDoZip, NEOGEO, SISTEMAS, EXTENSOES, ARQUIVOS };
 })();
 if (typeof module !== 'undefined') module.exports = KofLibretro;

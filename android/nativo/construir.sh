@@ -27,7 +27,7 @@ ALVO="--target=aarch64-linux-android24"
 for l in c log EGL; do echo 'void kof_stub(void){}' | clang $ALVO -x c -shared -nostdlib -fPIC -fuse-ld=lld -Wl,-soname,lib$l.so -o "$T/lib$l.so" -; done
 CC="clang $ALVO -O2 -fPIC -ffreestanding -fno-stack-protector -Wall -Wno-builtin-requires-header -I$AQUI/inc"
 LD="clang $ALVO -shared -nostdlib -fuse-ld=lld -Wl,--hash-style=both -Wl,-z,noexecstack -L$T -L$L"
-$CC -DCLASSE=Ps1 -c "$AQUI/kofnativo.c" -o "$T/ps1.o"
+$CC -DCLASSE=Ps1 -DDISPOSITIVO=517 -c "$AQUI/kofnativo.c" -o "$T/ps1.o"
 $LD -Wl,-soname,libkofps1.so -o "$L/libkofps1.so" "$T/ps1.o" -lretro -lc -llog
 $CC -DCLASSE=N64 -DKOF_GL -c "$AQUI/kofnativo.c" -o "$T/n64.o"
 $LD -Wl,-soname,libkofn64.so -o "$L/libkofn64.so" "$T/n64.o" -ln64 -lc -llog -lEGL

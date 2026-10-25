@@ -1,12 +1,12 @@
-versao=202610251330
-casca=7
-html=KOFnes-android.html:1072140
+versao=202610251340
+casca=8
+html=KOFnes-android.html:1075000
 nucleo=fbneo-3ffc717a.js:8120825
 nucleo=fceumm-9243119b.js:1559435
 nucleo=gambatte-f3b4deb6.js:872073
 nucleo=genplus-cd68890e.js:3775899
 nucleo=jogos-371590f5.js:824997
 nucleo=mgba-cefd6783.js:1329989
-nucleo=pcsx-ab9e5865.js:1282436
+nucleo=pcsx-1c04c405.js:1283422
 nucleo=snes9x-e205bc90.js:4101685
 nucleo=violino-306d94e5.js:1327057

@@ -19,7 +19,7 @@ public class TestePs1 {
         String erro = (String) chamar("abrir", jogo, dir, dir, dir + "/cartao1.mcd", "pcsx_rearmed_drc=disabled\n", info);
         conferir(erro.isEmpty(), "abriu " + Paths.get(jogo).getFileName() + " " + erro + " (" + info[0] + "x" + info[1] + ", " + info[2] / 1000.0 + " fps, som " + info[3] + " Hz)");
         long t = System.nanoTime(); int amostras = 0, quadros = 0, w = 0, h = 0;
-        for (int i = 0; i < 300; i++) { amostras += (Integer) chamar("rodar", 0); int l = (Integer) chamar("largura"); if (l > 0) { quadros++; w = l; h = (Integer) chamar("altura"); } }
+        for (int i = 0; i < 300; i++) { amostras += (Integer) chamar("rodar", 0, 0); int l = (Integer) chamar("largura"); if (l > 0) { quadros++; w = l; h = (Integer) chamar("altura"); } }
         double ms = (System.nanoTime() - t) / 1e6 / 300;
         java.util.HashSet<Integer> cores = new java.util.HashSet<>();
         for (int i = 0; i < w * h; i += 7) cores.add(Ps1.VIDEO.getInt(i * 4));
@@ -27,10 +27,10 @@ public class TestePs1 {
         conferir(amostras > 300 * 1000, "som: " + amostras / 300 + " amostras por quadro");
         conferir(true, String.format("%.2f ms por quadro aqui", ms));
         byte[] e = (byte[]) chamar("salvarEstado");
-        for (int i = 0; i < 30; i++) chamar("rodar", 0);
+        for (int i = 0; i < 30; i++) chamar("rodar", 0, 0);
         int img1 = Ps1.VIDEO.getInt(w * h / 2 * 4);
         conferir(e != null && e.length > 100000 && (Boolean) chamar("carregarEstado", (Object) e), "savestate guarda e volta (" + (e == null ? 0 : e.length) + " bytes)");
-        for (int i = 0; i < 30; i++) chamar("rodar", 0);
+        for (int i = 0; i < 30; i++) chamar("rodar", 0, 0);
         conferir(Ps1.VIDEO.getInt(w * h / 2 * 4) == img1, "depois de voltar o estado, o mesmo quadro de novo (determinístico)");
         chamar("fechar");
         conferir(true, "fechou");

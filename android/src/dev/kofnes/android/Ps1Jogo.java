@@ -35,7 +35,7 @@ final class Ps1Jogo implements Runnable {
     private final SurfaceView tela;
     private final File pasta, saves, sistema;
     private final Object trava = new Object();
-    private volatile int pad, largura = 320, altura = 240;
+    private volatile int pad, eixos, largura = 320, altura = 240;
     private volatile long ultimoSinal;
     private volatile boolean aberto, visivel;
     private boolean fixo;
@@ -151,7 +151,7 @@ final class Ps1Jogo implements Runnable {
     }
 
     // ---------- o que a página manda ----------
-    void sinal(int botoes) { pad = botoes; ultimoSinal = SystemClock.uptimeMillis(); }
+    void sinal(int botoes, int e) { pad = botoes; eixos = e; ultimoSinal = SystemClock.uptimeMillis(); }
 
     /** Área do jogo na página (px do CSS); a tela nativa fica exatamente em cima dela. */
     void area(final float x, final float y, final float w, final float h) {
@@ -210,7 +210,7 @@ final class Ps1Jogo implements Runnable {
             if (!jogando) { SystemClock.sleep(20); continue; }
             int n, w, h;
             synchronized (trava) {
-                n = Ps1.rodar(pad);
+                n = Ps1.rodar(pad, eixos);
                 w = Ps1.largura(); h = Ps1.altura();
                 if (w > 0) {
                     if (quadro == null || quadro.getWidth() != w || quadro.getHeight() != h) quadro = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);

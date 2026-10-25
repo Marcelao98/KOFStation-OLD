@@ -30,7 +30,7 @@ public final class Ps1 {
     /** "" = abriu; senão o motivo. info = largura, altura, fps×1000, taxa do som. */
     static native String abrir(String jogo, String sistema, String saves, String cartao, String opcoes, int[] info);
     /** Um quadro com os botões (bits do libretro); devolve quantas amostras de som (int16) vieram. */
-    static native int rodar(int pad);
+    static native int rodar(int pad, int eixos);   // eixos: 4 bytes com sinal (esquerdo X/Y, direito X/Y)
     /** Largura do quadro novo (0 = este quadro repetiu o anterior). */
     static native int largura();
     static native int altura();

@@ -194,25 +194,28 @@ static size_t somLote(const int16_t *d, size_t quadros) {
 static void somUm(int16_t e, int16_t dir) { int16_t a[2] = { e, dir }; somLote(a, 1); }
 static void nadaInput(void) {}
 static int16_t eixo(int menos, int mais) { return (int16_t)((mais ? 0x7FFF : 0) - (menos ? 0x7FFF : 0)); }
+static int16_t eixos[4];               // analógicos de verdade (controle físico ou de toque): esquerdo X/Y, direito X/Y
 static int16_t estadoInput(unsigned porta, unsigned disp, unsigned idx, unsigned id) {
     if (porta) return 0;
+    if ((disp & RETRO_DEVICE_MASK) == RETRO_DEVICE_ANALOG) {
+        if (idx > RETRO_DEVICE_INDEX_ANALOG_RIGHT) return 0;
+        int k = idx == RETRO_DEVICE_INDEX_ANALOG_LEFT ? 0 : 2;
+        if (eixos[k] || eixos[k + 1]) return eixos[k + (id == RETRO_DEVICE_ID_ANALOG_Y)];
 #ifdef KOF_GL
-    // N64: o direcional da tela vira o analógico (inclinação total) e os bits 16-19, os botões C (analógico direito)
-    if (disp == RETRO_DEVICE_ANALOG) {
+        // N64 sem analógico mexido: o direcional vira o analógico (inclinação total) e os bits 16-19, os botões C
         uint32_t b = botoes;
-        if (idx == RETRO_DEVICE_INDEX_ANALOG_LEFT)
+        if (k == 0)
             return id == RETRO_DEVICE_ID_ANALOG_X ? eixo(b >> RETRO_DEVICE_ID_JOYPAD_LEFT & 1, b >> RETRO_DEVICE_ID_JOYPAD_RIGHT & 1)
                                                   : eixo(b >> RETRO_DEVICE_ID_JOYPAD_UP & 1, b >> RETRO_DEVICE_ID_JOYPAD_DOWN & 1);
         return id == RETRO_DEVICE_ID_ANALOG_X ? eixo(b >> 18 & 1, b >> 19 & 1) : eixo(b >> 16 & 1, b >> 17 & 1);
-    }
-    uint32_t pad = botoes & 0xFFFF;   // o direcional vale também como o direcional do N64 (menus usam ele)
 #else
-    uint32_t pad = botoes & 0xFFFF;
+        return 0;
 #endif
-    if (disp != RETRO_DEVICE_JOYPAD) return 0;
+    }
+    uint32_t pad = botoes & 0xFFFF;   // no N64 o direcional vale também como o direcional do controle (menus usam ele)
+    if ((disp & RETRO_DEVICE_MASK) != RETRO_DEVICE_JOYPAD) return 0;
     if (id == RETRO_DEVICE_ID_JOYPAD_MASK) return (int16_t)pad;
     return (pad >> id) & 1;
-    (void)idx;
 }
 
 // cartão de memória 1 = SAVE_RAM do PCSX: lido do arquivo ao abrir, gravado quando muda
@@ -233,6 +236,10 @@ static int cartaoGravar(void) {
     return 1;
 }
 
+// tipo de controle na porta 1: o PS1 usa o DualShock (517; digital até o jogo ligar o analógico)
+#ifndef DISPOSITIVO
+#define DISPOSITIVO RETRO_DEVICE_JOYPAD
+#endif
 #ifndef CLASSE
 #define CLASSE Ps1
 #endif
@@ -288,7 +295,7 @@ JNIEXPORT jstring JNICALL J(abrir)(JNIEnv *env, jclass c, jstring jogo, jstring 
         for (char *q = m; *q; q++) if (*q == '"' || *q == '\\') *q = '\'';   // vai dentro de um JSON
         return (*env)->NewStringUTF(env, m);
     }
-    retro_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
+    retro_set_controller_port_device(0, DISPOSITIVO);
     carregado = 1; cartaoLer();
     struct retro_system_av_info av; retro_get_system_av_info(&av);
     jint i[4] = { (jint)av.geometry.base_width, (jint)av.geometry.base_height, (jint)(av.timing.fps * 1000), (jint)av.timing.sample_rate };
@@ -298,10 +305,11 @@ JNIEXPORT jstring JNICALL J(abrir)(JNIEnv *env, jclass c, jstring jogo, jstring 
 }
 
 // roda um quadro; devolve quantas amostras de som (int16) vieram. Imagem nova: largura()/altura() > 0
-JNIEXPORT jint JNICALL J(rodar)(JNIEnv *env, jclass c, jint pad) {
+JNIEXPORT jint JNICALL J(rodar)(JNIEnv *env, jclass c, jint pad, jint e) {
     if (!carregado) return 0;
     static int vez;
     botoes = (uint32_t)pad; somN = 0; novoQuadro = 0;
+    for (int k = 0; k < 4; k++) { int v = (int8_t)(e >> (8 * k)); eixos[k] = (int16_t)(v * 32767 / 127); }   // 1 byte por eixo
 #ifdef KOF_GL
     if (temHw && !hwPronto && hw.context_reset) {   // já na thread do OpenGL
         struct retro_system_av_info av; retro_get_system_av_info(&av);

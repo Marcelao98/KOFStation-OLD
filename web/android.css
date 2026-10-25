@@ -252,3 +252,10 @@ body.canhoto #ctl [data-b="L2"] { --x: 87%; } body.canhoto #ctl [data-b="R2"] { 
 
 /* PlayStation: sem rebobinar (o estado é grande demais); no nativo também sem turbo */
 html.celular body[data-sis="ps1"] #ctl .rew, html.celular body[data-sis="n64"] #ctl .rew, html.celular body.nativo #ctl .turbo { display: none; }
+
+/* consoles com analógico (N64, PS1...): o direcional vira um analógico redondo; a bolinha segue o dedo (--kx/--ky do android.js) */
+body.analogico #ctl .dpad i { display: none; }
+body.analogico #ctl .dpad { border-radius: 50%; background: radial-gradient(circle, #0000 30%, #0003 31%, #0000 33%), var(--dp, #333);
+  box-shadow: inset 0 3px 8px #0009, 0 1px 0 #fff2; }
+body.analogico #ctl .dpad::after { left: 28%; top: 28%; width: 44%; height: 44%; background: radial-gradient(circle at 50% 35%, #fff4, #0000 60%), var(--dph, var(--dp, #555));
+  box-shadow: 0 4px 8px #000a, inset 0 -3px 5px #0006; transform: translate(calc(var(--kx, 0) * 70%), calc(var(--ky, 0) * 70%)); }

@@ -615,11 +615,16 @@ const BOTOES = [[0, 0x8000], [1, 0x0080], [2, 0x4000], [3, 0x0040], [4, 0x0020],
   [6, 0x0008], [7, 0x0004], [8, 0x2000], [9, 0x1000], [12, 0x0800], [13, 0x0400], [14, 0x0200], [15, 0x0100]];   // 6/7 = gatilhos (L2/R2 do PS1)
 let teclado = 0, turbo = false;
 let toque = 0;   // botões apertados na tela de toque (celular)
+const eixosToque = [0, 0];   // analógico da tela de toque (-1..1), nos consoles com analogico
+// console com analógico (N64, PS1...): 'puro' = o analógico não aperta o direcional, 'misto' = aperta também
+const analogico = () => snes && SIS[snes.sistema || 'snes'] && SIS[snes.sistema || 'snes'].analogico;
 function estado() {
   let b = teclado | toque;
+  const puro = analogico() === 'puro';
   for (const g of (navigator.getGamepads ? navigator.getGamepads() : [])) {
     if (!g) continue;
     for (const [i, bit] of BOTOES) if (g.buttons[i] && g.buttons[i].pressed) b |= bit;
+    if (puro) continue;
     if (g.axes[0] < -0.5) b |= 0x0200; if (g.axes[0] > 0.5) b |= 0x0100;
     if (g.axes[1] < -0.5) b |= 0x0800; if (g.axes[1] > 0.5) b |= 0x0400;
   }
@@ -1222,7 +1227,22 @@ $('#arquivo-spc').addEventListener('change', (e) => { if (e.target.files.length)
 // núcleo (determinístico) chega no mesmo lugar, quadro a quadro.
 const VERSAO = '{{VERSAO}}', REPO = 'Marcelao98/KOFSnes';
 let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAtual = null;
+// eixos pro núcleo (-32767..32767): controle físico (com zona morta) ou a tela de toque; tudo parado = 0 (aí a ponte do N64
+// usa o direcional como analógico, como antes)
+const eixosQuadro = new Int16Array(4);
+function lerEixos() {
+  const e = eixosQuadro; e.fill(0);
+  if (!analogico()) return null;
+  const pos = (v) => Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767);
+  for (const g of (navigator.getGamepads ? navigator.getGamepads() : [])) {
+    if (!g) continue;
+    for (let k = 0; k < 4 && k < g.axes.length; k++) if (!e[k]) e[k] = pos(g.axes[k]);
+  }
+  if (!e[0] && !e[1]) { e[0] = pos(eixosToque[0]); e[1] = pos(eixosToque[1]); }
+  return e;
+}
 function rodarQuadro() {
+  snes.eixos = lerEixos();
   let b = semCombo(estado());
   if (snes.sistema !== 'ps1' && snes.sistema !== 'n64') b &= ~0x000C;   // L2/R2: no SNES esses bits identificam o controle e têm de ficar zerados
   snes.pad[0] = b; snes.runFrame();
@@ -1899,6 +1919,7 @@ async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
   visualDoSistema(sis); ligaIni = performance.now();
   if (ler('moldPorSis') === '1') mudarMoldura(ler('moldura.' + sis) || KofMolduras.PADRAO_SIS[sis] || moldura, true);
   document.body.dataset.sis = sis;
+  document.body.classList.toggle('analogico', !!SIS[sis].analogico);   // o direcional de toque vira analógico (android.css)
   document.body.classList.toggle('nativo', !!s.nativo);   // celular: some o que o núcleo nativo (PS1/N64) não usa (turbo)   // o controle virtual e a interface mudam com o sistema (Game Boy e NES: só A, B, Start e Select)
   document.body.classList.toggle('so-ab', !!(SIS[sis] && SIS[sis].botoes && !SIS[sis].botoes.includes('X')));
   if (typeof rotularControle === 'function') rotularControle(sis);   // celular: nomes dos botões do console (Mega Drive A/B/C...)

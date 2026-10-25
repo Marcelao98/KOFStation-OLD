@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final int PEDIDO_ARQUIVO = 1, PEDIDO_SALVAR = 2;
     // sobe a cada mudança neste Java: página publicada com casca maior pede APK novo (ela pode usar algo que esta não tem)
-    static final int CASCA = 7;
+    static final int CASCA = 8;
     private static final String FONTE = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/publicado/";
     private static final String APK = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/android/apk/KOFstation.apk";
     private File raizWeb;   // pasta da versão baixada (null = a que veio dentro do APK)
@@ -211,7 +211,7 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void ps1Pad(int botoes) { ps1.sinal(botoes); }
+        public void ps1Pad(int botoes, int eixos) { ps1.sinal(botoes, eixos); }
 
         @JavascriptInterface
         public void ps1Area(float x, float y, float w, float h) { ps1.area(x, y, w, h); }
@@ -244,7 +244,7 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void n64Pad(int botoes) { n64.sinal(botoes); }
+        public void n64Pad(int botoes, int eixos) { n64.sinal(botoes, eixos); }
 
         @JavascriptInterface
         public void n64Area(float x, float y, float w, float h) { n64.area(x, y, w, h); }

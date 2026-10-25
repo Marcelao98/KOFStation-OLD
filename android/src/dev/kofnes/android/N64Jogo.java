@@ -28,7 +28,7 @@ final class N64Jogo implements GLSurfaceView.Renderer {
     private final Activity a;
     private final GLSurfaceView tela;
     private final File pasta, saves, sistema;
-    private volatile int pad;
+    private volatile int pad, eixos;
     private volatile long ultimoSinal;
     private volatile boolean aberto, mostrando, continuo = true;
     private volatile float volume = 1f;
@@ -97,8 +97,8 @@ final class N64Jogo implements GLSurfaceView.Renderer {
         }
     }
 
-    void sinal(int botoes) {
-        pad = botoes; ultimoSinal = SystemClock.uptimeMillis();
+    void sinal(int botoes, int e) {
+        pad = botoes; eixos = e; ultimoSinal = SystemClock.uptimeMillis();
         if (!continuo) { continuo = true; tela.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY); }
     }
 
@@ -165,7 +165,7 @@ final class N64Jogo implements GLSurfaceView.Renderer {
             if (continuo) { continuo = false; tela.setRenderMode(GLSurfaceView.RENDERMODE_WHEN_DIRTY); }
             return;
         }
-        int n = N64.rodar(pad);
+        int n = N64.rodar(pad, eixos);
         int w = N64.largura(), h = N64.altura();
         if (w > 0 && (w != fw || h != fh)) {   // a superfície acompanha o tamanho da imagem do jogo
             fw = w; fh = h;

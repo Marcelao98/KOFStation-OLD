@@ -73,13 +73,15 @@
       if (dy < -0.38) { bits |= 0x0800; nome += 'u '; } if (dy > 0.38) { bits |= 0x0400; nome += 'd '; }
     }
     dpad.dataset.dir = nome.trim();
+    const an = analogico();   // console com analógico: a posição do dedo vai inteira pro analógico
+    if (an) { eixosToque[0] = d > 1 ? dx / d : mx; eixosToque[1] = d > 1 ? dy / d : my; if (an === 'puro') return 0; }
     return bits;
   }
   const alvoSob = (x, y) => { const e = document.elementFromPoint(x, y); const c = e && e.closest('#ctl .cb'); return c; };
   function soltar(id) {
     const f = dedos.get(id); if (!f) return;
     f.el.classList.remove('on');
-    if (f.b === 'dpad') { f.el.dataset.dir = ''; f.el.style.setProperty('--kx', 0); f.el.style.setProperty('--ky', 0); }
+    if (f.b === 'dpad') { f.el.dataset.dir = ''; f.el.style.setProperty('--kx', 0); f.el.style.setProperty('--ky', 0); eixosToque[0] = eixosToque[1] = 0; }
     if (f.b === 'rew') voltandoTecla = false;
     if (f.b === 'turbo') turbo = false;
     dedos.delete(id); recalcular();
@@ -276,7 +278,7 @@ function fachada(c, r) {
     cart: { title: r.principal.replace(/\.[^.]+$/, ''), hasSram: () => false, sram: new Uint8Array(0) },
     runFrame() {
       if (this.quadros++ % 30 === 0) { area(); KOFnesApk[c + 'Volume'](mudo ? 0 : volume / 100); }
-      KOFnesApk[c + 'Pad'](c === 'n64' ? KofLibretro.mascaraN64(this.pad[0]) : KofLibretro.mascara(this.pad[0]));
+      KOFnesApk[c + 'Pad'](c === 'n64' ? KofLibretro.mascaraN64(this.pad[0]) : KofLibretro.mascara(this.pad[0]), KofLibretro.empacotar(this.eixos));
     },
     reset() { KOFnesApk[c + 'Reiniciar'](); },
     fecharNativo() { KOFnesApk[c + 'Fechar'](); },

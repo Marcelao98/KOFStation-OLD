@@ -171,22 +171,25 @@ static size_t amostras(const int16_t* d, size_t n) {
 static void amostra(int16_t e, int16_t dir) { int16_t p[2] = { e, dir }; amostras(p, 1); }
 static void sondar() {}
 static int16_t eixo(int menos, int mais) { return (int16_t)((mais ? 0x7FFF : 0) - (menos ? 0x7FFF : 0)); }
+static int16_t eixos[4];               // analógicos de verdade (controle físico ou de toque): esquerdo X/Y, direito X/Y
 static int16_t entrada(unsigned porta, unsigned dispositivo, unsigned idx, unsigned id) {
     if (porta != 0) return 0;
-#ifdef KOF_GL
-    // N64: o direcional vira também o analógico (inclinação total) e os bits 16-19, os botões C (analógico direito)
     if ((dispositivo & RETRO_DEVICE_MASK) == RETRO_DEVICE_ANALOG) {
+        if (idx > RETRO_DEVICE_INDEX_ANALOG_RIGHT) return 0;
+        int k = idx == RETRO_DEVICE_INDEX_ANALOG_LEFT ? 0 : 2;
+        if (eixos[k] || eixos[k + 1]) return eixos[k + (id == RETRO_DEVICE_ID_ANALOG_Y)];
+#ifdef KOF_GL
+        // N64 sem analógico mexido: o direcional vira o analógico (inclinação total) e os bits 16-19, os botões C
         uint32_t b = botoes;
-        if (idx == RETRO_DEVICE_INDEX_ANALOG_LEFT)
+        if (k == 0)
             return id == RETRO_DEVICE_ID_ANALOG_X ? eixo(b >> RETRO_DEVICE_ID_JOYPAD_LEFT & 1, b >> RETRO_DEVICE_ID_JOYPAD_RIGHT & 1)
                                                   : eixo(b >> RETRO_DEVICE_ID_JOYPAD_UP & 1, b >> RETRO_DEVICE_ID_JOYPAD_DOWN & 1);
         return id == RETRO_DEVICE_ID_ANALOG_X ? eixo(b >> 18 & 1, b >> 19 & 1) : eixo(b >> 16 & 1, b >> 17 & 1);
-    }
-    uint32_t pad = botoes & 0xFFFF;   // o direcional vale também como o direcional do N64 (demo e menus usam ele)
 #else
-    uint32_t pad = botoes & 0xFFFF;
-    (void)idx;
+        return 0;
 #endif
+    }
+    uint32_t pad = botoes & 0xFFFF;   // no N64 o direcional vale também como o direcional do controle (menus usam ele)
     if ((dispositivo & RETRO_DEVICE_MASK) != RETRO_DEVICE_JOYPAD) return 0;
     if (id == RETRO_DEVICE_ID_JOYPAD_MASK) return (int16_t)pad;
     return (pad >> id) & 1;
@@ -235,7 +238,12 @@ static bool ambiente(unsigned cmd, void* dado) {
         if (n.geometry.max_height < maxA) n.geometry.max_height = maxA;
         guardarAv(&n); return true;
     }
+#ifdef KOF_GL
+    // só o N64 (como na ponte nativa): os outros núcleos sempre rodaram sem os padrões declarados
     case RETRO_ENVIRONMENT_SET_VARIABLES: guardarPadroes((const struct retro_variable*)dado); return true;
+#else
+    case RETRO_ENVIRONMENT_SET_VARIABLES: return true;
+#endif
     case RETRO_ENVIRONMENT_SET_PERFORMANCE_LEVEL:
     case RETRO_ENVIRONMENT_SET_INPUT_DESCRIPTORS: case RETRO_ENVIRONMENT_SET_CONTROLLER_INFO:
     case RETRO_ENVIRONMENT_SET_SUPPORT_NO_GAME: case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY:
@@ -364,6 +372,9 @@ EMSCRIPTEN_KEEPALIVE uint8_t* lr_mem_ptr(unsigned id) { return (uint8_t*)retro_g
 EMSCRIPTEN_KEEPALIVE size_t lr_mem_size(unsigned id) { return retro_get_memory_size(id); }
 
 EMSCRIPTEN_KEEPALIVE void lr_pad(int mascara) { botoes = (uint32_t)mascara; }
+EMSCRIPTEN_KEEPALIVE void lr_eixos(int lx, int ly, int rx, int ry) { eixos[0] = lx; eixos[1] = ly; eixos[2] = rx; eixos[3] = ry; }
+// tipo de controle na porta 1 (o PS1 usa o DualShock: digital até o jogo ligar o analógico)
+EMSCRIPTEN_KEEPALIVE void lr_dispositivo(unsigned d) { retro_set_controller_port_device(0, d); }
 EMSCRIPTEN_KEEPALIVE uint32_t* lr_fb() { return quadro; }
 EMSCRIPTEN_KEEPALIVE int lr_w() { return larg; }
 EMSCRIPTEN_KEEPALIVE int lr_h() { return alt; }

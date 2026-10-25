@@ -1805,6 +1805,13 @@ body.canhoto #ctl [data-b="L2"] { --x: 87%; } body.canhoto #ctl [data-b="R2"] { 
 /* PlayStation: sem rebobinar (o estado é grande demais); no nativo também sem turbo */
 html.celular body[data-sis="ps1"] #ctl .rew, html.celular body[data-sis="n64"] #ctl .rew, html.celular body.nativo #ctl .turbo { display: none; }
 
+/* consoles com analógico (N64, PS1...): o direcional vira um analógico redondo; a bolinha segue o dedo (--kx/--ky do android.js) */
+body.analogico #ctl .dpad i { display: none; }
+body.analogico #ctl .dpad { border-radius: 50%; background: radial-gradient(circle, #0000 30%, #0003 31%, #0000 33%), var(--dp, #333);
+  box-shadow: inset 0 3px 8px #0009, 0 1px 0 #fff2; }
+body.analogico #ctl .dpad::after { left: 28%; top: 28%; width: 44%; height: 44%; background: radial-gradient(circle at 50% 35%, #fff4, #0000 60%), var(--dph, var(--dp, #555));
+  box-shadow: 0 4px 8px #000a, inset 0 -3px 5px #0006; transform: translate(calc(var(--kx, 0) * 70%), calc(var(--ky, 0) * 70%)); }
+
 </style>
 </head>
 <body>
@@ -2426,7 +2433,6 @@ if (typeof document === "undefined") {
 
 function kofArrayGet(array, index) {
     return array[index];
-    return array[index];
     if (index < 0 || index >= array.length) {
         throw new Error("Array index out of bounds: " + index + " (length " + array.length + ")");
     }
@@ -2434,7 +2440,6 @@ function kofArrayGet(array, index) {
 }
 
 function kofArraySet(array, index, value, kind) {
-    if (kind === 0) { array[index] = value; return; }
     if (kind === 0) { array[index] = value; return; }
     if (index < 0 || index >= array.length) {
         throw new Error("Array index out of bounds: " + index + " (length " + array.length + ")");
@@ -10817,8 +10822,6 @@ function zipPairs(xs, ys) {
 }
 
 
-/* class snes_Snes */
-
 return { Snes: snes_Snes, Apu: snes_Apu };
 })();
 
@@ -12034,7 +12037,9 @@ const KofLibretro = (() => {
     // PlayStation (PCSX-ReARMed): o CD fica no disco virtual /jogos enquanto o jogo roda (o núcleo lê o CD aos poucos).
     // .cue precisa dos .bin junto (o app procura na pasta, nos arquivos soltos juntos ou pergunta). BIOS opcional: sem ela o
     // PCSX imita a BIOS (muitos jogos rodam; com a de verdade roda mais). Botões: ✕ ○ □ △ = B A Y X do SNES, L1/R1 = L/R
-    ps1: { nome: 'PlayStation', curto: 'PS1', ext: ['cue', 'chd', 'pbp', 'iso', 'exe'], nucleo: 'pcsx',
+    // analogico: o direcional de toque vira analógico e o controle físico manda os eixos; 'misto' = continua mandando o
+    // direcional junto (jogo de PS1 que só usa o direcional), 'puro' = só o analógico (N64). dispositivo 517 = DualShock
+    ps1: { nome: 'PlayStation', curto: 'PS1', ext: ['cue', 'chd', 'pbp', 'iso', 'exe'], nucleo: 'pcsx', analogico: 'misto', dispositivo: 517,
       // atrasou (celular fraco, jogo 3D): pula o desenho de até 3 quadros seguidos em vez de picotar o som
       opcoes: { pcsx_rearmed_frameskip_type: 'auto', pcsx_rearmed_frameskip_interval: '3' }, largura: 320, altura: 240, dinamico: true, tv43: true, caminho: true,
       botoes: ['Cima', 'Baixo', 'Esquerda', 'Direita', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'], musica: false, minimo: 16, grande: true,   // o .cue é só um texto pequeno
@@ -12042,7 +12047,7 @@ const KofLibretro = (() => {
       canais: [] },
     // Nintendo 64: Mupen64Plus-Next. No PC em WebAssembly (GLideN64 em WebGL2 num canvas escondido; a ponte lê a imagem de
     // volta); no APK, nativo (android/nativo, com OpenGL ES 3) pela "fachada" do android.js. Estado grande: sem rebobinar
-    n64: { nome: 'Nintendo 64', curto: 'N64', ext: ['z64', 'n64', 'v64'], nucleo: 'mupen64', nativo: 'n64', largura: 320, altura: 240, dinamico: true,
+    n64: { nome: 'Nintendo 64', curto: 'N64', ext: ['z64', 'n64', 'v64'], nucleo: 'mupen64', nativo: 'n64', analogico: 'puro', largura: 320, altura: 240, dinamico: true,
       tv43: true, semRebob: true, musica: false, minimo: 0x1000, canais: [],
       opcoes: { 'mupen64plus-rdp-plugin': 'gliden64', 'mupen64plus-cpucore': 'cached_interpreter', 'mupen64plus-43screensize': '320x240',
         'mupen64plus-EnableNativeResFactor': '1', 'mupen64plus-ThreadedRenderer': 'False', 'mupen64plus-pak1': 'memory' },
@@ -12091,7 +12096,7 @@ const KofLibretro = (() => {
   // Cada núcleo mora num arquivo próprio do lado do html (nucleos/<núcleo>-<hash>.js; o hash muda quando o núcleo muda)
   // e só é carregado quando abre um jogo daquele console. O juntar.py escreve aqui a lista exata desta versão.
   // É <script src> e não fetch: o navegador bloqueia fetch de arquivo local (file://), script ele deixa.
-  const ARQUIVOS = {"fbneo": "nucleos/fbneo-3ffc717a.js", "fceumm": "nucleos/fceumm-9243119b.js", "gambatte": "nucleos/gambatte-f3b4deb6.js", "genplus": "nucleos/genplus-cd68890e.js", "mgba": "nucleos/mgba-cefd6783.js", "pcsx": "nucleos/pcsx-ab9e5865.js", "snes9x": "nucleos/snes9x-e205bc90.js", "violino": "nucleos/violino-306d94e5.js", "jogos": "nucleos/jogos-371590f5.js"};
+  const ARQUIVOS = {"fbneo": "nucleos/fbneo-3ffc717a.js", "fceumm": "nucleos/fceumm-9243119b.js", "gambatte": "nucleos/gambatte-f3b4deb6.js", "genplus": "nucleos/genplus-cd68890e.js", "mgba": "nucleos/mgba-cefd6783.js", "pcsx": "nucleos/pcsx-1c04c405.js", "snes9x": "nucleos/snes9x-e205bc90.js", "violino": "nucleos/violino-306d94e5.js", "jogos": "nucleos/jogos-371590f5.js"};
   const fabrica = (n) => (typeof globalThis['Nucleo_' + n] === 'function' ? globalThis['Nucleo_' + n] : null);
   const disponivel = (sis) => !!(SISTEMAS[sis] && (fabrica(SISTEMAS[sis].nucleo) || ARQUIVOS[SISTEMAS[sis].nucleo]
     || (SISTEMAS[sis].nativo && typeof KOFnesApk !== 'undefined' && KOFnesApk[SISTEMAS[sis].nativo + 'Nativo'] && KOFnesApk[SISTEMAS[sis].nativo + 'Nativo']())));
@@ -12189,6 +12194,8 @@ const KofLibretro = (() => {
   // analógico direito); o direcional vira o analógico na ponte
   const BITS_N64 = [[0x8000, 0], [0x4000, 1], [0x1000, 3], [0x0800, 4], [0x0400, 5], [0x0200, 6], [0x0100, 7], [0x0020, 12], [0x0010, 11],
     [0x2000, 10], [0x0040, 16], [0x0080, 17], [0x0008, 18], [0x0004, 19]];
+  // os 4 eixos (-32767..32767) num número só, 1 byte cada (pra ponte nativa do celular): esquerdo X/Y, direito X/Y
+  const empacotar = (e) => e ? ((e[0] >> 8) & 255) | (((e[1] >> 8) & 255) << 8) | (((e[2] >> 8) & 255) << 16) | (((e[3] >> 8) & 255) << 24) : 0;
   const mascaraN64 = (b) => { let m = 0; for (const [bit, id] of BITS_N64) if (b & bit) m |= 1 << id; return m; };
   const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
   const deB64 = (t) => { const s = atob(t), u8 = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i); return u8; };
@@ -12297,6 +12304,7 @@ const KofLibretro = (() => {
     depoisDeCarregar() {
       const mod = this.mod;
       mod.kofAtual = this;
+      const d = SISTEMAS[this.sistema].dispositivo; if (d && mod._lr_dispositivo) mod._lr_dispositivo(d);
       const i = mod._lr_info() >> 3, info = mod.HEAPF64;
       this.fps = info[i + 5]; this.taxaAudio = info[i + 6]; this.proporcao = SISTEMAS[this.sistema].proporcao || info[i + 4];
       this.tamEstado = mod._lr_state_size();
@@ -12315,6 +12323,7 @@ const KofLibretro = (() => {
     runFrame() {
       const mod = this.mod;
       mod._lr_pad(this.sistema === 'n64' ? mascaraN64(this.pad[0]) : mascara(this.pad[0]));
+      const e = this.eixos; if (e && mod._lr_eixos) mod._lr_eixos(e[0], e[1], e[2], e[3]);
       if (mod._lr_audio_status && this.atrasado !== undefined) mod._lr_audio_status(this.ocupacao | 0, this.atrasado ? 1 : 0);   // o app diz se está atrasado
       mod._lr_run(1, 1);
       this.quadros++;
@@ -12476,7 +12485,7 @@ const KofLibretro = (() => {
       fechar() { mod._lr_sonda(0); this.mudas(0); },
     };
   }
-  return { criar, mascara, mascaraN64, iniciar, titulo, sistemaDe, disponivel, tocador, opcao, bios, temBios, sistemaDaBios, setNeoGeo, setNeoGeoDoZip, NEOGEO, SISTEMAS, EXTENSOES, ARQUIVOS };
+  return { criar, mascara, mascaraN64, empacotar, iniciar, titulo, sistemaDe, disponivel, tocador, opcao, bios, temBios, sistemaDaBios, setNeoGeo, setNeoGeoDoZip, NEOGEO, SISTEMAS, EXTENSOES, ARQUIVOS };
 })();
 if (typeof module !== 'undefined') module.exports = KofLibretro;
 
@@ -13185,11 +13194,16 @@ const BOTOES = [[0, 0x8000], [1, 0x0080], [2, 0x4000], [3, 0x0040], [4, 0x0020],
   [6, 0x0008], [7, 0x0004], [8, 0x2000], [9, 0x1000], [12, 0x0800], [13, 0x0400], [14, 0x0200], [15, 0x0100]];   // 6/7 = gatilhos (L2/R2 do PS1)
 let teclado = 0, turbo = false;
 let toque = 0;   // botões apertados na tela de toque (celular)
+const eixosToque = [0, 0];   // analógico da tela de toque (-1..1), nos consoles com analogico
+// console com analógico (N64, PS1...): 'puro' = o analógico não aperta o direcional, 'misto' = aperta também
+const analogico = () => snes && SIS[snes.sistema || 'snes'] && SIS[snes.sistema || 'snes'].analogico;
 function estado() {
   let b = teclado | toque;
+  const puro = analogico() === 'puro';
   for (const g of (navigator.getGamepads ? navigator.getGamepads() : [])) {
     if (!g) continue;
     for (const [i, bit] of BOTOES) if (g.buttons[i] && g.buttons[i].pressed) b |= bit;
+    if (puro) continue;
     if (g.axes[0] < -0.5) b |= 0x0200; if (g.axes[0] > 0.5) b |= 0x0100;
     if (g.axes[1] < -0.5) b |= 0x0800; if (g.axes[1] > 0.5) b |= 0x0400;
   }
@@ -13790,9 +13804,24 @@ $('#arquivo-spc').addEventListener('change', (e) => { if (e.target.files.length)
 // estado (um marco) e anota os botões de cada quadro dali pra frente. O pacote
 // do bug leva o marco anterior + os botões até agora: rodando de novo, o
 // núcleo (determinístico) chega no mesmo lugar, quadro a quadro.
-const VERSAO = '202610251330 · 38dc461', REPO = 'Marcelao98/KOFSnes';
+const VERSAO = '202610251340 · 159e22f', REPO = 'Marcelao98/KOFSnes';
 let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAtual = null;
+// eixos pro núcleo (-32767..32767): controle físico (com zona morta) ou a tela de toque; tudo parado = 0 (aí a ponte do N64
+// usa o direcional como analógico, como antes)
+const eixosQuadro = new Int16Array(4);
+function lerEixos() {
+  const e = eixosQuadro; e.fill(0);
+  if (!analogico()) return null;
+  const pos = (v) => Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767);
+  for (const g of (navigator.getGamepads ? navigator.getGamepads() : [])) {
+    if (!g) continue;
+    for (let k = 0; k < 4 && k < g.axes.length; k++) if (!e[k]) e[k] = pos(g.axes[k]);
+  }
+  if (!e[0] && !e[1]) { e[0] = pos(eixosToque[0]); e[1] = pos(eixosToque[1]); }
+  return e;
+}
 function rodarQuadro() {
+  snes.eixos = lerEixos();
   let b = semCombo(estado());
   if (snes.sistema !== 'ps1' && snes.sistema !== 'n64') b &= ~0x000C;   // L2/R2: no SNES esses bits identificam o controle e têm de ficar zerados
   snes.pad[0] = b; snes.runFrame();
@@ -14469,6 +14498,7 @@ async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
   visualDoSistema(sis); ligaIni = performance.now();
   if (ler('moldPorSis') === '1') mudarMoldura(ler('moldura.' + sis) || KofMolduras.PADRAO_SIS[sis] || moldura, true);
   document.body.dataset.sis = sis;
+  document.body.classList.toggle('analogico', !!SIS[sis].analogico);   // o direcional de toque vira analógico (android.css)
   document.body.classList.toggle('nativo', !!s.nativo);   // celular: some o que o núcleo nativo (PS1/N64) não usa (turbo)   // o controle virtual e a interface mudam com o sistema (Game Boy e NES: só A, B, Start e Select)
   document.body.classList.toggle('so-ab', !!(SIS[sis] && SIS[sis].botoes && !SIS[sis].botoes.includes('X')));
   if (typeof rotularControle === 'function') rotularControle(sis);   // celular: nomes dos botões do console (Mega Drive A/B/C...)
@@ -16067,13 +16097,15 @@ window.KOFnes = { imagemTeste: (rgba, l, a) => { imagemTeste = true; document.bo
       if (dy < -0.38) { bits |= 0x0800; nome += 'u '; } if (dy > 0.38) { bits |= 0x0400; nome += 'd '; }
     }
     dpad.dataset.dir = nome.trim();
+    const an = analogico();   // console com analógico: a posição do dedo vai inteira pro analógico
+    if (an) { eixosToque[0] = d > 1 ? dx / d : mx; eixosToque[1] = d > 1 ? dy / d : my; if (an === 'puro') return 0; }
     return bits;
   }
   const alvoSob = (x, y) => { const e = document.elementFromPoint(x, y); const c = e && e.closest('#ctl .cb'); return c; };
   function soltar(id) {
     const f = dedos.get(id); if (!f) return;
     f.el.classList.remove('on');
-    if (f.b === 'dpad') { f.el.dataset.dir = ''; f.el.style.setProperty('--kx', 0); f.el.style.setProperty('--ky', 0); }
+    if (f.b === 'dpad') { f.el.dataset.dir = ''; f.el.style.setProperty('--kx', 0); f.el.style.setProperty('--ky', 0); eixosToque[0] = eixosToque[1] = 0; }
     if (f.b === 'rew') voltandoTecla = false;
     if (f.b === 'turbo') turbo = false;
     dedos.delete(id); recalcular();
@@ -16270,7 +16302,7 @@ function fachada(c, r) {
     cart: { title: r.principal.replace(/\.[^.]+$/, ''), hasSram: () => false, sram: new Uint8Array(0) },
     runFrame() {
       if (this.quadros++ % 30 === 0) { area(); KOFnesApk[c + 'Volume'](mudo ? 0 : volume / 100); }
-      KOFnesApk[c + 'Pad'](c === 'n64' ? KofLibretro.mascaraN64(this.pad[0]) : KofLibretro.mascara(this.pad[0]));
+      KOFnesApk[c + 'Pad'](c === 'n64' ? KofLibretro.mascaraN64(this.pad[0]) : KofLibretro.mascara(this.pad[0]), KofLibretro.empacotar(this.eixos));
     },
     reset() { KOFnesApk[c + 'Reiniciar'](); },
     fecharNativo() { KOFnesApk[c + 'Fechar'](); },

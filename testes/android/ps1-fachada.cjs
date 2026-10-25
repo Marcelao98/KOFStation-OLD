@@ -20,7 +20,7 @@ const [,, html, cue, bin, sfc] = process.argv;
       ps1Pad: (m) => { L.pads++; L.ultimoPad = m; }, ps1Area: (x, y, w, h) => L.areas.push([x, y, w, h]), ps1Fechar: () => L.fechou++,
       ps1Reiniciar() {}, ps1Volume: (v) => { L.volume = v; }, ps1Estado: () => L.estado, ps1CarregarEstado: (s) => (L.carregado = atob(s), true),
       n64Nativo: () => true, n64Abrir: (n) => { L.n64 = n; setTimeout(() => window.__n64Pronto({ principal: n, largura: 640, altura: 480, fps: 60, taxa: 44100 }), 50); },
-      n64Pad: (m) => { L.n64pads = (L.n64pads || 0) + 1; L.n64pad = m; }, n64Area() {}, n64Fechar: () => { L.n64fechou = (L.n64fechou || 0) + 1; }, n64Reiniciar() {}, n64Volume() {},
+      n64Pad: (m, e) => { L.n64pads = (L.n64pads || 0) + 1; L.n64pad = m; L.n64eixos = e; }, n64Area() {}, n64Fechar: () => { L.n64fechou = (L.n64fechou || 0) + 1; }, n64Reiniciar() {}, n64Volume() {},
       n64Estado: () => '', n64CarregarEstado: () => true };
   });
   const p = await ctx.newPage(), erros = [], falhas = [];
@@ -63,6 +63,16 @@ const [,, html, cue, bin, sfc] = process.argv;
   conferir(pn === 1, `B da tela (tecla Z) chega como A do N64 (${pn})`);
   await p.keyboard.down('ArrowLeft'); await p.waitForTimeout(200); const pe = await p.evaluate(() => window.__ps1.n64pad); await p.keyboard.up('ArrowLeft');
   conferir(pe === 64, `direcional pra esquerda chega (vira o analógico na ponte) (${pe})`);
+  // analógico de toque: o direcional vira um analógico redondo; dedo na borda direita = eixo X no máximo, sem apertar o direcional
+  const an = await p.evaluate(async () => {
+    const d = document.querySelector('#ctl [data-b="dpad"]'), r = d.getBoundingClientRect();
+    const ev = (t) => d.dispatchEvent(new PointerEvent(t, { bubbles: true, pointerId: 7, clientX: r.right - 2, clientY: r.top + r.height / 2 }));
+    ev('pointerdown'); await new Promise((ok) => setTimeout(ok, 250));
+    const L = window.__ps1, x = (L.n64eixos << 24) >> 24, y = (L.n64eixos << 16) >> 24, m = L.n64pad;
+    ev('pointerup'); await new Promise((ok) => setTimeout(ok, 150));
+    return { classe: document.body.classList.contains('analogico'), x, y, m, solto: window.__ps1.n64eixos };
+  });
+  conferir(an.classe && an.x > 100 && Math.abs(an.y) < 20 && !(an.m & 0xF0) && an.solto === 0, 'analógico de toque no N64: ' + JSON.stringify(an));
   await p.setInputFiles('#arquivo', sfc); await p.waitForTimeout(2000);
   conferir((await p.evaluate(() => window.__ps1.n64fechou)) >= 1, 'abrir outro console fecha o N64 nativo');
   conferir(erros.length === 0, 'sem erro na página ' + erros.join(' | '));
