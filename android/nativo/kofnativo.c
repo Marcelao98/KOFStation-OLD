@@ -16,6 +16,10 @@ ARQ *fopen(const char *, const char *);
 size_t fread(void *, size_t, size_t, ARQ *);
 size_t fwrite(const void *, size_t, size_t, ARQ *);
 int fclose(ARQ *);
+int fseek(ARQ *, long, int);
+long ftell(ARQ *);
+void *malloc(size_t);
+void free(void *);
 int snprintf(char *, size_t, const char *, ...);
 int vsnprintf(char *, size_t, const char *, va_list);
 void *memcpy(void *, const void *, size_t);
@@ -261,6 +265,19 @@ JNIEXPORT jstring JNICALL J(abrir)(JNIEnv *env, jclass c, jstring jogo, jstring 
         retro_init(); iniciado = 1;
     }
     struct retro_game_info g = { caminho, NULL, 0, NULL };
+    // núcleo que não pede o caminho (need_fullpath = false, o Mupen64Plus) quer a ROM na memória: a ponte lê o arquivo
+    static void *rom; free(rom); rom = NULL;
+    struct retro_system_info si; retro_get_system_info(&si);
+    if (!si.need_fullpath) {
+        ARQ *f = fopen(caminho, "rb");
+        if (!f) return (*env)->NewStringUTF(env, "não consegui ler o arquivo do jogo");
+        fseek(f, 0, 2); long n = ftell(f); fseek(f, 0, 0);
+        rom = n > 0 ? malloc((size_t)n) : NULL;
+        size_t lido = rom ? fread(rom, 1, (size_t)n, f) : 0;
+        fclose(f);
+        if (!rom || lido != (size_t)n) return (*env)->NewStringUTF(env, "não consegui ler o arquivo do jogo");
+        g.data = rom; g.size = (size_t)n;
+    }
 #ifdef KOF_GL
     hwPronto = 0;
 #endif
