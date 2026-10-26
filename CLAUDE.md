@@ -39,6 +39,11 @@
   controle pela rede, canal `jogo` `{t:'acao'}`, precisa estar pareado), ☰. (3) Jogar no PC: ☰ pede `{t:'menu'}` e o PC manda
   os itens do `ITENS_RAPIDO` que não abrem tela (`itemRemoto`: ajustes ◀▶, 💾, ⟲, ↺; `menuParaCelular`); toque = `menu-item
   {i, d}`. `acaoDoCelular` (jogarpc.js, lista `ACOES_CELULAR`). Teste: `jogar-no-pc.cjs` (⏪, 💾, menu, tema, navegação, B).
+- **📱 MODO SWITCH (26/10, publicado na main):** Jogar no PC deitado = vídeo em tela cheia (`#modo-controle.remoto` inset 0,
+  z-index 4, abaixo do `#ctl` que fica por cima com os botões a 78%); menu ☰ do celular sobe por cima (`.menu-aberto`).
+  PC: menu rápido ganhou **📱 Levar pro celular** (`levarProCelular`: manda `{t:'levar'}` pro 1º celular online; o celular
+  entra sozinho no `entrarModoControle({pc})`) e **📺 Voltar pra TV** (`pararTransmissao`); no celular o ☰ tem "📺 Voltar pra
+  TV". Teste: `jogar-no-pc.cjs` (deitado, botão por cima, levar, voltar).
 - **Aberto / a fazer, nesta ordem:**
   0. **ATUALIZAÇÃO 25/10 (última mensagem do chat): o Marcelo disse "deu certo, muito foda"** logo depois de receber as
      instruções do controle: tudo indica que o **celular como controle conectou**. Confirmar com ele no começo do chat novo

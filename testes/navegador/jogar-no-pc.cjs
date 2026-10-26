@@ -111,12 +111,29 @@ function romVermelha() {
   ok(temaDepois !== temaAntes, `▶ no celular troca o tema do PC (${temaAntes} → ${temaDepois})`);
   if (prints) await cel.screenshot({ path: path.join(prints, 'jogar-no-pc-menu.png') });
   await cel.click('#modo-controle .mc-menu [data-r="voltar"]');
+  // deitado = Switch portátil: o vídeo ocupa a tela inteira e os botões ficam por cima
+  await cel.setViewportSize({ width: 860, height: 412 }); await cel.waitForTimeout(500);
+  const dt = await cel.evaluate(() => { const r = document.querySelector('#modo-controle .mc-video').getBoundingClientRect(), a = document.querySelector('#ctl [data-b="A"]').getBoundingClientRect(); return { l: r.width, a: r.height, botao: a.width > 0 && getComputedStyle(document.querySelector('#ctl [data-b="A"]')).visibility !== 'hidden' }; });
+  ok(dt.l >= 850 && dt.a >= 400 && dt.botao, 'deitado: o jogo ocupa a tela toda e os botões ficam por cima ' + JSON.stringify(dt));
+  if (prints) await cel.screenshot({ path: path.join(prints, 'jogar-no-pc-deitado.png') });
+  await apertar('#ctl [data-b="A"]'); await pg.waitForTimeout(300);
+  const ad = await pg.evaluate(() => KOFnes.botoes());
+  await soltar('#ctl [data-b="A"]');
+  ok(ad & 0x0080, 'deitado: o botão por cima do vídeo funciona');
+  await cel.setViewportSize({ width: 412, height: 860 }); await cel.waitForTimeout(300);
   ok(!(await pg.evaluate(() => KOFnes.estado().pausado)) && await cel.isHidden('#modo-controle .mc-menu'), 'volta ao jogo com o PC rodando');
   if (prints) { await cel.screenshot({ path: path.join(prints, 'jogar-no-pc-celular.png') }); await pg.screenshot({ path: path.join(prints, 'jogar-no-pc-pc.png') }); }
 
   await cel.evaluate(() => document.querySelector('#modo-controle .mc-sair').click());
   await pg.waitForFunction(() => !KOFnes.transmissao().ligada, null, { timeout: 5000 }).catch(() => {});
   ok(!(await pg.evaluate(() => KOFnes.transmissao().ligada)), 'sair no celular encerra a transmissão no PC');
+  // 📱 Levar pro celular (no PC) e 📺 Voltar pra TV
+  await pg.evaluate(() => KOFnes.levarProCelular());
+  await cel.waitForFunction(() => { const v = document.querySelector('#modo-controle .mc-video'); return v && v.videoWidth > 0; }, null, { timeout: 20000 }).catch(() => {});
+  ok(await cel.evaluate(() => !!document.querySelector('#modo-controle.remoto .mc-video') && document.querySelector('#modo-controle .mc-video').videoWidth > 0), '📱 Levar pro celular: o celular entra sozinho e mostra o jogo');
+  await pg.evaluate(() => KOFnes.voltarPraTv());
+  await cel.waitForFunction(() => !document.querySelector('#modo-controle'), null, { timeout: 8000 }).catch(() => {});
+  ok(!(await cel.$('#modo-controle')) && !(await pg.evaluate(() => KOFnes.estado().pausado)), '📺 Voltar pra TV: o celular sai e o jogo segue no PC');
 
   // controle mexe nas telas do PC: direcional escolhe, B fecha
   const pad = async (b) => { await pg.evaluate((x) => KOFnes.padTeste(x), b); await pg.waitForTimeout(120); await pg.evaluate(() => KOFnes.padTeste(0)); await pg.waitForTimeout(120); };

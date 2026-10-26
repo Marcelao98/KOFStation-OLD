@@ -229,10 +229,10 @@
       d.classList.add('remoto');
       d.insertAdjacentHTML('beforeend', '<video class="mc-video" playsinline autoplay></video><small class="mc-ping"></small>'
         + '<div class="mc-menu" hidden><div class="mc-menu-pc"></div>'
-        + '<div class="mc-item"><button data-r="voltar">▶ Voltar ao jogo</button></div><div class="mc-item"><button data-r="sair">✕ Parar de jogar no PC</button></div></div>');
+        + '<div class="mc-item"><button data-r="voltar">▶ Voltar ao jogo</button></div><div class="mc-item"><button data-r="sair">📺 Voltar pra TV (o jogo continua no PC)</button></div></div>');
       d.querySelector('.mc-menu').addEventListener('click', (e) => {
         const r = e.target.closest('button') && e.target.closest('button').dataset.r; if (!r) return;
-        d.querySelector('.mc-menu').hidden = true;   // os itens do PC (sem data-r) mandam pelo canal de dados
+        fecharMenuRemoto();   // os itens do PC (sem data-r) mandam pelo canal de dados
         if (r === 'sair') sairModoControle();
       });
       d.querySelector('.mc-status').textContent = 'chamando o PC…';
@@ -257,10 +257,11 @@
   // ☰ no Jogar no PC: o menu rápido do PC aparece aqui (o PC manda os itens e os valores; o toque volta pra lá)
   function menuRemoto() {
     const mm = $('#modo-controle .mc-menu'); if (!mm) return;
-    if (!mm.hidden) { mm.hidden = true; return; }
-    mm.hidden = false;
+    if (!mm.hidden) { fecharMenuRemoto(); return; }
+    mm.hidden = false; $('#modo-controle').classList.add('menu-aberto');   // por cima dos botões (celular deitado)
     const m = modoControle; if (m && m.dc && m.dc.readyState === 'open') m.dc.send(JSON.stringify({ t: 'menu' }));
   }
+  function fecharMenuRemoto() { const mm = $('#modo-controle .mc-menu'); if (mm) mm.hidden = true; const d = $('#modo-controle'); if (d) d.classList.remove('menu-aberto'); }
   function desenharMenuRemoto(itens) {
     const lista = $('#modo-controle .mc-menu-pc'); if (!lista) return;
     lista.textContent = '';
@@ -273,7 +274,7 @@
         const mais = document.createElement('button'); mais.textContent = '▶'; mais.className = 'mc-aj'; mais.onclick = () => manda({ t: 'menu-item', i: it.i, d: 1 });
         nm.onclick = () => manda({ t: 'menu-item', i: it.i, d: 1 });
         li.append(menos, nm, mais);
-      } else { nm.onclick = () => { manda({ t: 'menu-item', i: it.i, d: 0 }); $('#modo-controle .mc-menu').hidden = true; }; li.append(nm); }
+      } else { nm.onclick = () => { manda({ t: 'menu-item', i: it.i, d: 0 }); fecharMenuRemoto(); }; li.append(nm); }
       lista.appendChild(li);
     }
   }
@@ -380,8 +381,11 @@
   window.entrarModoControle = entrarModoControle;
   // resposta dos atalhos 💾 📂 no celular como controle (chega pela rede)
   rede.ouvintes.push((msg) => {
-    if (msg.t !== 'msg' || msg.canal !== 'jogo' || !modoControle || modoControle.pc) return;
+    if (msg.t !== 'msg' || msg.canal !== 'jogo') return;
     let p; try { p = JSON.parse(msg.dados); } catch (e) { return; }
+    // 📱 Levar pro celular (apertado no PC): o jogo que está lá passa pra esta tela
+    if (p.t === 'levar') { if (modoControle && modoControle.pc === msg.de) return; if (modoControle) sairModoControle(); fecharJanelas(); entrarModoControle({ pc: msg.de }); return; }
+    if (!modoControle || modoControle.pc) return;
     if (p.t === 'feito') avisar(p.a === 'salvar-estado' ? '💾 estado salvo no PC' : p.a === 'carregar-ultimo' ? '📂 último estado carregado' : '🏠 Início do PC', 2500);
   });
 

@@ -37,7 +37,7 @@ async function pedidoDoCelular(de, p) {
     try { await comecarTransmissao(de); } catch (e) { pararTransmissao(); mandarJogo(de, { t: 'erro', texto: 'o PC não conseguiu transmitir: ' + e.message }); }
   } else if (p.t === 'resposta' && transm.pc && transm.de === de) {
     await transm.pc.setRemoteDescription({ type: 'answer', sdp: trocarLocal(p.sdp, ipDoAparelho(de)) }).catch((e) => pararTransmissao('resposta inválida: ' + e.message));
-  } else if (p.t === 'fim' && transm.de === de) pararTransmissao();
+  } else if (p.t === 'fim' && transm.de === de) { pararTransmissao(); avisar('📺 o jogo voltou pra cá', 3000); }
 }
 // o jogo que o celular escolheu, na biblioteca do PC: pelo CRC (mesma ROM), senão pelo nome do arquivo ou do jogo
 async function abrirJogoPedido(j) {
@@ -112,6 +112,18 @@ async function comecarTransmissao(de) {
   mandarJogo(de, { t: 'oferta', sdp: pc.localDescription.sdp });
   transmitirQuadro();
 }
+// 📱 Levar pro celular / 📺 Voltar pra TV (menu rápido do PC): o jogo continua de onde está, só muda a tela
+const celularOnline = () => rede.aparelhos.find((a) => a.online && a.tipo === 'celular');
+function levarProCelular() {
+  const c = celularOnline();
+  if (!c) { avisar('📱 nenhum celular pareado na rede: abra o KOFstation no celular (📡 Aparelhos pra parear)', 5000); return; }
+  if (!snes) { avisar('📱 abra um jogo primeiro', 3000); return; }
+  mandarJogo(c.id, { t: 'levar' });
+  avisar('📱 mandando pro ' + c.nome + '…', 3000);
+}
+if (!CELULAR) ITENS_RAPIDO.splice(1, 0,
+  { t: '📱 Levar pro celular', so: () => !!snes && !transm.pc && !!celularOnline(), f: () => { fecharRapido(); levarProCelular(); } },
+  { t: '📺 Voltar pra TV', so: () => !!transm.pc, f: () => { fecharRapido(); pararTransmissao('o jogo voltou pra TV'); } });
 // atalhos do celular (☰ do Jogar no PC, ou a barrinha do celular como controle pela rede)
 const ACOES_CELULAR = ['salvar-estado', 'carregar-ultimo', 'home'];
 async function acaoDoCelular(a, responder) {
@@ -150,5 +162,6 @@ function pararTransmissao(motivo) {
   remoto.bits = 0; remoto.eixos.fill(0);
   if (motivo) { avisar('🖥 transmissão encerrada: ' + motivo, 4000); if (de) mandarJogo(de, { t: 'erro', texto: motivo }); }
 }
+if (window.KOFnes) { KOFnes.levarProCelular = levarProCelular; KOFnes.voltarPraTv = () => pararTransmissao('o jogo voltou pra TV'); }
 if (window.KOFnes) KOFnes.padTeste = (b) => { remoto.bits = b; };   // teste: aperta botões como se viessem do celular
 if (window.KOFnes) KOFnes.transmissao = () => ({ ligada: transmitindo(), estado: transm.pc && transm.pc.connectionState, dc: transm.dc && transm.dc.readyState, bits: remoto.bits });

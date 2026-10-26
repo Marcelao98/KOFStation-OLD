@@ -396,3 +396,12 @@ body[data-modo="raiz"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [dat
 #modo-controle .mc-item button { flex: 1; width: auto; padding: 10px; border-radius: 10px; background: var(--painel); border: 1px solid var(--borda); font-size: 15px; }
 #modo-controle .mc-item button.mc-aj { flex: none; width: 44px; }
 #modo-controle.remoto .mc-atalhos [data-at="home"] { display: none; }   /* jogando no celular, o Início do PC ninguém vê */
+/* 🖥 Jogar no PC deitado = Switch portátil: o jogo na tela inteira e os botões dos lados, por cima da imagem */
+@media (orientation: landscape) {
+  #modo-controle.remoto { inset: 0; left: 0; right: 0; height: auto; z-index: 4; background: #000; padding: 0; }
+  #modo-controle.remoto .mc-barra { top: 6px; }
+  #modo-controle.remoto .mc-atalhos { bottom: 6px; }
+  body.modo-controle.cel-jogo:has(#modo-controle.remoto) #ctl { --ctl-fundo: transparent; }
+  body.modo-controle:has(#modo-controle.remoto) #ctl .bt, body.modo-controle:has(#modo-controle.remoto) #ctl [data-b] { opacity: .78; }
+}
+#modo-controle.menu-aberto { z-index: 40; }
