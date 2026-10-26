@@ -61,8 +61,8 @@ const [,, html, cue, bin, sfc] = process.argv;
   conferir(L.rot === 'A B C▲ Z C◀ C▶' && L.l2 !== 'none', `controle do N64: ${L.rot} (L2 ${L.l2})`);
   await p.keyboard.down('KeyZ'); await p.waitForTimeout(200); const pn = await p.evaluate(() => window.__ps1.n64pad); await p.keyboard.up('KeyZ');
   conferir(pn === 1, `B da tela (tecla Z) chega como A do N64 (${pn})`);
-  await p.keyboard.down('ArrowLeft'); await p.waitForTimeout(200); const pe = await p.evaluate(() => window.__ps1.n64pad); await p.keyboard.up('ArrowLeft');
-  conferir(pe === 64, `direcional pra esquerda chega (vira o analógico na ponte) (${pe})`);
+  await p.keyboard.down('ArrowLeft'); await p.waitForTimeout(200); const pe = await p.evaluate(() => (window.__ps1.n64eixos << 24) >> 24); await p.keyboard.up('ArrowLeft');
+  conferir(pe < -100, `seta pra esquerda do teclado = analógico pra esquerda (${pe})`);
   // analógico de toque: o direcional vira um analógico redondo; dedo na borda direita = eixo X no máximo, sem apertar o direcional
   const an = await p.evaluate(async () => {
     const d = document.querySelector('#ctl [data-b="dpad"]'), r = d.getBoundingClientRect();

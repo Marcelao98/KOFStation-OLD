@@ -769,18 +769,97 @@ const BOTOES_SNES = [
 ];
 // atalhos do emulador: não podem virar botão do jogo
 const RESERVADAS = ['Escape', 'Tab', 'Backspace', 'F7', 'F9', 'F1', 'F2', 'F3', 'F5', 'F6', 'F8', 'F11', 'KeyP', 'KeyM', 'Minus', 'Equal', 'NumpadSubtract', 'NumpadAdd'];
-let mapa = {};   // nome do botão -> código da tecla (KeyboardEvent.code)
+let mapa = {};   // nome da ação -> código da tecla (KeyboardEvent.code), já com o console e o jogo por cima
 let TECLAS = {}; // código da tecla -> bit
-function carregarMapa() {
-  let salvo = null;
-  try { salvo = JSON.parse(ler('teclas') || 'null'); } catch (e) { salvo = null; }
-  mapa = {};
-  for (const [nome, , padrao] of BOTOES_SNES) mapa[nome] = (salvo && salvo[nome]) || padrao;
-  montarTeclas();
+let TECLAS_EIXO = {};   // código da tecla -> [eixo, sinal]: analógico no teclado (PS1, PS2, N64)
+const tecEixo = new Set();   // teclas de analógico apertadas agora
+// ---------------- 🎮 Controles: teclas e botões do controle por console e por jogo ----------------
+// Camadas, a de cima vence: Geral (kofnes.teclas, todo console) → console (kofnes.teclas.<sis>) → só este jogo
+// (kofnes.teclas.jogo.<jogoId>). Igual pros botões do controle USB/Bluetooth (kofnes.botoes...). Nos consoles com analógico,
+// por padrão as setas andam (analógico esquerdo), I J K L são o direito (a câmera) e o direcional vai pra T F G H.
+const EIXOS_TECLA = [['AE↑', 1, -1, 'Cima'], ['AE↓', 1, 1, 'Baixo'], ['AE←', 0, -1, 'Esquerda'], ['AE→', 0, 1, 'Direita'],
+  ['AD↑', 3, -1, 'KeyI'], ['AD↓', 3, 1, 'KeyK'], ['AD←', 2, -1, 'KeyJ'], ['AD→', 2, 1, 'KeyL']];
+const DIRECIONAL_ANALOG = { Cima: 'KeyT', Baixo: 'KeyG', Esquerda: 'KeyF', Direita: 'KeyH' };
+const NOMES_BOTAO = {   // o nome no console (o botão do SNES por baixo é o que o núcleo recebe)
+  md: { Y: 'A', B: 'B', A: 'C', L: 'X', X: 'Y', R: 'Z', Select: 'Mode' },
+  sms: { B: '1', A: '2', Start: 'Pause' }, gg: { B: '1', A: '2' },
+  neogeo: { B: 'A', A: 'B', Y: 'C', X: 'D', Select: 'Ficha' },
+  ps1: { B: '✕', A: '○', Y: '□', X: '△', L: 'L1', R: 'R1' }, ps2: { B: '✕', A: '○', Y: '□', X: '△', L: 'L1', R: 'R1' },
+  n64: { B: 'A', Y: 'B', X: 'C▲', A: 'C▼', L: 'Z', R: 'R', L2: 'C◀', R2: 'C▶', Select: 'L' },
+};
+const NOMES_ACAO = { Cima: '↑ direcional', Baixo: '↓ direcional', Esquerda: '← direcional', Direita: '→ direcional',
+  'AE↑': '🕹 esquerdo ↑', 'AE↓': '🕹 esquerdo ↓', 'AE←': '🕹 esquerdo ←', 'AE→': '🕹 esquerdo →',
+  'AD↑': '🕹 direito ↑', 'AD↓': '🕹 direito ↓', 'AD←': '🕹 direito ←', 'AD→': '🕹 direito →' };
+const NOMES_PAD = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Select', 'Start', 'L3', 'R3', '↑', '↓', '←', '→', 'Guia'];
+const COM_ANALOG = ['ps1', 'ps2', 'n64'];
+const ehEixo = (n) => EIXOS_TECLA.some(([x]) => x === n);
+// as ações que cada console usa ('geral' = os botões do SNES, a base de todos)
+function acoesDe(sis) {
+  const dir = ['Cima', 'Baixo', 'Esquerda', 'Direita'], ab = ['B', 'A', 'Select', 'Start'];
+  const so = { nes: ab, gb: ab, gbc: ab, sms: ['B', 'A', 'Start'], gg: ['B', 'A', 'Start'], gba: ['B', 'A', 'L', 'R', 'Select', 'Start'],
+    md: ['Y', 'B', 'A', 'L', 'X', 'R', 'Select', 'Start'], neogeo: ['B', 'A', 'Y', 'X', 'Select', 'Start'] }[sis];
+  if (so) return dir.concat(so);
+  const l = BOTOES_SNES.map(([n]) => n).filter((n) => !/2$/.test(n) || COM_ANALOG.includes(sis));
+  if (sis === 'ps1' || sis === 'ps2') l.push(...EIXOS_TECLA.map(([n]) => n));
+  if (sis === 'n64') l.push(...EIXOS_TECLA.slice(0, 4).map(([n]) => n));
+  return l;
 }
-function montarTeclas() {
-  TECLAS = {};
+const lerCamada = (k) => { try { return JSON.parse(ler(k) || 'null') || {}; } catch (e) { return {}; } };
+const vazio = (v) => v === '' || v == null;
+// põe uma camada por cima: tecla (ou botão) que já era de outra ação sai de lá
+function juntarCamada(m, c) {
+  for (const [n, v] of Object.entries(c)) { if (!vazio(v)) for (const o in m) if (o !== n && m[o] === v) m[o] = ''; m[n] = v; }
+}
+// o mapa de um console (e de um jogo) com todas as camadas; tipo = 'teclas' | 'botoes'
+function mapaDe(tipo, sis, jogo) {
+  const m = {};
+  for (const [n, bit, tecla] of BOTOES_SNES) {
+    if (tipo === 'teclas') m[n] = tecla;
+    else { const p = BOTOES_PADRAO.find(([, b]) => b === bit); m[n] = p ? p[0] : ''; }
+  }
+  juntarCamada(m, lerCamada(tipo));
+  if (sis === 'geral') return m;
+  if (tipo === 'teclas' && COM_ANALOG.includes(sis)) {
+    const ae = {}, usa = acoesDe(sis);
+    for (const [n, , , de] of EIXOS_TECLA) if (usa.includes(n)) ae[n] = /^Key/.test(de) ? de : m[de];
+    juntarCamada(m, ae); juntarCamada(m, DIRECIONAL_ANALOG);
+  }
+  juntarCamada(m, lerCamada(tipo + '.' + sis));
+  if (jogo) juntarCamada(m, lerCamada(tipo + '.jogo.' + jogo));
+  return m;
+}
+const sisAtual = () => (snes ? snes.sistema || 'snes' : 'snes');
+// monta as teclas e os botões do jogo aberto (ou do SNES, sem jogo)
+function aplicarControles() {
+  const sis = sisAtual(), jogo = snes ? jogoId : null, usa = new Set(acoesDe(sis));
+  mapa = mapaDe('teclas', sis, jogo);
+  TECLAS = {}; TECLAS_EIXO = {};
   for (const [nome, bit] of BOTOES_SNES) if (mapa[nome]) TECLAS[mapa[nome]] = bit;
+  for (const [n, k, s] of EIXOS_TECLA) if (mapa[n] && usa.has(n)) TECLAS_EIXO[mapa[n]] = [k, s];
+  const p = mapaDe('botoes', sis, jogo);
+  BOTOES.length = 0;
+  for (const [nome, bit] of BOTOES_SNES) if (!vazio(p[nome])) BOTOES.push([+p[nome], bit]);
+  teclado = 0; tecEixo.clear();
+  if (typeof natTeclas === 'function' && snes && snes.nucleo === 'pcsx2') natTeclas();
+  montarAjuda();
+}
+function carregarMapa() { aplicarControles(); }
+// analógico do teclado: os 4 eixos (-32767..32767) ou null com nenhuma tecla de analógico apertada
+const eixosTec = new Int16Array(4);
+function eixosDoTeclado() {
+  if (!tecEixo.size) return null;
+  eixosTec.fill(0);
+  for (const c of tecEixo) { const x = TECLAS_EIXO[c]; if (x) eixosTec[x[0]] = Math.max(-32767, Math.min(32767, eixosTec[x[0]] + x[1] * 32767)); }
+  return eixosTec.some((v) => v) ? eixosTec : null;
+}
+// os botões do teclado; no console 'misto' (PS1) o analógico do teclado aperta o direcional também (jogo sem analógico anda)
+function tecladoBits() {
+  let b = teclado;
+  if (tecEixo.size && analogico() === 'misto') {
+    const e = eixosDoTeclado();
+    if (e) { if (e[0] < 0) b |= 0x0200; if (e[0] > 0) b |= 0x0100; if (e[1] < 0) b |= 0x0800; if (e[1] > 0) b |= 0x0400; }
+  }
+  return b;
 }
 function nomeTecla(c) {
   if (!c) return '—';
@@ -795,33 +874,92 @@ function nomeTecla(c) {
     Minus: '-', Equal: '=', Backslash: '\\', IntlBackslash: '\\' };
   return nomes[c] || c;
 }
-// janela "Configurar teclas": clica num botão, aperta a tecla
-let capturando = null;
+const nomePad = (i) => (vazio(i) ? '—' : NOMES_PAD[i] || 'botão ' + i);
+// tela Controles: abas por console, "todo o console" ou "só este jogo", e cada ação com a tecla e o botão do controle
+let capturando = null;   // {nome, tipo: 'tecla' | 'botao'}: esperando a tecla ou o botão
+const ctUi = { aba: null, escopo: 'console' };
+const ABAS_CT = ['geral', 'snes', 'nes', 'gb', 'gba', 'md', 'sms', 'gg', 'neogeo', 'ps1', 'n64', 'ps2'];
+const podeJogo = () => !!(snes && jogoId && ctUi.aba === sisAtual());
+const jogoDaTela = () => (ctUi.aba !== 'geral' && ctUi.escopo === 'jogo' && podeJogo() ? jogoId : null);
+function chaveCamada(tipo) {   // onde a tela grava agora
+  if (ctUi.aba === 'geral') return tipo;
+  return jogoDaTela() ? tipo + '.jogo.' + jogoId : tipo + '.' + ctUi.aba;
+}
+function abrirControles() { ctUi.aba = null; capturando = null; fecharJanelas(); montarGrade(); $('#teclas').hidden = false; }
 function montarGrade() {
-  const g = $('#grade-teclas'); g.innerHTML = '';
-  for (const [nome] of BOTOES_SNES) {
-    const linha = document.createElement('div'); linha.className = 'linha-tecla';
-    const rot = document.createElement('span'); rot.textContent = nome;
-    const b = document.createElement('button');
-    b.className = 'tecla' + (capturando === nome ? ' esperando' : '');
-    b.textContent = capturando === nome ? 'aperte uma tecla…' : nomeTecla(mapa[nome]);
-    b.onclick = (e) => { e.stopPropagation(); capturando = nome; montarGrade(); };
-    linha.append(rot, b); g.appendChild(linha);
+  if (!ABAS_CT.includes(ctUi.aba) || (ctUi.aba !== 'geral' && !SIS[ctUi.aba])) {
+    ctUi.aba = snes ? sisAtual() : 'geral'; ctUi.escopo = snes && ler('teclas.jogo.' + jogoId) ? 'jogo' : 'console';
+  }
+  const abas = $('#ct-abas'); abas.textContent = '';
+  for (const s of ABAS_CT) {
+    if (s !== 'geral' && !SIS[s]) continue;
+    const b = elem('button', s === ctUi.aba ? 'ativo' : '', s === 'geral' ? 'Geral' : SIS[s].curto || SIS[s].nome);
+    b.onclick = () => { ctUi.aba = s; capturando = null; montarGrade(); };
+    abas.append(b);
+  }
+  const esc = $('#ct-escopo'); esc.textContent = '';
+  if (ctUi.aba === 'geral') esc.append(elem('small', '', 'Vale pra todos os consoles. Cada console e cada jogo pode mudar por cima.'));
+  else {
+    for (const [k, t] of [['console', 'Todo o ' + (SIS[ctUi.aba].curto || SIS[ctUi.aba].nome)], ['jogo', podeJogo() ? 'Só ' + (romNome || 'este jogo') : 'Só este jogo (abra o jogo)']]) {
+      const b = elem('button', (jogoDaTela() ? 'jogo' : 'console') === k ? 'ativo' : '', t);
+      b.disabled = k === 'jogo' && !podeJogo();
+      b.onclick = () => { ctUi.escopo = k; capturando = null; montarGrade(); };
+      esc.append(b);
+    }
+  }
+  const sis = ctUi.aba, jogo = jogoDaTela(), tec = mapaDe('teclas', sis, jogo), bot = mapaDe('botoes', sis, jogo);
+  const camT = lerCamada(chaveCamada('teclas')), camB = lerCamada(chaveCamada('botoes')), rot = NOMES_BOTAO[sis] || {};
+  const g = $('#grade-teclas'); g.textContent = '';
+  g.append(elem('b', 'ct-cab', 'Botão'), elem('b', 'ct-cab', '⌨ Teclado'), elem('b', 'ct-cab', '🎮 Controle'), elem('span'));
+  for (const n of sis === 'geral' ? BOTOES_SNES.map(([x]) => x) : acoesDe(sis)) {
+    const esperaT = capturando && capturando.nome === n && capturando.tipo === 'tecla';
+    const esperaB = capturando && capturando.nome === n && capturando.tipo === 'botao';
+    const nome = NOMES_ACAO[n] || (rot[n] && rot[n] !== n ? rot[n] + ' (' + n + ')' : n);
+    const bt = elem('button', 'tecla' + (esperaT ? ' esperando' : '') + (n in camT ? ' mudou' : ''), esperaT ? 'aperte…' : nomeTecla(tec[n]));
+    bt.onclick = (e) => { e.stopPropagation(); capturando = { nome: n, tipo: 'tecla' }; montarGrade(); };
+    let bb;
+    if (ehEixo(n)) bb = elem('span', 'ct-fixo', 'o analógico');
+    else {
+      bb = elem('button', 'tecla' + (esperaB ? ' esperando' : '') + (n in camB ? ' mudou' : ''), esperaB ? 'aperte no controle…' : nomePad(bot[n]));
+      bb.onclick = (e) => { e.stopPropagation(); capturando = { nome: n, tipo: 'botao', solto: false, ate: performance.now() + 10000 }; montarGrade(); };
+    }
+    const r = elem('button', 'ct-volta', '↺'); r.title = 'voltar ao padrão';
+    r.style.visibility = n in camT || n in camB ? '' : 'hidden';
+    r.onclick = (e) => { e.stopPropagation(); for (const t of ['teclas', 'botoes']) { const k = chaveCamada(t), c = lerCamada(k); delete c[n]; guardar(k, JSON.stringify(c)); } aplicarControles(); montarGrade(); };
+    g.append(elem('span', 'ct-nome', nome), bt, bb, r);
   }
   $('#teclas-dica').textContent = capturando
-    ? `Aperte a tecla para ${capturando} (Esc cancela).`
-    : 'Clique num botão e aperte a tecla que quiser.';
+    ? (capturando.tipo === 'tecla' ? `Aperte a tecla para ${NOMES_ACAO[capturando.nome] || capturando.nome} (Esc cancela).` : 'Aperte o botão no controle (Esc cancela).')
+    : 'Clique na tecla ou no botão do controle e aperte o que quiser. Mudado fica marcado; ↺ volta ao padrão.';
+}
+// grava na camada da tela; a tecla (ou botão) que já era de outra ação troca com esta
+function gravarControle(tipo, nome, v) {
+  const k = chaveCamada(tipo), cam = lerCamada(k), atual = mapaDe(tipo, ctUi.aba, jogoDaTela());
+  const dono = Object.keys(atual).find((o) => o !== nome && atual[o] === v);
+  if (dono) cam[dono] = vazio(atual[nome]) ? '' : atual[nome];
+  cam[nome] = v;
+  guardar(k, JSON.stringify(cam)); capturando = null; aplicarControles(); montarGrade();
 }
 function capturar(e) {
   e.preventDefault();
   if (e.code === 'Escape') { capturando = null; montarGrade(); return; }
+  if (capturando.tipo !== 'tecla') return;
   if (RESERVADAS.includes(e.code)) { avisar(nomeTecla(e.code) + ' é atalho do emulador; escolha outra', 2500); return; }
-  // se a tecla já era de outro botão, os dois trocam
-  const dono = Object.keys(mapa).find((n) => mapa[n] === e.code && n !== capturando);
-  if (dono) mapa[dono] = mapa[capturando];
-  mapa[capturando] = e.code;
-  capturando = null; teclado = 0;
-  guardar('teclas', JSON.stringify(mapa)); montarTeclas(); montarGrade(); montarAjuda();
+  gravarControle('teclas', capturando.nome, e.code);
+}
+// botão do controle: espera soltar o que abriu a escolha (o A da navegação) e pega o próximo apertado
+setInterval(() => {
+  if (!capturando || capturando.tipo !== 'botao') return;
+  if (performance.now() > capturando.ate) { capturando = null; montarGrade(); return; }
+  const ap = [];
+  for (const g of navigator.getGamepads ? navigator.getGamepads() : []) if (g) g.buttons.forEach((b, i) => { if (b.pressed) ap.push(i); });
+  if (!capturando.solto) { if (!ap.length) capturando.solto = true; return; }
+  if (ap.length) gravarControle('botoes', capturando.nome, ap[0]);
+}, 40);
+function restaurarControles() {
+  for (const t of ['teclas', 'botoes']) guardar(chaveCamada(t), '');
+  aplicarControles(); montarGrade();
+  avisar(ctUi.aba === 'geral' ? 'controles: padrão' : jogoDaTela() ? 'este jogo volta a usar os controles do console' : 'o console volta a usar os controles gerais', 3000);
 }
 function montarAjuda() {
   const t = (n) => nomeTecla(mapa[n]);
@@ -850,6 +988,7 @@ function montarAjuda() {
 // controle "standard" (Xbox/USB): A,B,X,Y na posição do SNES
 const BOTOES = [[0, 0x8000], [1, 0x0080], [2, 0x4000], [3, 0x0040], [4, 0x0020], [5, 0x0010],
   [6, 0x0008], [7, 0x0004], [8, 0x2000], [9, 0x1000], [12, 0x0800], [13, 0x0400], [14, 0x0200], [15, 0x0100]];   // 6/7 = gatilhos (L2/R2 do PS1)
+const BOTOES_PADRAO = BOTOES.map((x) => x.slice());   // o BOTOES muda com a tela Controles (por console e por jogo)
 let teclado = 0, turbo = false;
 let toque = 0;   // botões apertados na tela de toque (celular)
 const eixosToque = [0, 0];   // analógico da tela de toque (-1..1), nos consoles com analogico
@@ -901,6 +1040,7 @@ async function explicarFalhaControle(url) {
 }
 // conta pro celular qual jogo está aberto: ele troca o controle pro daquele console (botões, nomes e cores)
 function contarJogoAoControle() {
+  if (typeof avisarCelularJogador === 'function' && !CELULAR) avisarCelularJogador();   // celulares pela rede: o console do jogo novo
   if (!remoto.ligado || !remoto.ws) return;
   const sis = snes ? snes.sistema || 'snes' : '';
   try { remoto.ws.send('JOGO ' + sis + '\t' + (snes ? romNome.replace(/[\t\n]/g, ' ').slice(0, 80) : '')); } catch (e) { /* caiu: manda de novo ao religar */ }
@@ -911,8 +1051,8 @@ function desconectarControle() { remoto.alvo = null; const w = remoto.ws; remoto
 function marcarNucleoSnes() { const b = $('[data-acao="nucleo-snes"]'); if (b) b.textContent = 'Núcleo do SNES: ' + (nucleoSnes() === 'kof' ? 'Kof' : 'Snes9x'); }
 setTimeout(marcarNucleoSnes, 0);
 function marcarControle() { const b = $('[data-acao="controle-celular"]'); if (b) b.textContent = remoto.ligado ? '📱 Celular conectado (desconectar)' : '📱 Celular como controle…'; }
-function estado() {
-  let b = teclado | toque | remoto.bits;
+function estado() {   // tudo junto (menus e telas: qualquer controle mexe); no jogo cada jogador tem o seu (lerJogadores)
+  let b = tecladoBits() | toque | remoto.bits | (typeof jog !== 'undefined' ? jogCelBits() : 0);
   const puro = analogico() === 'puro';
   for (const g of (navigator.getGamepads ? navigator.getGamepads() : [])) {
     if (!g) continue;
@@ -983,14 +1123,16 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') { acao('mudo'); return; }
   if (e.code === 'Tab') { e.preventDefault(); turbo = true; return; }
   if (e.code === 'Backspace') { e.preventDefault(); if (snes) voltandoTecla = true; return; }
+  if (TECLAS_EIXO[e.code] && snes) { e.preventDefault(); tecEixo.add(e.code); return; }
   if (TECLAS[e.code] && snes) { e.preventDefault(); teclado |= TECLAS[e.code]; }
 });
 addEventListener('keyup', (e) => {
   if (e.code === 'Tab') turbo = false;
   if (e.code === 'Backspace') voltandoTecla = false;
   if (TECLAS[e.code]) teclado &= ~TECLAS[e.code];
+  tecEixo.delete(e.code);
 });
-addEventListener('blur', () => { teclado = 0; turbo = false; voltandoTecla = false; });
+addEventListener('blur', () => { teclado = 0; tecEixo.clear(); turbo = false; voltandoTecla = false; });
 
 // ---------------- laço principal ----------------
 // desemp: quanto cada parte do quadro gasta (painel de desempenho: F3 no PC, menu rápido no celular)
@@ -1553,22 +1695,24 @@ let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAt
 // eixos pro núcleo (-32767..32767): controle físico (com zona morta) ou a tela de toque; tudo parado = 0 (aí a ponte do N64
 // usa o direcional como analógico, como antes)
 const eixosQuadro = new Int16Array(4);
-function lerEixos() {
+// analógicos do jogador 1 (os controles dele; sem nenhum mexido, o analógico da tela de toque)
+function lerEixos(js) {
   const e = eixosQuadro; e.fill(0);
   if (!analogico()) return null;
   const pos = (v) => Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767);
-  for (const g of (navigator.getGamepads ? navigator.getGamepads() : [])) {
-    if (!g) continue;
-    for (let k = 0; k < 4 && k < g.axes.length; k++) if (!e[k]) e[k] = pos(g.axes[k]);
-  }
-  if (!e[0] && !e[1] && !e[2] && !e[3]) e.set(remoto.eixos);   // o celular como controle
+  const j1 = (js || lerJogadores()).e[0];
+  if (j1) e.set(j1);
   if (!e[0] && !e[1]) { e[0] = pos(eixosToque[0]); e[1] = pos(eixosToque[1]); }
   return e;
 }
 function rodarQuadro() {
-  snes.eixos = lerEixos();
-  let b = semCombo(estado());
-  if (snes.sistema !== 'ps1' && snes.sistema !== 'n64' && snes.sistema !== 'ps2') b &= ~0x000C;   // L2/R2: no SNES esses bits identificam o controle e têm de ficar zerados
+  const js = lerJogadores();
+  snes.eixos = lerEixos(js);
+  const semL2R2 = snes.sistema !== 'ps1' && snes.sistema !== 'n64' && snes.sistema !== 'ps2';   // L2/R2: no SNES esses bits identificam o controle e têm de ficar zerados
+  let b = semCombo(js.b[0]);
+  if (semL2R2) b &= ~0x000C;
+  for (let j = 1; j < 4 && j < snes.pad.length; j++) snes.pad[j] = semL2R2 ? js.b[j] & ~0x000C : js.b[j];   // jogadores 2 a 4
+  if (analogico()) snes.eixosN = js.e;
   snes.pad[0] = b; snes.runFrame();
   if (marcoBug) { marcoBug.entradas.push(b); if (marcoBug.entradas.length >= 600) novoMarco(); }
 }
@@ -2355,7 +2499,7 @@ async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
     autoAntes = Date.now();
   } catch (e) { console.warn('biblioteca indisponível', e); }
   contarSessao(jogoId, romNome);
-  contarJogoAoControle();
+  aplicarControles(); contarJogoAoControle();
   perguntarModo();
 }
 async function atualizarCapa() {   // print do jogo atual vira a capa dele na biblioteca
@@ -3465,10 +3609,10 @@ async function mostrarBiblioteca(pedir, relerPasta) {
     if (antes) { const j = visiveis.indexOf(antes); if (j >= 0) marcarSel(j); }
   }
 }
-function fecharJanelas() { fecharTemas(false); for (const id of ['home', 'biblioteca', 'estados', 'guia', 'teclas', 'estatisticas', 'jukebox', 'bios-tela', 'aparelhos']) $('#' + id).hidden = true; if (typeof pararCamera === 'function') pararCamera(); capturando = null; if (rapidoAberto) fecharRapido(); }
+function fecharJanelas() { fecharTemas(false); for (const id of ['home', 'biblioteca', 'estados', 'guia', 'teclas', 'estatisticas', 'jukebox', 'bios-tela', 'aparelhos', 'jogadores']) $('#' + id).hidden = true; if (typeof pararCamera === 'function') pararCamera(); capturando = null; if (rapidoAberto) fecharRapido(); }
 // ---- controle (físico ou o celular) mexe em todas as telas: o direcional escolhe o botão mais perto naquela direção,
 // A aperta, B volta/fecha, Start vai pro Início (no Início, A/Start fazem a ação principal e X abre a biblioteca)
-const TELAS_PAD = ['home', 'estados', 'guia', 'teclas', 'aparelhos', 'bios-tela', 'bug', 'jukebox', 'temas', 'molduras', 'estatisticas'];
+const TELAS_PAD = ['home', 'estados', 'guia', 'teclas', 'aparelhos', 'jogadores', 'bios-tela', 'bug', 'jukebox', 'temas', 'molduras', 'estatisticas'];
 const FOCAVEIS = 'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"]), li[data-acao]';
 const pad = { el: null, dir: 0, prox: 0 };
 function telaDoPad() {
@@ -3574,6 +3718,8 @@ const ITENS_RAPIDO = [
   { t: '🐞 Reportar bug', so: () => !nativo(), f: () => { fecharRapido(); abrirBug(); } },
   { t: '🗂 Estados salvos', f: () => { fecharRapido(); acao('estados'); } },
   { t: '☕ Biblioteca', f: () => { fecharRapido(); acao('biblioteca'); } },
+  { t: '🎮 Jogadores (2 a 4)', so: () => !CELULAR, f: () => { fecharRapido(); acao('jogadores'); } },
+  { t: '⌨ Controles e teclas', so: () => !CELULAR, f: () => { fecharRapido(); acao('teclas'); } },
   { t: '📈 Painel de desempenho', v: () => (desemp.visivel ? 'ligado' : 'desligado'), aj: () => alternarDesempenho(), f: () => { alternarDesempenho(); fecharRapido(); } },
   { t: '🎮 Modo', v: () => nomeModo(modo), aj: (d) => mudarModo(ciclar(MODOS, modo, d)), f: () => { fecharRapido(); acao('emu-opcoes'); } },
   { t: '🎨 Tema', v: () => TODOS_TEMAS.find(([k]) => k === temaSalvo)[1], aj: (d) => tema(ciclar(TODOS_TEMAS, temaSalvo, d)), f: () => { fecharRapido(); acao('temas'); } },
@@ -3934,7 +4080,7 @@ async function abrirTela(t) {
     case 'estatisticas': await mostrarEstat(); break;
     case 'estados': await mostrarEstados(jogoId); break;
     case 'guia': abrirGuia(); break;
-    case 'teclas': fecharJanelas(); montarGrade(); $('#teclas').hidden = false; break;
+    case 'teclas': abrirControles(); break;
   }
 }
 addEventListener('mouseup', (e) => { if (e.button === 3) { e.preventDefault(); voltar(); } });
@@ -4213,6 +4359,8 @@ async function acao(a) {
   fecharMenus();
   if (a.startsWith('bios:')) return escolherBios(a.slice(5));
   if (acaoRede(a)) return;
+  if (a === 'jogadores') { abrirJogadores(); return; }
+  if (a === 'jogadores-fechar') { $('#jogadores').hidden = true; if (!snes) abrirHome(); return; }
   switch (a) {
     case 'abrir': $('#arquivo').click(); break;
     case 'traducao': {   // escolhe o .ips/.bps/.ups; com jogo aberto aplica nele, senão pede a ROM depois
@@ -4339,12 +4487,9 @@ async function acao(a) {
     case 'hm-dica': novaDica(); break;
     case 'hm-continuar': { const j = homeJogos[0]; if (j) abrirJogo({ nome: j.nome, jogo: j }, false); break; }
     case 'hm-zero': { const j = homeJogos[0]; if (j) abrirJogo({ nome: j.nome, jogo: j }, true); break; }
-    case 'teclas': fecharJanelas(); montarGrade(); $('#teclas').hidden = false; break;
+    case 'teclas': abrirControles(); break;
     case 'fechar-teclas': capturando = null; voltar(); break;
-    case 'teclas-padrao':
-      mapa = {}; for (const [n, , padrao] of BOTOES_SNES) mapa[n] = padrao;
-      guardar('teclas', JSON.stringify(mapa)); montarTeclas(); montarGrade(); montarAjuda(); avisar('teclas padrão restauradas');
-      break;
+    case 'teclas-padrao': restaurarControles(); break;
   }
 }
 function fecharMenus() { document.querySelectorAll('.m.aberto').forEach((m) => m.classList.remove('aberto')); }
@@ -4386,7 +4531,7 @@ ajustarEscala();
 if (!temPasta) document.querySelectorAll('[data-acao="pasta"], [data-acao="reler-pasta"]').forEach((b) => { b.hidden = true; });
 if (sofa) mostrarBiblioteca(false); else abrirHome();
 primeiraVez();
-window.KOFnes = { desempenho: () => desemp.ultimo, controle: { conectar: conectarControle, desconectar: desconectarControle, estado: () => ({ ligado: remoto.ligado, bits: remoto.bits, eixos: Array.from(remoto.eixos) }) }, guarda: { assentarRascunhos, assentarSave, lerSave, exportarSaves, importarSaves, calcularEspaco, limitarEstados, carregarEstat, estat: () => estat, aparelho: APARELHO, bdTodos, bdGuardar, bdPegar }, imagemTeste: (rgba, l, a) => { imagemTeste = true; document.body.classList.remove('vazio'); tamanhoTela(l, a); px.set(new Uint32Array(Uint8Array.from(rgba).buffer)); pintar(true); pintar(true); ajustarEscala(); }, mudarMoldura, abrirArquivo, estado: () => ({ snes: !!snes, pausado, romNome, jogoId }), nucleo: () => snes, botoes: () => estado(), mapa: () => mapa, filtro: () => filtro, aplicarFiltro, aplicarVisual, notaDoCanal, notas: () => notas, atrasoNotas: () => (juke.apu ? juke.amostras / juke.apu.taxa - notasVisto : 0), mudarSinc, filtrosRuins: () => glRuins.size, auto: () => autoSalvar, webgl: !!gl,
+window.KOFnes = { desempenho: () => desemp.ultimo, controle: { conectar: conectarControle, desconectar: desconectarControle, estado: () => ({ ligado: remoto.ligado, bits: remoto.bits, eixos: Array.from(remoto.eixos) }) }, guarda: { assentarRascunhos, assentarSave, lerSave, exportarSaves, importarSaves, calcularEspaco, limitarEstados, carregarEstat, estat: () => estat, aparelho: APARELHO, bdTodos, bdGuardar, bdPegar }, imagemTeste: (rgba, l, a) => { imagemTeste = true; document.body.classList.remove('vazio'); tamanhoTela(l, a); px.set(new Uint32Array(Uint8Array.from(rgba).buffer)); pintar(true); pintar(true); ajustarEscala(); }, mudarMoldura, abrirArquivo, estado: () => ({ snes: !!snes, pausado, romNome, jogoId }), nucleo: () => snes, botoes: () => estado(), mapa: () => mapa, controles: { mapaDe, aplicar: aplicarControles }, filtro: () => filtro, aplicarFiltro, aplicarVisual, notaDoCanal, notas: () => notas, atrasoNotas: () => (juke.apu ? juke.amostras / juke.apu.taxa - notasVisto : 0), mudarSinc, filtrosRuins: () => glRuins.size, auto: () => autoSalvar, webgl: !!gl,
   // pros testes: lista falsa de n jogos (mede a biblioteca) e uma quebra de mentira no núcleo
   testeLista: (n, nomes) => { fecharJanelas(); itens = Array.from({ length: n }, (_, i) => { const nome = nomes ? nomes[i % nomes.length] + (i >= nomes.length ? ' #' + i : '') : 'Jogo de teste ' + i; return { nome, ext: 'SFC', chave: normal(nome), variante: VARIANTE.test(nome) }; }); $('#biblioteca').hidden = false; const t0 = performance.now(); montarLista(); const t1 = performance.now(); for (let k = 0; k < 30; k++) listaTecla({ code: 'ArrowDown', preventDefault() {}, target: null, key: '' }); return { montar: Math.round(t1 - t0), trintaSetas: Math.round(performance.now() - t1) }; },
   forcarErro: () => { const r = snes.runFrame; snes.runFrame = () => { snes.runFrame = r; throw new Error('quebra de teste'); }; },

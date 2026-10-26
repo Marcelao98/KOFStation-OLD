@@ -124,8 +124,18 @@ body.arrastando #palco { outline: 3px dashed var(--destaque); outline-offset: -1
 }
 
 /* Configurar teclas */
-#teclas { width: min(420px, 92vw); text-align: left; }
-#grade-teclas { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; margin: 6px 0 12px; }
+#teclas { width: min(620px, 94vw); text-align: left; max-height: 92vh; overflow-y: auto; }
+#grade-teclas { display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px 10px; align-items: center; margin: 6px 0 12px; }
+#grade-teclas .tecla { min-width: 90px; }
+#grade-teclas .tecla.mudou { border-style: dashed; border-color: var(--destaque); }
+.ct-cab { font-size: 0.8em; color: var(--fraco); }
+.ct-fixo { font-size: 0.85em; color: var(--fraco); text-align: center; }
+.ct-volta { background: none; border: 0; color: var(--fraco); cursor: pointer; font-size: 1.1em; }
+.ct-abas { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 8px; }
+.ct-abas button { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--borda); background: var(--painel2); color: var(--texto); cursor: pointer; }
+.ct-abas button.ativo { background: var(--destaque); color: var(--fundo); border-color: var(--destaque); }
+.ct-abas button:disabled { opacity: 0.45; cursor: default; }
+.ct-escopo small { color: var(--fraco); }
 .linha-tecla { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .tecla {
   min-width: 96px; padding: 5px 10px; border-radius: var(--raio); text-align: center;
@@ -1628,3 +1638,12 @@ html.celular body.com-visual #palco { padding-right: 0; padding-bottom: 58vh; }
 .ap-fases p { margin: 4px 0; }
 /* o botão escolhido pelo controle (navegarPad no app.js) */
 .foco-pad { outline: 3px solid var(--destaque) !important; outline-offset: 2px; box-shadow: 0 0 0 7px color-mix(in srgb, var(--destaque) 28%, transparent) !important; }
+/* 🎮 Jogadores */
+#jog-lista { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 8px; }
+#jog-lista li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--borda); border-radius: 10px; background: var(--painel2); flex-wrap: wrap; }
+#jog-lista .jog-nome { display: flex; align-items: center; gap: 10px; min-width: 0; }
+#jog-lista .jog-luz { width: 12px; height: 12px; border-radius: 50%; background: var(--borda); flex: none; transition: background .08s, box-shadow .08s; }
+#jog-lista li.apertando .jog-luz { background: #3ccf6a; box-shadow: 0 0 10px #3ccf6a; }
+#jog-lista .jog-bts { display: flex; gap: 6px; }
+#jog-lista .jog-bts button { width: 44px; padding: 6px 0; border-radius: 8px; border: 2px solid var(--borda); background: var(--painel); font-weight: 700; }
+#jog-lista .jog-bts button.ativo { border-color: var(--cor); background: color-mix(in srgb, var(--cor) 35%, var(--painel)); }

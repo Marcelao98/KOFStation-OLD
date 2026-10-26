@@ -96,15 +96,17 @@ construir() {
   local GL_C="" GL_LD=""; [ "$nome" = mupen64 ] && GL_C="-DKOF_GL" && GL_LD="-s USE_WEBGL2=1 -s MIN_WEBGL_VERSION=2 -s FULL_ES3=1 -s INITIAL_MEMORY=268435456 -s ASYNCIFY=1 -s ASYNCIFY_STACK_SIZE=65536"
   em++ -O3 -DNDEBUG -std=c++11 $GL_C $INC -c "$AQUI/ponte.cpp" -o "$O/ponte.o"
   # o .bc do emscripten vem sem o libretro-common (STATIC_LINKING): compila aqui o que existir na cópia do núcleo
-  local i=0 f
+  local i=0 f LRH
+  # o libretro.h fica na pasta do núcleo (alguns arquivos do libretro-common incluem ele): entra por último na busca
+  LRH="$(dirname "$(find "$dir" -name libretro.h -not -path '*/libretro-common/*' | head -1)")"
   for f in compat/compat_posix_string compat/compat_strcasestr compat/compat_snprintf compat/compat_strl compat/fopen_utf8 \
            encodings/encoding_utf encodings/encoding_deflate file/file_path file/file_path_io streams/file_stream \
            streams/file_stream_transforms string/stdstring time/rtime vfs/vfs_implementation file/retro_dirent; do
     [ -f "$lc/$f.c" ] || continue
-    i=$((i+1)); emcc -O3 -DNDEBUG -I"$lc/include" -c "$lc/$f.c" -o "$O/c$i.o"   # só os cabeçalhos do libretro-common (a pasta do núcleo pode ter outros com o mesmo nome)
+    i=$((i+1)); emcc -O3 -DNDEBUG -I"$lc/include" -idirafter "$LRH" -c "$lc/$f.c" -o "$O/c$i.o"   # só os cabeçalhos do libretro-common (a pasta do núcleo pode ter outros com o mesmo nome)
   done
   local F=_lr_alloc,_lr_init,_lr_load,_lr_info,_lr_unload,_lr_run,_lr_pad,_lr_fb,_lr_w,_lr_h,_lr_audio,_lr_audio_n,_lr_audio_total
-  F=$F,_lr_audio_status,_lr_arquivo,_lr_apagar,_lr_var,_lr_canais,_lr_sonda,_lr_mudas,_lr_onda,_lr_onda_pos,_lr_onda_pos_c,_lr_reset,_lr_state_size,_lr_state_save,_lr_state_load,_lr_ok,_lr_eixos,_lr_dispositivo,_lr_mem_ptr,_lr_mem_size,_malloc,_free
+  F=$F,_lr_audio_status,_lr_arquivo,_lr_apagar,_lr_var,_lr_canais,_lr_sonda,_lr_mudas,_lr_onda,_lr_onda_pos,_lr_onda_pos_c,_lr_reset,_lr_state_size,_lr_state_save,_lr_state_load,_lr_ok,_lr_eixos,_lr_dispositivo,_lr_mem_ptr,_lr_mem_size,_lr_pad_n,_lr_eixos_n,_lr_jogadores,_lr_dispositivo_n,_malloc,_free
   em++ -O3 ${EXTRA_LD:-} "$O"/*.o "$bc" -s WASM=1 -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=67108864 $GL_LD \
     -s MODULARIZE=1 -s EXPORT_NAME="Nucleo_$nome" -s ENVIRONMENT=web,node -s SINGLE_FILE=1 \
     -s EXPORTED_RUNTIME_METHODS=ccall,HEAPU8,HEAPF64,stringToUTF8,lengthBytesUTF8${RT_EXTRA:-} -s EXPORTED_FUNCTIONS=$F \

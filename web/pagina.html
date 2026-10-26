@@ -23,6 +23,7 @@
     <button data-acao="importar-saves">📥 Trazer backup…</button>
     <button data-acao="controle-celular">📱 Celular como controle…</button>
     <button data-acao="aparelhos">📡 Aparelhos (PC e celular)…</button>
+    <button data-acao="jogadores">🎮 Jogadores (2 a 4 controles)…</button>
     <hr>
     <button data-acao="reiniciar">Reiniciar<kbd>F1</kbd></button>
   </div></div>
@@ -37,7 +38,7 @@
     <button data-acao="auto-toggle">Salvar automático: ligado</button>
     <button data-acao="emu-opcoes">🎮 Modo de jogo e opções de emulação…</button>
     <hr>
-    <button data-acao="teclas">Configurar teclas…</button>
+    <button data-acao="teclas">Controles e teclas…</button>
   </div></div>
   <div class="m"><button>Imagem</button><div class="sub">
     <button data-escala="2">Escala 2×</button>
@@ -312,14 +313,16 @@
         <div data-pagina="atalhos" hidden>
           <h3>⌨️ Atalhos e controles</h3>
           <table id="tab-ajuda"></table>
-          <p class="dica">Pra mudar as teclas: <b>Emulação → Configurar teclas…</b></p>
+          <p class="dica">Pra mudar as teclas: <b>Emulação → Controles e teclas…</b></p>
         </div>
       </div>
     </div>
   </section>
 
   <section id="teclas" class="janela" hidden>
-    <div class="titulo-j">Configurar teclas <button class="x" data-acao="fechar-teclas">×</button></div>
+    <div class="titulo-j">🎮 Controles e teclas <button class="x" data-acao="fechar-teclas">×</button></div>
+    <div id="ct-abas" class="ct-abas so-pc"></div>
+    <div id="ct-escopo" class="ct-abas ct-escopo so-pc"></div>
     <p class="dica" id="teclas-dica">Clique num botão e aperte a tecla que quiser.</p>
     <div id="grade-teclas"></div>
     <button class="grande sec" data-acao="teclas-padrao">Restaurar padrão</button>
@@ -360,6 +363,15 @@
       <div class="ab-nav"><button class="grande sec" data-acao="ab-voltar">◂ Voltar</button><button class="grande" data-acao="ab-proximo">Próximo ▸</button></div>
     </div>
     <button class="ab-pular" data-acao="ab-pular">Pular ▸</button>
+  </section>
+  <section id="jogadores" class="janela" hidden>
+    <div class="titulo-j"><span>🎮 Jogadores</span><button class="x" data-acao="jogadores-fechar">×</button></div>
+    <p>Até 4 jogando juntos. Cada controle aparece aqui sozinho: aperte qualquer botão e a luz dele acende. Toque em
+      <b>J1</b> a <b>J4</b> pra escolher o jogador de cada um (fica guardado pra próxima vez).</p>
+    <ul id="jog-lista"></ul>
+    <p class="dica">🎮 <b>Controle de USB ou Bluetooth:</b> é só ligar. · 📱 <b>Celular:</b> pareie em 📡 Aparelhos e, no
+      celular, abra <b>Controles → Usar este celular como controle do PC</b>: cada celular vira um jogador.</p>
+    <p id="jog-ps2" class="dica" hidden>⚠ No PS2, por enquanto, só o Jogador 1.</p>
   </section>
   <section id="aparelhos" class="janela" hidden>
     <div class="titulo-j"><span>📡 Aparelhos</span><button class="x" data-acao="aparelhos-fechar">×</button></div>
