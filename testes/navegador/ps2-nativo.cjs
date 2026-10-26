@@ -29,7 +29,7 @@ const [,, pasta, kof, nucleo, iso] = process.argv;
   const biosLa = fs.existsSync(path.join(dados, 'sistema/pcsx2/bios/bios-ps2.bin')) && fs.statSync(path.join(dados, 'sistema/pcsx2/bios/bios-ps2.bin')).size;
   conferir(biosLa === 4194304, `a BIOS foi pro kofnativo (${biosLa} bytes)`);
   const aviso = await p.evaluate(() => ({ erro: document.querySelector('#aviso').classList.contains('erro'), texto: document.querySelector('#aviso').textContent }));
-  conferir(aviso.erro && /PS2/.test(aviso.texto), 'o erro do PCSX2 aparece na tela e fica: ' + aviso.texto.slice(0, 120));
+  conferir(aviso.erro && /PS2|PCSX2/.test(aviso.texto), 'o erro do PCSX2 aparece na tela e fica: ' + aviso.texto.slice(0, 120));
   const txt = log.join('');
   conferir(!/filtro não compilou/.test(txt), 'o filtro da página compilou no kofnativo');
   conferir(/BIOS/.test(txt), 'o PCSX2 recebeu a BIOS e respondeu (aqui recusa a falsa)');

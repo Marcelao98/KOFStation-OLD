@@ -1,7 +1,7 @@
 # KOFstation (antigo KOFnes) — contexto pra próxima sessão
 
 ## ⏩ ONDE PAROU (25/10, fim do chat longo; leia isto primeiro)
-- **main publicada: versão 202610260251 (PS2 pelo PCSX2 nativo no Linux, LANCADOR=6; BIOS achada pela opção pcsx2_bios), CASCA 13, lançador 10 (exe) / LANCADOR=5 (kofnes.sh)** (26/10: PS2 no PC + controle 2; publicado com `COMPILAR=web/compilar-sem-kof.sh web/publicar.sh`, sem o compilador Kof, porque snes/ e os núcleos não mudaram; precisa do `nucleo-libretro/saida/play.js` do `nucleo-ps2/construir.sh`) (repositório agora é `Marcelao98/KOFStation`; o nome antigo redireciona).
+- **main publicada: versão 202610260305 (tela "🔑 BIOS dos consoles": card no Início + Arquivo, um botão por console, a do PS2 aceita qualquer nome pelo conteúdo 4–8 MB + ROMDIR; erro com BIOS tem atalho; PS2 pelo PCSX2 nativo no Linux, LANCADOR=6), CASCA 13, lançador 10 (exe) / LANCADOR=5 (kofnes.sh)** (26/10: PS2 no PC + controle 2; publicado com `COMPILAR=web/compilar-sem-kof.sh web/publicar.sh`, sem o compilador Kof, porque snes/ e os núcleos não mudaram; precisa do `nucleo-libretro/saida/play.js` do `nucleo-ps2/construir.sh`) (repositório agora é `Marcelao98/KOFStation`; o nome antigo redireciona).
   Na main: N64 (PC wasm + celular nativo), PS1 nativo, analógico (N64/PS1), saves no banco + backup `.kofsave`, celular
   como controle do PC, busca por gênero/empresa, pasta de ROMs no APK, painel de desempenho (F3), **SNES do PC = Snes9x**
   (Kof como opção em Emulação). Detalhes de cada um nas notas abaixo.

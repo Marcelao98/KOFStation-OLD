@@ -17,7 +17,7 @@
     <button data-acao="pasta">Escolher pasta de ROMs…</button>
     <button data-acao="abrir">Adicionar arquivo…<kbd>Ctrl+O</kbd></button>
     <button data-acao="traducao">Aplicar tradução (patch)…</button>
-    <button data-acao="bios">BIOS…</button>
+    <button data-acao="bios-tela">🔑 BIOS dos consoles…</button>
     <button data-acao="estatisticas">📊 Estatísticas</button>
     <button data-acao="exportar-saves">💾 Backup dos saves (.kofsave)</button>
     <button data-acao="importar-saves">📥 Trazer backup…</button>
@@ -114,7 +114,7 @@
         <span class="hm-logo" id="hm-logo">☕</span>
         <div>
           <h1>KOFstation</h1>
-          <p class="hm-lema">Super Nintendo, NES, Game Boy, GBA, Sega, Neo Geo e PlayStation num lugar só, pra facilitar a sua jogatina.</p>
+          <p class="hm-lema">Super Nintendo, NES, Game Boy, GBA, Sega, Neo Geo, PlayStation e PS2 num lugar só, pra facilitar a sua jogatina.</p>
         </div>
       </div>
       <p class="hm-saudacao" id="hm-saudacao"></p>
@@ -123,11 +123,12 @@
       <article class="hm-destaque" id="hm-destaque"></article>
       <div class="hm-atalhos">
         <button data-acao="biblioteca"><i>📚</i><b>Biblioteca</b><small>seus jogos e a pasta de ROMs</small></button>
-        <button data-acao="abrir"><i>＋</i><b>Abrir uma ROM</b><small>.sfc, .smc, .nes, .gb, .gbc, .gba, .md, .sms, .gg, .zip (Neo Geo) ou .cue/.chd/.pbp (PlayStation)<span class="so-pc"> (ou arraste)</span></small></button>
+        <button data-acao="abrir"><i>＋</i><b>Abrir uma ROM</b><small>.sfc, .smc, .nes, .gb, .gbc, .gba, .md, .sms, .gg, .zip (Neo Geo) .cue/.chd/.pbp (PlayStation) ou .iso (PS2)<span class="so-pc"> (ou arraste)</span></small></button>
         <button data-acao="jukebox"><i>🎵</i><b>Jukebox</b><small>as trilhas que você guardou</small></button>
         <button data-acao="estatisticas"><i>📊</i><b>Estatísticas</b><small>quanto você jogou, e o quê</small></button>
         <button data-acao="temas"><i>🎨</i><b>Temas</b><small><span class="n-temas">28</span> jeitos de deixar com a sua cara</small></button>
         <button data-acao="guia"><i>📖</i><b>Guia</b><small>tudo que o KOFstation sabe fazer</small></button>
+        <button data-acao="bios-tela"><i>🔑</i><b>BIOS</b><small id="hm-bios">guarde a BIOS dos consoles (PS2, Neo Geo...)</small></button>
       </div>
     </div>
     <section class="hm-bloco" id="hm-bloco-recentes">
@@ -156,7 +157,7 @@
         <button class="x so-cel bib-fechar-ficha" data-acao="fechar-ficha" title="fechar">⌄</button>
         <div class="capa"><img id="capa-img" alt=""><span id="capa-vazia">☕</span><img id="parou-img" alt="onde você parou" title="onde você parou" hidden></div>
         <h2 id="info-nome">KOFstation</h2>
-        <p id="info-det" class="dica">Super Nintendo, NES, Game Boy, GBA, Sega, Neo Geo e PlayStation</p>
+        <p id="info-det" class="dica">Super Nintendo, NES, Game Boy, GBA, Sega, Neo Geo, PlayStation e PS2</p>
         <p id="info-meta" hidden></p>
         <div class="bib-botoes">
           <button class="grande" data-acao="jogar">▶ Jogar</button>
@@ -329,7 +330,7 @@
         <h2>🔑 BIOS <small>(opcional)</small></h2>
         <p>Alguns consoles têm um programa interno, a BIOS. O GBA roda sem ela; o Neo Geo precisa do <b>neogeo.zip</b>. O KOFstation não traz BIOS: se tiver a sua, escolha uma vez e ela fica guardada.</p>
         <ul class="ab-bios"><li data-sis="gba"></li><li data-sis="neogeo"></li></ul>
-        <div class="ab-botoes"><button class="grande sec" data-acao="bios">Escolher uma BIOS…</button></div>
+        <div class="ab-botoes"><button class="grande sec" data-acao="bios-tela">Guardar uma BIOS…</button></div>
       </div>
       <div class="ab-passo" data-passo="3" hidden>
         <h2>🎨 Seu tema</h2>
@@ -347,12 +348,14 @@
     <button class="ab-pular" data-acao="ab-pular">Pular ▸</button>
   </section>
   <section id="bios-tela" class="janela" hidden>
-    <div class="titulo-j"><span>🔑 Falta a BIOS do <b id="bios-nome">Neo Geo</b></span><button class="x" data-acao="bios-fechar">×</button></div>
-    <p>Esse console precisa do programa interno dele (a BIOS) pra ligar: o arquivo <b id="bios-arquivo">neogeo.zip</b>.
+    <div class="titulo-j"><span id="bios-titulo">🔑 Falta a BIOS do <b id="bios-nome">Neo Geo</b></span><button class="x" data-acao="bios-fechar">×</button></div>
+    <p id="bios-falta">Esse console precisa do programa interno dele (a BIOS) pra ligar: o arquivo <b id="bios-arquivo">neogeo.zip</b>.
       O KOFstation não traz BIOS junto: escolha a sua uma vez e ela fica guardada.</p>
+    <p id="bios-geral" hidden>A BIOS é o programa interno de cada console. O KOFstation não traz nenhuma: escolha a sua uma vez e ela
+      fica guardada aqui dentro (pode trocar quando quiser).</p>
+    <ul id="bios-lista"></ul>
     <div class="bug-botoes">
-      <button class="grande" data-acao="bios">Escolher a BIOS…</button>
-      <button class="grande sec" data-acao="bios-fechar">Agora não</button>
+      <button class="grande sec" data-acao="bios-fechar">Fechar</button>
     </div>
   </section>
   <section id="bug" class="janela" hidden>

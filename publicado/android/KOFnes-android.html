@@ -1562,6 +1562,14 @@ html.celular body.com-visual #palco { padding-right: 0; padding-bottom: 58vh; }
 
 /* painel de desempenho (F3 / menu rápido) */
 #desempenho { position: fixed; left: 8px; top: 8px; z-index: 60; max-width: calc(100vw - 16px); padding: 6px 10px; border-radius: 8px; background: #000c; color: #9f9; font: 12px/1.4 ui-monospace, monospace; pointer-events: none; }
+/* tela de BIOS: um console por linha, com o que está guardado e o botão de escolher/trocar */
+#bios-lista { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 8px; }
+#bios-lista li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px;
+  border: 1px solid var(--borda); border-radius: 10px; background: var(--painel2); }
+#bios-lista li.tem { border-color: var(--destaque); }
+#bios-lista li span { display: grid; gap: 2px; min-width: 0; flex: 1; text-align: left; }
+#bios-lista li small { color: var(--fraco); overflow-wrap: anywhere; }
+#bios-lista li button { flex: none; width: auto; min-width: 130px; margin: 0; }
 /* ============ KOFnes no celular (só entra no KOFnes-android.html) ============ */
 html.celular, html.celular body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 html.celular .so-pc, html.celular kbd { display: none !important; }
@@ -1946,7 +1954,7 @@ body.modo-controle #ctl [data-b="menu"], body.modo-controle #ctl [data-b="turbo"
     <button data-acao="pasta">Escolher pasta de ROMs…</button>
     <button data-acao="abrir">Adicionar arquivo…<kbd>Ctrl+O</kbd></button>
     <button data-acao="traducao">Aplicar tradução (patch)…</button>
-    <button data-acao="bios">BIOS…</button>
+    <button data-acao="bios-tela">🔑 BIOS dos consoles…</button>
     <button data-acao="estatisticas">📊 Estatísticas</button>
     <button data-acao="exportar-saves">💾 Backup dos saves (.kofsave)</button>
     <button data-acao="importar-saves">📥 Trazer backup…</button>
@@ -2043,7 +2051,7 @@ body.modo-controle #ctl [data-b="menu"], body.modo-controle #ctl [data-b="turbo"
         <span class="hm-logo" id="hm-logo">☕</span>
         <div>
           <h1>KOFstation</h1>
-          <p class="hm-lema">Super Nintendo, NES, Game Boy, GBA, Sega, Neo Geo e PlayStation num lugar só, pra facilitar a sua jogatina.</p>
+          <p class="hm-lema">Super Nintendo, NES, Game Boy, GBA, Sega, Neo Geo, PlayStation e PS2 num lugar só, pra facilitar a sua jogatina.</p>
         </div>
       </div>
       <p class="hm-saudacao" id="hm-saudacao"></p>
@@ -2052,11 +2060,12 @@ body.modo-controle #ctl [data-b="menu"], body.modo-controle #ctl [data-b="turbo"
       <article class="hm-destaque" id="hm-destaque"></article>
       <div class="hm-atalhos">
         <button data-acao="biblioteca"><i>📚</i><b>Biblioteca</b><small>seus jogos e a pasta de ROMs</small></button>
-        <button data-acao="abrir"><i>＋</i><b>Abrir uma ROM</b><small>.sfc, .smc, .nes, .gb, .gbc, .gba, .md, .sms, .gg, .zip (Neo Geo) ou .cue/.chd/.pbp (PlayStation)<span class="so-pc"> (ou arraste)</span></small></button>
+        <button data-acao="abrir"><i>＋</i><b>Abrir uma ROM</b><small>.sfc, .smc, .nes, .gb, .gbc, .gba, .md, .sms, .gg, .zip (Neo Geo) .cue/.chd/.pbp (PlayStation) ou .iso (PS2)<span class="so-pc"> (ou arraste)</span></small></button>
         <button data-acao="jukebox"><i>🎵</i><b>Jukebox</b><small>as trilhas que você guardou</small></button>
         <button data-acao="estatisticas"><i>📊</i><b>Estatísticas</b><small>quanto você jogou, e o quê</small></button>
         <button data-acao="temas"><i>🎨</i><b>Temas</b><small><span class="n-temas">28</span> jeitos de deixar com a sua cara</small></button>
         <button data-acao="guia"><i>📖</i><b>Guia</b><small>tudo que o KOFstation sabe fazer</small></button>
+        <button data-acao="bios-tela"><i>🔑</i><b>BIOS</b><small id="hm-bios">guarde a BIOS dos consoles (PS2, Neo Geo...)</small></button>
       </div>
     </div>
     <section class="hm-bloco" id="hm-bloco-recentes">
@@ -2085,7 +2094,7 @@ body.modo-controle #ctl [data-b="menu"], body.modo-controle #ctl [data-b="turbo"
         <button class="x so-cel bib-fechar-ficha" data-acao="fechar-ficha" title="fechar">⌄</button>
         <div class="capa"><img id="capa-img" alt=""><span id="capa-vazia">☕</span><img id="parou-img" alt="onde você parou" title="onde você parou" hidden></div>
         <h2 id="info-nome">KOFstation</h2>
-        <p id="info-det" class="dica">Super Nintendo, NES, Game Boy, GBA, Sega, Neo Geo e PlayStation</p>
+        <p id="info-det" class="dica">Super Nintendo, NES, Game Boy, GBA, Sega, Neo Geo, PlayStation e PS2</p>
         <p id="info-meta" hidden></p>
         <div class="bib-botoes">
           <button class="grande" data-acao="jogar">▶ Jogar</button>
@@ -2258,7 +2267,7 @@ body.modo-controle #ctl [data-b="menu"], body.modo-controle #ctl [data-b="turbo"
         <h2>🔑 BIOS <small>(opcional)</small></h2>
         <p>Alguns consoles têm um programa interno, a BIOS. O GBA roda sem ela; o Neo Geo precisa do <b>neogeo.zip</b>. O KOFstation não traz BIOS: se tiver a sua, escolha uma vez e ela fica guardada.</p>
         <ul class="ab-bios"><li data-sis="gba"></li><li data-sis="neogeo"></li></ul>
-        <div class="ab-botoes"><button class="grande sec" data-acao="bios">Escolher uma BIOS…</button></div>
+        <div class="ab-botoes"><button class="grande sec" data-acao="bios-tela">Guardar uma BIOS…</button></div>
       </div>
       <div class="ab-passo" data-passo="3" hidden>
         <h2>🎨 Seu tema</h2>
@@ -2276,12 +2285,14 @@ body.modo-controle #ctl [data-b="menu"], body.modo-controle #ctl [data-b="turbo"
     <button class="ab-pular" data-acao="ab-pular">Pular ▸</button>
   </section>
   <section id="bios-tela" class="janela" hidden>
-    <div class="titulo-j"><span>🔑 Falta a BIOS do <b id="bios-nome">Neo Geo</b></span><button class="x" data-acao="bios-fechar">×</button></div>
-    <p>Esse console precisa do programa interno dele (a BIOS) pra ligar: o arquivo <b id="bios-arquivo">neogeo.zip</b>.
+    <div class="titulo-j"><span id="bios-titulo">🔑 Falta a BIOS do <b id="bios-nome">Neo Geo</b></span><button class="x" data-acao="bios-fechar">×</button></div>
+    <p id="bios-falta">Esse console precisa do programa interno dele (a BIOS) pra ligar: o arquivo <b id="bios-arquivo">neogeo.zip</b>.
       O KOFstation não traz BIOS junto: escolha a sua uma vez e ela fica guardada.</p>
+    <p id="bios-geral" hidden>A BIOS é o programa interno de cada console. O KOFstation não traz nenhuma: escolha a sua uma vez e ela
+      fica guardada aqui dentro (pode trocar quando quiser).</p>
+    <ul id="bios-lista"></ul>
     <div class="bug-botoes">
-      <button class="grande" data-acao="bios">Escolher a BIOS…</button>
-      <button class="grande sec" data-acao="bios-fechar">Agora não</button>
+      <button class="grande sec" data-acao="bios-fechar">Fechar</button>
     </div>
   </section>
   <section id="bug" class="janela" hidden>
@@ -2404,6 +2415,13 @@ body.modo-controle #ctl [data-b="menu"], body.modo-controle #ctl [data-b="turbo"
 <script>
 const KofNucleo = (() => {
 'use strict';
+function kofArrayGet(array, index) {
+    return array[index];
+}
+function kofArraySet(array, index, value, kind) {
+    if (kind === 0) { array[index] = value; return; }
+}
+
 function kofArrayGet(array, index) {
     return array[index];
 }
@@ -14217,7 +14235,7 @@ $('#arquivo-spc').addEventListener('change', (e) => { if (e.target.files.length)
 // estado (um marco) e anota os botões de cada quadro dali pra frente. O pacote
 // do bug leva o marco anterior + os botões até agora: rodando de novo, o
 // núcleo (determinístico) chega no mesmo lugar, quadro a quadro.
-const VERSAO = '202610260251 · 03fc1ab', REPO = 'Marcelao98/KOFSnes';
+const VERSAO = '202610260305 · a7d8515', REPO = 'Marcelao98/KOFSnes';
 let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAtual = null;
 // eixos pro núcleo (-32767..32767): controle físico (com zona morta) ou a tela de toque; tudo parado = 0 (aí a ponte do N64
 // usa o direcional como analógico, como antes)
@@ -14834,20 +14852,69 @@ async function aplicarPatch(nomePatch, patch, rom) {
 }
 // BIOS (arquivo de sistema que alguns consoles pedem, ex.: gba_bios.bin): o usuário escolhe a dele, fica no banco e vai pro
 // núcleo antes de cada jogo. O KOFstation nunca traz BIOS junto.
-async function escolherBios() {
+// PS2: a BIOS de verdade tem 4 a 8 MB e uma tabela ROMDIR que começa com RESET (o PCSX2 confere a mesma coisa); o nome é qualquer um
+function ehBiosPs2(d) {
+  if (d.length < 4194304 || d.length > 8388608) return false;
+  const lim = Math.min(d.length - 32, 65536);
+  for (let i = 0; i < lim; i += 16)
+    if (d[i] === 82 && d[i + 1] === 69 && d[i + 2] === 83 && d[i + 3] === 69 && d[i + 4] === 84 && d[i + 5] === 0
+      && String.fromCharCode(...d.subarray(i + 16, i + 22)) === 'ROMDIR') return true;
+  return false;
+}
+// escolher a BIOS; com sis (botão de um console na tela de BIOS) aceita o arquivo pelo conteúdo/tamanho, com qualquer nome
+async function escolherBios(sisPedido) {
   const e = document.createElement('input'); e.type = 'file';
   e.onchange = async () => {
     const f = e.files[0]; if (!f) return;
-    const dados = new Uint8Array(await f.arrayBuffer()), sis = KofLibretro.sistemaDaBios(f.name, dados.length);
+    const dados = new Uint8Array(await f.arrayBuffer());
+    let sis = ehBiosPs2(dados) ? 'ps2' : KofLibretro.sistemaDaBios(f.name, dados.length);
+    if (sisPedido && sis !== sisPedido) {
+      const b = SIS[sisPedido].bios, ok = sisPedido === 'ps2' ? false : sisPedido === 'neogeo' ? /\.zip$/i.test(f.name) : b.some((x) => x.tamanho === dados.length);
+      if (!ok) { avisarErro('esse arquivo não parece a BIOS do ' + SIS[sisPedido].nome + ' (' + f.name + ', ' + (dados.length / 1048576).toFixed(1) + ' MB)'
+        + (sisPedido === 'ps2' ? ': a do PS2 tem de 4 a 8 MB' : ''), ''); return; }
+      sis = sisPedido;
+    }
     if (!sis) { avisar('não reconheci essa BIOS (' + f.name + ')', 4000); return; }
-    const arq = SIS[sis].bios.find((b) => b.arquivo === f.name.toLowerCase() || b.tamanho === dados.length).arquivo;
-    await bdPor('bios', arq, { sistema: sis, dados });
+    const lista = SIS[sis].bios, arq = (lista.find((b) => b.arquivo === f.name.toLowerCase()) || lista.find((b) => b.tamanho === dados.length) || lista[0]).arquivo;
+    await bdPor('bios', arq, { sistema: sis, dados, nome: f.name });
     KofLibretro.bios(SIS[sis].nucleo, arq, dados);
-    avisar('BIOS do ' + SIS[sis].nome + ' guardada: vale no próximo jogo que abrir', 4000);
-    marcarAbBios();
+    avisarErro.aberto = 0; avisar('✅ BIOS do ' + SIS[sis].nome + ' guardada (' + f.name + ')', 4000);
+    marcarAbBios(); marcarBiosHome(); if (!$('#bios-tela').hidden) listarBios();
     if (biosEsperando && !$('#bios-tela').hidden) { const f = biosEsperando; biosEsperando = null; $('#bios-tela').hidden = true; try { await f(); } catch (er) { avisar(er.message, 6000); } }
   };
   e.click();
+}
+// o que tem guardado na loja bios: {arquivo: {sistema, tamanho, nome}}
+async function biosGuardadas() {
+  const b = await abrirBanco(), r = {};
+  await new Promise((ok) => {
+    const c = b.transaction('bios', 'readonly').objectStore('bios').openCursor();
+    c.onsuccess = () => { const x = c.result; if (!x) return ok(); r[x.key] = { sistema: x.value.sistema, tamanho: x.value.dados.length, nome: x.value.nome || x.key }; x.continue(); };
+    c.onerror = () => ok();
+  });
+  return r;
+}
+const BIOS_DICA = { ps2: 'precisa pra jogar PS2 pelo PCSX2', neogeo: 'precisa pra jogar Neo Geo', ps1: 'opcional (sem ela usa uma imitada)', gba: 'opcional (o GBA roda sem)' };
+const SIS_COM_BIOS = () => ['ps2', 'neogeo', 'ps1', 'gba'].filter((s) => SIS[s] && SIS[s].bios && SIS_ATIVOS.includes(s));
+async function listarBios() {
+  const g = await biosGuardadas().catch(() => ({})), ul = $('#bios-lista'); ul.innerHTML = '';
+  for (const s of SIS_COM_BIOS()) {
+    const tem = Object.entries(g).find(([, v]) => v.sistema === s), li = elem('li', tem ? 'tem' : '');
+    const txt = elem('span', '', '');
+    txt.append(elem('b', '', SIS[s].nome), elem('small', '', tem ? '✅ guardada: ' + tem[1].nome + ' (' + (tem[1].tamanho / 1048576).toFixed(tem[1].tamanho < 1048576 ? 2 : 1) + ' MB)' : '⚪ ' + BIOS_DICA[s]));
+    li.append(txt, botao(tem ? 'Trocar…' : 'Escolher…', 'bios:' + s, tem ? 'grande sec' : 'grande'));
+    ul.append(li);
+  }
+}
+async function marcarBiosHome() {
+  const el = $('#hm-bios'); if (!el) return;
+  const g = await biosGuardadas().catch(() => ({})), tem = SIS_COM_BIOS().filter((s) => Object.values(g).some((v) => v.sistema === s));
+  el.textContent = tem.length ? '✅ ' + tem.map((s) => SIS[s].curto || SIS[s].nome).join(', ') + ' · trocar ou guardar outra' : 'guarde a BIOS dos consoles (PS2, Neo Geo...)';
+}
+function abrirBiosTela() {
+  biosEsperando = null; fecharJanelas();
+  $('#bios-titulo').textContent = '🔑 BIOS dos consoles'; $('#bios-falta').hidden = true; $('#bios-geral').hidden = false;
+  $('#bios-tela').hidden = false; listarBios();
 }
 async function carregarBios() {
   if (typeof KofLibretro === 'undefined') return;
@@ -14895,8 +14962,10 @@ async function zipsDoPai(nome) {
 let biosEsperando = null;
 function pedirBios(sis, abrir) {
   biosEsperando = abrir;
-  $('#bios-nome').textContent = SIS[sis].nome; $('#bios-arquivo').textContent = SIS[sis].bios.map((b) => b.arquivo).join(', ');
-  fecharJanelas(); $('#bios-tela').hidden = false;
+  $('#bios-titulo').innerHTML = '🔑 Falta a BIOS do <b id="bios-nome"></b>'; $('#bios-nome').textContent = SIS[sis].nome;
+  $('#bios-arquivo').textContent = sis === 'ps2' ? 'a BIOS do PS2 (4 a 8 MB, qualquer nome)' : SIS[sis].bios.map((b) => b.arquivo).join(', ');
+  $('#bios-falta').hidden = false; $('#bios-geral').hidden = true;
+  fecharJanelas(); $('#bios-tela').hidden = false; listarBios();
 }
 async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
   // sistema pela extensão; jogo antigo da biblioteca guardado sem extensão é de SNES
@@ -15760,7 +15829,7 @@ function marcarSel(i) {
 function mostrarInfo() {
   const r = visiveis[selecionada], img = $('#capa-img');
   mostrarMeta(r);
-  if (!r) { $('#info-nome').textContent = 'KOFstation'; $('#info-det').textContent = 'Super Nintendo, NES, Game Boy, GBA, Sega, Neo Geo e PlayStation'; img.hidden = true; $('#capa-vazia').hidden = false; return; }
+  if (!r) { $('#info-nome').textContent = 'KOFstation'; $('#info-det').textContent = 'Super Nintendo, NES, Game Boy, GBA, Sega, Neo Geo, PlayStation e PS2'; img.hidden = true; $('#capa-vazia').hidden = false; return; }
   $('#info-nome').textContent = r.nome;
   if (r.jogo) {
     const n = contagem[r.jogo.id] || 0;
@@ -16121,7 +16190,7 @@ function novaDica() {
   let i; do { i = Math.floor(Math.random() * DICAS.length); } while (i === dicaAtual && DICAS.length > 1);
   dicaAtual = i; $('#hm-dica').innerHTML = DICAS[i];
 }
-function abrirHome() { fecharJanelas(); fecharMenus(); $('#home').hidden = false; montarHome(); if (!snes) tocarMusica(qualInicio()); }
+function abrirHome() { fecharJanelas(); fecharMenus(); $('#home').hidden = false; montarHome(); marcarBiosHome(); if (!snes) tocarMusica(qualInicio()); }
 const elem = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 function botao(txt, acaoNome, cls) { const b = elem('button', cls || 'grande', txt); b.dataset.acao = acaoNome; return b; }
 async function montarHome() {
@@ -16261,6 +16330,10 @@ function avisarErro(t, detalhe) {
   const b = document.createElement('div'); b.className = 'aviso-botoes';
   const copiar = document.createElement('button'); copiar.textContent = '📋 copiar';
   copiar.onclick = (e) => { e.stopPropagation(); navigator.clipboard.writeText(tudo).then(() => { copiar.textContent = '✅ copiado'; }, () => { copiar.textContent = 'não deu pra copiar'; }); };
+  if (/BIOS/.test(t) && typeof abrirBiosTela === 'function') {   // erro de BIOS: atalho pra tela de BIOS
+    const bi = document.createElement('button'); bi.textContent = '🔑 BIOS';
+    bi.onclick = (e) => { e.stopPropagation(); avisarErro.aberto = 0; a.hidden = true; abrirBiosTela(); }; b.appendChild(bi);
+  }
   const fechar = document.createElement('button'); fechar.textContent = '✕ fechar';
   const sumir = () => { a.hidden = true; a.classList.remove('erro'); avisarErro.aberto = 0; };
   fechar.onclick = (e) => { e.stopPropagation(); sumir(); };
@@ -16495,6 +16568,7 @@ function tema(nome) {
 }
 async function acao(a) {
   fecharMenus();
+  if (a.startsWith('bios:')) return escolherBios(a.slice(5));
   switch (a) {
     case 'abrir': $('#arquivo').click(); break;
     case 'traducao': {   // escolhe o .ips/.bps/.ups; com jogo aberto aplica nele, senão pede a ROM depois
@@ -16503,6 +16577,7 @@ async function acao(a) {
       e.click(); break;
     }
     case 'bios': escolherBios(); break;
+    case 'bios-tela': abrirBiosTela(); break;
     case 'boas-vindas': abrirAbertura(); break;
     case 'ab-pular': abPular(); break;
     case 'ab-proximo': abPasso(abPassoAtual + 1); break;

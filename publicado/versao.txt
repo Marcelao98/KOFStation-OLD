@@ -1,5 +1,5 @@
-versao=202610260251
-tamanho=1086690
+versao=202610260305
+tamanho=1091961
 lancador=10
 tamanho_exe=96256
 lancador_linux=6

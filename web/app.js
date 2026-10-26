@@ -1929,20 +1929,69 @@ async function aplicarPatch(nomePatch, patch, rom) {
 }
 // BIOS (arquivo de sistema que alguns consoles pedem, ex.: gba_bios.bin): o usuário escolhe a dele, fica no banco e vai pro
 // núcleo antes de cada jogo. O KOFstation nunca traz BIOS junto.
-async function escolherBios() {
+// PS2: a BIOS de verdade tem 4 a 8 MB e uma tabela ROMDIR que começa com RESET (o PCSX2 confere a mesma coisa); o nome é qualquer um
+function ehBiosPs2(d) {
+  if (d.length < 4194304 || d.length > 8388608) return false;
+  const lim = Math.min(d.length - 32, 65536);
+  for (let i = 0; i < lim; i += 16)
+    if (d[i] === 82 && d[i + 1] === 69 && d[i + 2] === 83 && d[i + 3] === 69 && d[i + 4] === 84 && d[i + 5] === 0
+      && String.fromCharCode(...d.subarray(i + 16, i + 22)) === 'ROMDIR') return true;
+  return false;
+}
+// escolher a BIOS; com sis (botão de um console na tela de BIOS) aceita o arquivo pelo conteúdo/tamanho, com qualquer nome
+async function escolherBios(sisPedido) {
   const e = document.createElement('input'); e.type = 'file';
   e.onchange = async () => {
     const f = e.files[0]; if (!f) return;
-    const dados = new Uint8Array(await f.arrayBuffer()), sis = KofLibretro.sistemaDaBios(f.name, dados.length);
+    const dados = new Uint8Array(await f.arrayBuffer());
+    let sis = ehBiosPs2(dados) ? 'ps2' : KofLibretro.sistemaDaBios(f.name, dados.length);
+    if (sisPedido && sis !== sisPedido) {
+      const b = SIS[sisPedido].bios, ok = sisPedido === 'ps2' ? false : sisPedido === 'neogeo' ? /\.zip$/i.test(f.name) : b.some((x) => x.tamanho === dados.length);
+      if (!ok) { avisarErro('esse arquivo não parece a BIOS do ' + SIS[sisPedido].nome + ' (' + f.name + ', ' + (dados.length / 1048576).toFixed(1) + ' MB)'
+        + (sisPedido === 'ps2' ? ': a do PS2 tem de 4 a 8 MB' : ''), ''); return; }
+      sis = sisPedido;
+    }
     if (!sis) { avisar('não reconheci essa BIOS (' + f.name + ')', 4000); return; }
-    const arq = SIS[sis].bios.find((b) => b.arquivo === f.name.toLowerCase() || b.tamanho === dados.length).arquivo;
-    await bdPor('bios', arq, { sistema: sis, dados });
+    const lista = SIS[sis].bios, arq = (lista.find((b) => b.arquivo === f.name.toLowerCase()) || lista.find((b) => b.tamanho === dados.length) || lista[0]).arquivo;
+    await bdPor('bios', arq, { sistema: sis, dados, nome: f.name });
     KofLibretro.bios(SIS[sis].nucleo, arq, dados);
-    avisar('BIOS do ' + SIS[sis].nome + ' guardada: vale no próximo jogo que abrir', 4000);
-    marcarAbBios();
+    avisarErro.aberto = 0; avisar('✅ BIOS do ' + SIS[sis].nome + ' guardada (' + f.name + ')', 4000);
+    marcarAbBios(); marcarBiosHome(); if (!$('#bios-tela').hidden) listarBios();
     if (biosEsperando && !$('#bios-tela').hidden) { const f = biosEsperando; biosEsperando = null; $('#bios-tela').hidden = true; try { await f(); } catch (er) { avisar(er.message, 6000); } }
   };
   e.click();
+}
+// o que tem guardado na loja bios: {arquivo: {sistema, tamanho, nome}}
+async function biosGuardadas() {
+  const b = await abrirBanco(), r = {};
+  await new Promise((ok) => {
+    const c = b.transaction('bios', 'readonly').objectStore('bios').openCursor();
+    c.onsuccess = () => { const x = c.result; if (!x) return ok(); r[x.key] = { sistema: x.value.sistema, tamanho: x.value.dados.length, nome: x.value.nome || x.key }; x.continue(); };
+    c.onerror = () => ok();
+  });
+  return r;
+}
+const BIOS_DICA = { ps2: 'precisa pra jogar PS2 pelo PCSX2', neogeo: 'precisa pra jogar Neo Geo', ps1: 'opcional (sem ela usa uma imitada)', gba: 'opcional (o GBA roda sem)' };
+const SIS_COM_BIOS = () => ['ps2', 'neogeo', 'ps1', 'gba'].filter((s) => SIS[s] && SIS[s].bios && SIS_ATIVOS.includes(s));
+async function listarBios() {
+  const g = await biosGuardadas().catch(() => ({})), ul = $('#bios-lista'); ul.innerHTML = '';
+  for (const s of SIS_COM_BIOS()) {
+    const tem = Object.entries(g).find(([, v]) => v.sistema === s), li = elem('li', tem ? 'tem' : '');
+    const txt = elem('span', '', '');
+    txt.append(elem('b', '', SIS[s].nome), elem('small', '', tem ? '✅ guardada: ' + tem[1].nome + ' (' + (tem[1].tamanho / 1048576).toFixed(tem[1].tamanho < 1048576 ? 2 : 1) + ' MB)' : '⚪ ' + BIOS_DICA[s]));
+    li.append(txt, botao(tem ? 'Trocar…' : 'Escolher…', 'bios:' + s, tem ? 'grande sec' : 'grande'));
+    ul.append(li);
+  }
+}
+async function marcarBiosHome() {
+  const el = $('#hm-bios'); if (!el) return;
+  const g = await biosGuardadas().catch(() => ({})), tem = SIS_COM_BIOS().filter((s) => Object.values(g).some((v) => v.sistema === s));
+  el.textContent = tem.length ? '✅ ' + tem.map((s) => SIS[s].curto || SIS[s].nome).join(', ') + ' · trocar ou guardar outra' : 'guarde a BIOS dos consoles (PS2, Neo Geo...)';
+}
+function abrirBiosTela() {
+  biosEsperando = null; fecharJanelas();
+  $('#bios-titulo').textContent = '🔑 BIOS dos consoles'; $('#bios-falta').hidden = true; $('#bios-geral').hidden = false;
+  $('#bios-tela').hidden = false; listarBios();
 }
 async function carregarBios() {
   if (typeof KofLibretro === 'undefined') return;
@@ -1990,8 +2039,10 @@ async function zipsDoPai(nome) {
 let biosEsperando = null;
 function pedirBios(sis, abrir) {
   biosEsperando = abrir;
-  $('#bios-nome').textContent = SIS[sis].nome; $('#bios-arquivo').textContent = SIS[sis].bios.map((b) => b.arquivo).join(', ');
-  fecharJanelas(); $('#bios-tela').hidden = false;
+  $('#bios-titulo').innerHTML = '🔑 Falta a BIOS do <b id="bios-nome"></b>'; $('#bios-nome').textContent = SIS[sis].nome;
+  $('#bios-arquivo').textContent = sis === 'ps2' ? 'a BIOS do PS2 (4 a 8 MB, qualquer nome)' : SIS[sis].bios.map((b) => b.arquivo).join(', ');
+  $('#bios-falta').hidden = false; $('#bios-geral').hidden = true;
+  fecharJanelas(); $('#bios-tela').hidden = false; listarBios();
 }
 async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
   // sistema pela extensão; jogo antigo da biblioteca guardado sem extensão é de SNES
@@ -2855,7 +2906,7 @@ function marcarSel(i) {
 function mostrarInfo() {
   const r = visiveis[selecionada], img = $('#capa-img');
   mostrarMeta(r);
-  if (!r) { $('#info-nome').textContent = 'KOFstation'; $('#info-det').textContent = 'Super Nintendo, NES, Game Boy, GBA, Sega, Neo Geo e PlayStation'; img.hidden = true; $('#capa-vazia').hidden = false; return; }
+  if (!r) { $('#info-nome').textContent = 'KOFstation'; $('#info-det').textContent = 'Super Nintendo, NES, Game Boy, GBA, Sega, Neo Geo, PlayStation e PS2'; img.hidden = true; $('#capa-vazia').hidden = false; return; }
   $('#info-nome').textContent = r.nome;
   if (r.jogo) {
     const n = contagem[r.jogo.id] || 0;
@@ -3216,7 +3267,7 @@ function novaDica() {
   let i; do { i = Math.floor(Math.random() * DICAS.length); } while (i === dicaAtual && DICAS.length > 1);
   dicaAtual = i; $('#hm-dica').innerHTML = DICAS[i];
 }
-function abrirHome() { fecharJanelas(); fecharMenus(); $('#home').hidden = false; montarHome(); if (!snes) tocarMusica(qualInicio()); }
+function abrirHome() { fecharJanelas(); fecharMenus(); $('#home').hidden = false; montarHome(); marcarBiosHome(); if (!snes) tocarMusica(qualInicio()); }
 const elem = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 function botao(txt, acaoNome, cls) { const b = elem('button', cls || 'grande', txt); b.dataset.acao = acaoNome; return b; }
 async function montarHome() {
@@ -3356,6 +3407,10 @@ function avisarErro(t, detalhe) {
   const b = document.createElement('div'); b.className = 'aviso-botoes';
   const copiar = document.createElement('button'); copiar.textContent = '📋 copiar';
   copiar.onclick = (e) => { e.stopPropagation(); navigator.clipboard.writeText(tudo).then(() => { copiar.textContent = '✅ copiado'; }, () => { copiar.textContent = 'não deu pra copiar'; }); };
+  if (/BIOS/.test(t) && typeof abrirBiosTela === 'function') {   // erro de BIOS: atalho pra tela de BIOS
+    const bi = document.createElement('button'); bi.textContent = '🔑 BIOS';
+    bi.onclick = (e) => { e.stopPropagation(); avisarErro.aberto = 0; a.hidden = true; abrirBiosTela(); }; b.appendChild(bi);
+  }
   const fechar = document.createElement('button'); fechar.textContent = '✕ fechar';
   const sumir = () => { a.hidden = true; a.classList.remove('erro'); avisarErro.aberto = 0; };
   fechar.onclick = (e) => { e.stopPropagation(); sumir(); };
@@ -3590,6 +3645,7 @@ function tema(nome) {
 }
 async function acao(a) {
   fecharMenus();
+  if (a.startsWith('bios:')) return escolherBios(a.slice(5));
   switch (a) {
     case 'abrir': $('#arquivo').click(); break;
     case 'traducao': {   // escolhe o .ips/.bps/.ups; com jogo aberto aplica nele, senão pede a ROM depois
@@ -3598,6 +3654,7 @@ async function acao(a) {
       e.click(); break;
     }
     case 'bios': escolherBios(); break;
+    case 'bios-tela': abrirBiosTela(); break;
     case 'boas-vindas': abrirAbertura(); break;
     case 'ab-pular': abPular(); break;
     case 'ab-proximo': abPasso(abPassoAtual + 1); break;
