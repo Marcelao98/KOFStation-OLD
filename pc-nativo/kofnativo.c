@@ -205,7 +205,7 @@ static void logNucleo(enum retro_log_level n, const char *fmt, ...) {
 
 // imagem: o núcleo desenha (HW) no nosso framebuffer ou entrega pixels (software) que viram textura
 static GLuint fbo, fboTex, fboProf, texQuadro[2]; static int vez, fboL, fboA;
-static int quadroL, quadroA, quadroNovo;
+static int quadroL, quadroA, quadroNovo, quadroHw, texL[2], texA[2];
 static uintptr_t pegarFbo(void) { return fbo; }
 static retro_proc_address_t pegarFuncao(const char *n) { return (retro_proc_address_t)SDL_GL_GetProcAddress(n); }
 static void criarFbo(int l, int a) {
@@ -226,13 +226,8 @@ static void criarFbo(int l, int a) {
 static void videoQuadro(const void *d, unsigned l, unsigned a, size_t passo) {
     if (!d) return;   // repetiu o quadro anterior
     vez ^= 1; quadroL = l; quadroA = a; quadroNovo = 1;
+    if (d == RETRO_HW_FRAME_BUFFER_VALID) { quadroHw = 1; return; }   // aqui é o contexto do núcleo: a cópia vem depois, no da janela
     glBindTexture(GL_TEXTURE_2D, texQuadro[vez]);
-    if (d == RETRO_HW_FRAME_BUFFER_VALID) {
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, fbo);
-        glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 0, 0, l, a, 0);
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-        return;
-    }
     if (formato == RETRO_PIXEL_FORMAT_XRGB8888) {
         glPixelStorei(GL_UNPACK_ROW_LENGTH, passo / 4);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, l, a, 0, GL_BGRA, GL_UNSIGNED_BYTE, d);
@@ -241,6 +236,7 @@ static void videoQuadro(const void *d, unsigned l, unsigned a, size_t passo) {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, l, a, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, d);
     }
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    texL[vez] = l; texA[vez] = a;
 }
 
 // som: o núcleo entrega estéreo int16; vai pra fila do SDL, que também dita o ritmo
@@ -440,6 +436,42 @@ static void usarPrograma(GLuint pr) {
 
 // ---------------------------------------------------------------- principal
 static SDL_Window *janela; static int visivel, jogoAberto; static volatile sig_atomic_t rodando;
+// o núcleo HW tem o próprio contexto OpenGL (compartilhado com o da janela, como o RetroArch faz): o PCSX2 guarda o estado
+// do GL (VAO, programa, texturas, framebuffer) e conta que ninguém mexe nele; desenhar a janela no mesmo contexto trocava o
+// VAO dele pelo nosso (sem buffer de índices) e o glDrawElements seguinte lia ponteiro inválido (segfault na Mesa)
+static SDL_GLContext ctxJanela, ctxNucleo; static GLuint fboLeitura, fboLeituraTex, fboEscrita;
+static void noNucleo(void) { if (ctxNucleo) SDL_GL_MakeCurrent(janela, ctxNucleo); }
+static void naJanela(void) { if (ctxNucleo) SDL_GL_MakeCurrent(janela, ctxJanela); }
+static void criarContextoNucleo(void) {
+    if (ctxNucleo) return;
+    SDL_GL_MakeCurrent(janela, ctxJanela);
+    if (hw.version_major > 3 || (hw.version_major == 3 && hw.version_minor > 3)) {
+        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, hw.version_major); SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, hw.version_minor);
+    }
+    SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 1);
+    ctxNucleo = SDL_GL_CreateContext(janela);   // já fica como o atual
+    if (!ctxNucleo) { fprintf(stderr, "[kofnativo] contexto do núcleo: %s (segue no da janela)\n", SDL_GetError()); SDL_GL_MakeCurrent(janela, ctxJanela); }
+}
+// o quadro que o núcleo desenhou no fbo dele (a textura fboTex é compartilhada) vira texQuadro[vez], já no contexto da janela
+static void copiarQuadroHw(void) {
+    if (!quadroHw) return;
+    quadroHw = 0;
+    if (!fboLeitura) glGenFramebuffers(1, &fboLeitura);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, fboLeitura);
+    if (fboLeituraTex != fboTex) { glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, fboTex, 0); fboLeituraTex = fboTex; }
+    if (texL[vez] != quadroL || texA[vez] != quadroA) {
+        glBindTexture(GL_TEXTURE_2D, texQuadro[vez]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, quadroL, quadroA, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+        texL[vez] = quadroL; texA[vez] = quadroA;
+    }
+    // o GL desenha com a origem embaixo; a textura do quadro fica com a origem em cima, igual aos quadros de software
+    if (!fboEscrita) glGenFramebuffers(1, &fboEscrita);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fboEscrita);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texQuadro[vez], 0);
+    int vira = hw.bottom_left_origin;
+    glBlitFramebuffer(0, 0, quadroL, quadroA, 0, vira ? quadroA : 0, quadroL, vira ? 0 : quadroA, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, 0); glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+}
 static void mostrar(int sim) {
     visivel = sim;
     if (sim) { SDL_ShowWindow(janela); SDL_RaiseWindow(janela); SDL_PauseAudioDevice(som, 0); }
@@ -492,14 +524,16 @@ static void espalharSaves(const uint8_t *d, size_t n) {
 static void sair(int s) { (void)s; if (!rodando) _exit(0); rodando = 0; }   // o 2º sinal (ou antes de ligar) fecha na hora
 
 static void abrirJogo(void) {
+    noNucleo();
     if (jogoAberto) { nucleo.unload_game(); jogoAberto = 0; }
     pthread_mutex_lock(&discoTrava); for (int i = 0; i < NCACHE; i++) { free(cache[i].d); cache[i].d = NULL; } pthread_mutex_unlock(&discoTrava);
     char caminho[600]; snprintf(caminho, sizeof caminho, "kof://disco/%s", discoNome);
     struct retro_game_info g = {caminho, NULL, 0, NULL};
-    if (!nucleo.load_game(&g)) { mostrar(0); dizer("erro o núcleo não abriu o jogo (falta a BIOS do PS2? o disco é de PS2?)"); return; }
+    if (!nucleo.load_game(&g)) { naJanela(); mostrar(0); dizer("erro o núcleo não abriu o jogo (falta a BIOS do PS2? o disco é de PS2?)"); return; }
     jogoAberto = 1;
     nucleo.get_av_info(&av);
-    if (temHw) { SDL_GL_MakeCurrent(janela, SDL_GL_GetCurrentContext()); criarFbo(av.geometry.max_width, av.geometry.max_height); if (hw.context_reset) hw.context_reset(); }
+    if (temHw) { criarContextoNucleo(); criarFbo(av.geometry.max_width, av.geometry.max_height); if (hw.context_reset) hw.context_reset(); }
+    naJanela();
     dizer("pronto %u %u %.3f", av.geometry.base_width, av.geometry.base_height, av.timing.fps);
 }
 
@@ -529,14 +563,15 @@ static void comando(Cmd *c) {
             opcao("pcsx2_bios", barra ? barra + 1 : esperaArg); opcaoMudou = 1;
             if (getenv("KOF_DEBUG")) fprintf(stderr, "BIOS recebida: %s (%d bytes)\n", d, b->nbin);
         } else if (!strcmp(esperaBin, "cartao")) espalharSaves(b->bin, b->nbin);
-        else if (jogoAberto && !nucleo.unserialize(b->bin, b->nbin)) dizer("erro o PS2 recusou o estado");
-        else if (jogoAberto) dizer("carregou");
+        else if (jogoAberto && (noNucleo(), !nucleo.unserialize(b->bin, b->nbin))) { naJanela(); dizer("erro o PS2 recusou o estado"); }
+        else if (jogoAberto) { naJanela(); dizer("carregou"); }
         free(b->texto); free(b->bin); free(b); return;
     }
     if (!strcmp(t, "estado")) {
         if (!jogoAberto) { dizer("erro nenhum jogo aberto"); return; }
-        size_t n = nucleo.serialize_size(); uint8_t *d = malloc(n);
-        if (nucleo.serialize(d, n)) enviar(2, "E", 1, d, n); else dizer("erro o PS2 não salvou o estado");
+        noNucleo(); size_t n = nucleo.serialize_size(); naJanela(); uint8_t *d = malloc(n);
+        noNucleo(); int ok = nucleo.serialize(d, n); naJanela();
+        if (ok) enviar(2, "E", 1, d, n); else dizer("erro o PS2 não salvou o estado");
         free(d); return;
     }
     if (!strcmp(t, "pedecartao")) { juntarSaves(); enviar(2, "M", 1, pacote, npacote); return; }
@@ -549,8 +584,8 @@ static void comando(Cmd *c) {
     if (!strncmp(t, "volume ", 7)) { volume = atof(t + 7); return; }
     if (!strcmp(t, "mostrar")) { mostrar(1); return; }
     if (!strcmp(t, "esconder")) { mostrar(0); return; }
-    if (!strcmp(t, "reiniciar")) { if (jogoAberto) nucleo.reset(); return; }
-    if (!strcmp(t, "fechar") || !strcmp(t, "caiu")) { mostrar(0); if (jogoAberto) { nucleo.unload_game(); jogoAberto = 0; } return; }
+    if (!strcmp(t, "reiniciar")) { if (jogoAberto) { noNucleo(); nucleo.reset(); naJanela(); } return; }
+    if (!strcmp(t, "fechar") || !strcmp(t, "caiu")) { mostrar(0); if (jogoAberto) { noNucleo(); nucleo.unload_game(); naJanela(); jogoAberto = 0; } return; }
     if (!strcmp(t, "sair")) { rodando = 0; return; }
     if (!strncmp(t, "filtro\n", 7)) {
         char erro[2048] = "";
@@ -593,6 +628,9 @@ int main(int argc, char **argv) {
     snprintf(pastaSistema, sizeof pastaSistema, "%s/sistema", pastaDados); mkdir(pastaSistema, 0755);
     snprintf(pastaSaves, sizeof pastaSaves, "%s/saves", pastaDados); mkdir(pastaSaves, 0755);
     opcao("pcsx2_renderer", getenv("KOF_RENDERER") ? getenv("KOF_RENDERER") : "OpenGL");
+    // o EE (a CPU do PS2) é o gargalo em PC modesto: no Ryzen 5 4600H o SotC ia a ~42 fps (70%) com a thread do EE em 90%;
+    // o cycle skip leve deixou em 60 cravado (a página ainda pode trocar com "sistema pcsx2_ee_cycle_skip disabled")
+    opcao("pcsx2_ee_cycle_skip", getenv("KOF_EE_SKIP") ? getenv("KOF_EE_SKIP") : "Mild Underclock");
 
     void *so = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
     if (!so) { fprintf(stderr, "[kofnativo] não abri o núcleo: %s\n", dlerror()); return 1; }
@@ -613,7 +651,7 @@ int main(int argc, char **argv) {
     janela = SDL_CreateWindow("KOFstation", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 960, 720,
         SDL_WINDOW_OPENGL | SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE | (getenv("KOF_JANELA") ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP));
     if (!janela) { fprintf(stderr, "SDL janela: %s\n", SDL_GetError()); return 1; }
-    SDL_GLContext ctx = SDL_GL_CreateContext(janela);
+    SDL_GLContext ctx = ctxJanela = SDL_GL_CreateContext(janela);
     if (!ctx) { fprintf(stderr, "OpenGL 3.3: %s\n", SDL_GetError()); return 1; }
     SDL_GL_SetSwapInterval(0);
     glGenTextures(2, texQuadro);
@@ -649,9 +687,14 @@ int main(int argc, char **argv) {
         { const Uint8 *k = SDL_GetKeyboardState(NULL); uint32_t b = 0; for (int i = 0; i < nteclas; i++) if (teclas[i].s && k[teclas[i].s]) b |= 1u << teclas[i].id; padTeclado = visivel ? b : 0; }
         for (Cmd *c; (c = tirar());) { comando(c); free(c->texto); free(c->bin); free(c); }
         if (!jogoAberto || !visivel) { SDL_Delay(10); proximo = SDL_GetPerformanceCounter(); continue; }
-        if (temHw) glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        if (!ctxNucleo && temHw) glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        noNucleo();
         nucleo.run();
-        glBindVertexArray(vao);   // o núcleo mexe no estado do OpenGL: devolve o nosso
+        if (ctxNucleo) {   // a janela só lê o quadro depois que o GPU terminou o que o núcleo mandou
+            GLsync s = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0); glFlush(); naJanela();
+            glWaitSync(s, 0, GL_TIMEOUT_IGNORED); glDeleteSync(s);
+        } else glBindVertexArray(vao);   // sem contexto próprio o núcleo mexe no estado do OpenGL: devolve o nosso
+        copiarQuadroHw();
         if (quadroNovo) { quadroNovo = 0; desenhar(); contados++; }
         if (SDL_GetTicks() - marco >= 1000) { dizer("quadros %u", contados); contados = 0; marco = SDL_GetTicks(); }
         // ritmo: o fps do jogo, sem deixar o som acumular (mais de 120 ms na fila = espera)
@@ -662,6 +705,7 @@ int main(int argc, char **argv) {
         else if (agora - proximo > freq / 4) proximo = agora;   // ficou muito pra trás: não tenta compensar
         while (som && SDL_GetQueuedAudioSize(som) > 48000 * 4 * 12 / 100) SDL_Delay(1);
     }
+    noNucleo();
     if (jogoAberto) nucleo.unload_game();
     nucleo.deinit();
     return 0;
