@@ -34,7 +34,7 @@ function romMd() {   // Mega Drive: só liga e fica parado (o que importa aqui �
   ok(p.n, 'o núcleo tem os jogadores 2 a 4 (_lr_pad_n)');
   // tela: troca o 2º controle pra J3 e guarda
   await pg.evaluate(() => document.querySelector('[data-acao="jogadores"]').click()); await pg.waitForTimeout(300);
-  await pg.evaluate(() => { window.__b[1] = [0]; }); await pg.waitForTimeout(300);
+  await pg.evaluate(() => { window.__b[1] = [2]; }); await pg.waitForTimeout(300);   // X (o de baixo é o B do SNES: nas telas ele volta)
   ok(await pg.evaluate(() => document.querySelectorAll('#jog-lista li.apertando').length === 1), 'a luz acende no controle que está apertando');
   await pg.evaluate(() => { window.__b[1] = []; });
   await pg.evaluate(() => [...document.querySelectorAll('#jog-lista li')][2].querySelectorAll('.jog-bts button')[2].click());

@@ -58,7 +58,7 @@
   `.kofvisual`, por console e **por jogo** (`visual.jogo.<jogoId>`, vence o do console). Jogar no PC: o celular passa o vídeo
   pelo desenho dele (`puxarVideo`: o PC manda `l/a` no `{t:'jogo'}`, o quadro volta ao tamanho do jogo, `pintar(true)`);
   ☰ tem "Filtro e moldura do celular" (`kofnes.remotoFiltro`) e "Escolher o filtro do celular".
-- **🎮 JOGADORES 2 A 4 (26/10, EM ANDAMENTO na branch `jogadores`, NÃO publicado; falta: rebuildar os 8 núcleos wasm (`nucleo-libretro/construir.sh`, a saida/ fica fora do git), `sh testes/montar-sem-kof.sh /tmp/montar`, rodar `jogadores.cjs` (antes passou tudo menos o `_lr_pad_n`, que era dos núcleos velhos) + `aparelhos.cjs`, `jogar-no-pc.cjs`, `testes/android/controle.cjs`, `modos.cjs`; depois juntar na main e publicar):** ponte (`nucleo-libretro/ponte.cpp`) com 4 portas (`botoes[4]`, `eixos[4][4]`, `lr_pad_n`,
+- **🎮 JOGADORES 2 A 4 (26/10, PUBLICADO junto com os Controles; falta o Marcelo testar):** ponte (`nucleo-libretro/ponte.cpp`) com 4 portas (`botoes[4]`, `eixos[4][4]`, `lr_pad_n`,
   `lr_eixos_n`, `lr_dispositivo_n`, `lr_jogadores`) → TODOS os núcleos wasm recompilados (emscripten 3.1.6 do Ubuntu; o
   `construir.sh` agora acha o `libretro.h` da pasta do núcleo com `-idirafter`; `testes/montar-sem-kof.sh` usa os de
   `nucleo-libretro/saida/` no lugar dos publicados). `web/jogadores.js` (no app.js depois do jogarpc.js): aparelhos =
@@ -69,6 +69,18 @@
   (Arquivo, menu rápido) com luz de quem aperta e J1–J4. Celular: "Usar como controle do PC" vai pela rede quando tem PC
   pareado online (`modoControle.rede`; mostra "Jogador N" e a cor). PS2: só o J1 (o kofnativo tem um pad só). Teste:
   `testes/navegador/jogadores.cjs`.
+- **⌨ CONTROLES E TECLAS (26/10, PUBLICADO com os Jogadores):** no app.js (bloco que era do "Configurar teclas"): camadas
+  Geral (`kofnes.teclas`) → console (`kofnes.teclas.<sis>`) → só este jogo (`kofnes.teclas.jogo.<jogoId>`), igual pros botões
+  do controle (`kofnes.botoes...`, índices da Gamepad API; `BOTOES` muda, `BOTOES_PADRAO` é o original). `mapaDe(tipo, sis,
+  jogo)`, `juntarCamada` (tecla repetida sai da ação antiga), `aplicarControles()` (no fim do `abrirBytes`; manda `natTeclas`
+  pro PS2). Analógico no teclado (`EIXOS_TECLA`, `TECLAS_EIXO`, `tecEixo`, `eixosDoTeclado`, `tecladoBits`): PS1/PS2 = setas
+  analógico esquerdo, IJKL direito, direcional em TFGH; N64 só o esquerdo; PS1 'misto' aperta o direcional junto. Tela
+  `#teclas` "🎮 Controles e teclas" (abas `#ct-abas`, escopo `#ct-escopo`, grade Botão | ⌨ Teclado | 🎮 Controle | ↺, nomes do
+  console em `NOMES_BOTAO`; botão do controle: espera soltar e pega o próximo, 10 s); menu rápido "⌨ Controles e teclas"
+  (só PC; o celular continua com a tela do controle virtual, que troca o `montarGrade`). Teste: `testes/navegador/controles.cjs`.
+  **Bug N64 no celular (26/10, aberto):** o Marcelo disse que o N64 dá erro no celular (o PS1 roda). Lado da página passa no
+  `ps1-fachada.cjs`; as .so do APK são iguais às de antes. Achado: a área do jogo vai 640x480 pro Android num celular de 390
+  (`ajustarEscala`: `Math.max(telaL, ...)`), código antigo. Esperando a mensagem/print do erro.
 - **Aberto / a fazer, nesta ordem:**
   0. **ATUALIZAÇÃO 25/10 (última mensagem do chat): o Marcelo disse "deu certo, muito foda"** logo depois de receber as
      instruções do controle: tudo indica que o **celular como controle conectou**. Confirmar com ele no começo do chat novo

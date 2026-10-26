@@ -38,7 +38,7 @@
     <button data-acao="auto-toggle">Salvar automático: ligado</button>
     <button data-acao="emu-opcoes">🎮 Modo de jogo e opções de emulação…</button>
     <hr>
-    <button data-acao="teclas">Configurar teclas…</button>
+    <button data-acao="teclas">Controles e teclas…</button>
   </div></div>
   <div class="m"><button>Imagem</button><div class="sub">
     <button data-escala="2">Escala 2×</button>
@@ -313,14 +313,16 @@
         <div data-pagina="atalhos" hidden>
           <h3>⌨️ Atalhos e controles</h3>
           <table id="tab-ajuda"></table>
-          <p class="dica">Pra mudar as teclas: <b>Emulação → Configurar teclas…</b></p>
+          <p class="dica">Pra mudar as teclas: <b>Emulação → Controles e teclas…</b></p>
         </div>
       </div>
     </div>
   </section>
 
   <section id="teclas" class="janela" hidden>
-    <div class="titulo-j">Configurar teclas <button class="x" data-acao="fechar-teclas">×</button></div>
+    <div class="titulo-j">🎮 Controles e teclas <button class="x" data-acao="fechar-teclas">×</button></div>
+    <div id="ct-abas" class="ct-abas so-pc"></div>
+    <div id="ct-escopo" class="ct-abas ct-escopo so-pc"></div>
     <p class="dica" id="teclas-dica">Clique num botão e aperte a tecla que quiser.</p>
     <div id="grade-teclas"></div>
     <button class="grande sec" data-acao="teclas-padrao">Restaurar padrão</button>

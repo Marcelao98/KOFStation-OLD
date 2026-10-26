@@ -20,7 +20,7 @@ function bitsDoPad(g, puro) {
 const eixoPad = (v) => (Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767));
 // os aparelhos ligados agora: [{k: chave, nome, b, e}] (o teclado sempre; celulares que mandaram botão nos últimos 5 s)
 function aparelhosDeControle() {
-  const l = [{ k: 'teclado', nome: CELULAR ? 'Tela de toque' : 'Teclado', b: teclado | toque, e: null }];
+  const l = [{ k: 'teclado', nome: CELULAR ? 'Tela de toque' : 'Teclado', b: tecladoBits() | toque, e: eixosDoTeclado() }];
   const puro = analogico() === 'puro';
   for (const g of (navigator.getGamepads ? navigator.getGamepads() : [])) {
     if (!g || !g.connected) continue;
