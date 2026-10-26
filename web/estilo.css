@@ -1599,3 +1599,5 @@ html.celular body.com-visual #palco { padding-right: 0; padding-bottom: 58vh; }
 #ap-msg { padding: 8px 12px; border-radius: 8px; background: var(--painel2); border: 1px solid var(--borda); }
 .ap-fases { padding: 8px 12px; border-left: 3px solid var(--destaque); background: var(--painel2); border-radius: 6px; margin: 8px 0; }
 .ap-fases p { margin: 4px 0; }
+/* o botão escolhido pelo controle (navegarPad no app.js) */
+.foco-pad { outline: 3px solid var(--destaque) !important; outline-offset: 2px; box-shadow: 0 0 0 7px color-mix(in srgb, var(--destaque) 28%, transparent) !important; }

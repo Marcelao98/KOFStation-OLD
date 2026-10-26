@@ -384,4 +384,15 @@ body[data-modo="raiz"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [dat
 #modo-controle .mc-menu { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   background: rgb(0 0 0 / .72); }
 #modo-controle .mc-menu[hidden] { display: none; }
-#modo-controle .mc-menu button { width: min(80%, 320px); padding: 12px; border-radius: 12px; background: var(--painel); border: 1px solid var(--borda); font-size: 16px; }
+/* atalhos do controle do PC: ⏪ (segurar) 💾 📂 🏠 ☰ */
+#modo-controle .mc-atalhos { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 2; display: flex; gap: 8px;
+  padding: 4px 8px; border-radius: 999px; background: color-mix(in srgb, var(--painel) 80%, transparent); border: 1px solid var(--borda); }
+#modo-controle .mc-atalhos button { width: 40px; height: 36px; border-radius: 18px; font-size: 18px; touch-action: none; user-select: none; }
+#modo-controle .mc-atalhos button:active, #modo-controle .mc-atalhos button.on { background: var(--sel); }
+#modo-controle.remoto .mc-ping { bottom: 54px; }
+#modo-controle .mc-menu { position: fixed; overflow-y: auto; justify-content: flex-start; padding: 24px 0; }
+#modo-controle .mc-menu-pc { display: contents; }
+#modo-controle .mc-item { display: flex; gap: 6px; width: min(90%, 360px); }
+#modo-controle .mc-item button { flex: 1; width: auto; padding: 10px; border-radius: 10px; background: var(--painel); border: 1px solid var(--borda); font-size: 15px; }
+#modo-controle .mc-item button.mc-aj { flex: none; width: 44px; }
+#modo-controle.remoto .mc-atalhos [data-at="home"] { display: none; }   /* jogando no celular, o Início do PC ninguém vê */

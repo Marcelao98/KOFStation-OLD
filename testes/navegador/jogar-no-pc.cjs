@@ -88,17 +88,48 @@ function romVermelha() {
   ok((a & 0x0080) && !(solto & 0x0080), `botão do celular chega no PC pelo WebRTC (${a.toString(16)} → ${solto.toString(16)})`);
   await cel.waitForTimeout(1500);
   ok(/\d+ ms/.test(await cel.textContent('#modo-controle .mc-ping')), 'atraso medido: ' + await cel.textContent('#modo-controle .mc-ping'));
-  await apertar('#ctl [data-b="menu"]'); await soltar('#ctl [data-b="menu"]'); await cel.waitForTimeout(200);
-  ok(await cel.isVisible('#modo-controle .mc-menu'), '☰ abre o menu do celular (não o do PC)');
-  await cel.click('#modo-controle .mc-menu [data-r="salvar-estado"]');
+  // ⏪ segurando = Select+Y no PC (o rebobinar de lá)
+  await cel.evaluate(() => document.querySelector('.mc-atalhos [data-at="rebob"]').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 5 })));
+  await pg.waitForTimeout(300);
+  const rb = await pg.evaluate(() => KOFnes.botoes());
+  await cel.evaluate(() => document.querySelector('.mc-atalhos [data-at="rebob"]').dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 5 })));
+  await pg.waitForTimeout(300);
+  ok((rb & 0x6000) === 0x6000 && !(await pg.evaluate(() => KOFnes.botoes() & 0x6000)), '⏪ segurado vira Select+Y (rebobinar) no PC e solta');
+  await cel.click('.mc-atalhos [data-at="salvar-estado"]');
   await cel.waitForFunction(() => /estado salvo no PC/.test(document.body.textContent), null, { timeout: 8000 }).catch(() => {});
-  ok(/estado salvo no PC/.test(await cel.textContent('body')), 'salvar estado no PC pelo celular');
+  ok(/estado salvo no PC/.test(await cel.textContent('body')), '💾 salva estado no PC pelo celular');
   ok(!(await pg.evaluate(() => KOFnes.estado().pausado)), 'o PC segue rodando depois de salvar');
+  // ☰: o menu rápido do PC aparece no celular
+  await cel.click('.mc-atalhos [data-at="menu"]');
+  await cel.waitForSelector('#modo-controle .mc-menu-pc .mc-item', { timeout: 5000 }).catch(() => {});
+  const itens = await cel.$$eval('#modo-controle .mc-menu-pc .mc-item', (l) => l.map((x) => x.textContent));
+  ok(itens.some((t) => /Tema/.test(t)) && itens.some((t) => /Volume/.test(t)) && itens.some((t) => /Salvar estado/.test(t)), '☰ mostra o menu do PC no celular: ' + itens.length + ' itens');
+  const temaAntes = itens.find((t) => /Tema/.test(t));
+  await cel.evaluate(() => [...document.querySelectorAll('#modo-controle .mc-menu-pc .mc-item')].find((x) => /Tema/.test(x.textContent)).querySelector('.mc-aj:last-child').click());
+  await cel.waitForFunction((a) => [...document.querySelectorAll('#modo-controle .mc-menu-pc .mc-item')].some((x) => /Tema/.test(x.textContent) && x.textContent !== a), temaAntes, { timeout: 5000 }).catch(() => {});
+  const temaDepois = await cel.evaluate(() => [...document.querySelectorAll('#modo-controle .mc-menu-pc .mc-item')].find((x) => /Tema/.test(x.textContent)).textContent);
+  ok(temaDepois !== temaAntes, `▶ no celular troca o tema do PC (${temaAntes} → ${temaDepois})`);
+  if (prints) await cel.screenshot({ path: path.join(prints, 'jogar-no-pc-menu.png') });
+  await cel.click('#modo-controle .mc-menu [data-r="voltar"]');
+  ok(!(await pg.evaluate(() => KOFnes.estado().pausado)) && await cel.isHidden('#modo-controle .mc-menu'), 'volta ao jogo com o PC rodando');
   if (prints) { await cel.screenshot({ path: path.join(prints, 'jogar-no-pc-celular.png') }); await pg.screenshot({ path: path.join(prints, 'jogar-no-pc-pc.png') }); }
 
   await cel.evaluate(() => document.querySelector('#modo-controle .mc-sair').click());
   await pg.waitForFunction(() => !KOFnes.transmissao().ligada, null, { timeout: 5000 }).catch(() => {});
   ok(!(await pg.evaluate(() => KOFnes.transmissao().ligada)), 'sair no celular encerra a transmissão no PC');
+
+  // controle mexe nas telas do PC: direcional escolhe, B fecha
+  const pad = async (b) => { await pg.evaluate((x) => KOFnes.padTeste(x), b); await pg.waitForTimeout(120); await pg.evaluate(() => KOFnes.padTeste(0)); await pg.waitForTimeout(120); };
+  await pg.evaluate(() => document.querySelector('[data-acao="aparelhos"]').click());
+  await pg.waitForTimeout(300);
+  await pad(0x0400);
+  const f1 = await pg.evaluate(() => { const e = document.querySelector('.foco-pad'); return e && e.closest('#aparelhos') ? e.textContent.trim().slice(0, 30) : null; });
+  await pad(0x0400);
+  const f2 = await pg.evaluate(() => { const e = document.querySelector('.foco-pad'); return e ? e.textContent.trim().slice(0, 30) : null; });
+  ok(f1 && f2 && f1 !== f2, `direcional anda pelos botões da tela (${f1} → ${f2})`);
+  if (prints) await pg.screenshot({ path: path.join(prints, 'controle-navegando.png') });
+  await pad(0x8000);
+  ok(await pg.isHidden('#aparelhos'), 'B fecha a janela');
 
   await nav.close(); java.kill(); pcSrv.kill();
   fs.rmSync(tmp, { recursive: true, force: true });

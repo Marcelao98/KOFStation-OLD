@@ -213,16 +213,27 @@
       : `Não conectou? No navegador do PC abra http://${r.ip}:${r.porta}`;
     d.querySelector('.mc-sair').addEventListener('click', sairModoControle);
     d.querySelector('.mc-info').addEventListener('click', () => { modoControle.info = !modoControle.info; marcarModoControle(); });
+    d.insertAdjacentHTML('beforeend', '<div class="mc-atalhos"><button data-at="rebob" aria-label="rebobinar (segure)">⏪</button><button data-at="salvar-estado" aria-label="salvar estado">💾</button>'
+      + '<button data-at="carregar-ultimo" aria-label="carregar o último estado">📂</button><button data-at="home" aria-label="Início do PC">🏠</button><button data-at="menu" aria-label="menu">☰</button></div>');
+    const at = d.querySelector('.mc-atalhos');
+    const rb = at.querySelector('[data-at="rebob"]');   // ⏪ segurando = Select+Y no PC (o rebobinar de lá)
+    const rbFim = () => { if (modoControle) modoControle.extra = 0; rb.classList.remove('on'); };
+    rb.addEventListener('pointerdown', (e) => { e.preventDefault(); if (modoControle) modoControle.extra = 0x6000; rb.classList.add('on'); });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) rb.addEventListener(ev, rbFim);
+    at.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b || b === rb) return;
+      if (b.dataset.at === 'menu') { if (modoControle && modoControle.pc) menuRemoto(); else if (modoControle) modoControle.menu = performance.now(); }
+      else atalhoPc(b.dataset.at);
+    });
     if (pcId) {
       d.classList.add('remoto');
       d.insertAdjacentHTML('beforeend', '<video class="mc-video" playsinline autoplay></video><small class="mc-ping"></small>'
-        + '<div class="mc-menu" hidden><button data-r="salvar-estado">💾 Salvar estado no PC</button><button data-r="carregar-ultimo">📂 Carregar o último estado</button>'
-        + '<button data-r="sair">✕ Parar de jogar no PC</button><button data-r="voltar">▶ Voltar ao jogo</button></div>');
+        + '<div class="mc-menu" hidden><div class="mc-menu-pc"></div>'
+        + '<div class="mc-item"><button data-r="voltar">▶ Voltar ao jogo</button></div><div class="mc-item"><button data-r="sair">✕ Parar de jogar no PC</button></div></div>');
       d.querySelector('.mc-menu').addEventListener('click', (e) => {
         const r = e.target.closest('button') && e.target.closest('button').dataset.r; if (!r) return;
-        d.querySelector('.mc-menu').hidden = true;
+        d.querySelector('.mc-menu').hidden = true;   // os itens do PC (sem data-r) mandam pelo canal de dados
         if (r === 'sair') sairModoControle();
-        else if (r !== 'voltar' && modoControle && modoControle.dc && modoControle.dc.readyState === 'open') modoControle.dc.send(JSON.stringify({ t: 'acao', a: r }));
       });
       d.querySelector('.mc-status').textContent = 'chamando o PC…';
     }
@@ -235,7 +246,37 @@
     requestAnimationFrame(() => ajustarEscala());
     if (pcId) conectarAoPc(modoControle, pcId, op.jogo || null);
   }
-  function menuRemoto() { const mm = $('#modo-controle .mc-menu'); if (mm) mm.hidden = !mm.hidden; }
+  // 💾 📂 🏠: no Jogar no PC pelo canal de dados; no celular como controle, pela rede (precisa estar pareado em 📡 Aparelhos)
+  function atalhoPc(a) {
+    const m = modoControle; if (!m) return;
+    if (m.pc) { if (m.dc && m.dc.readyState === 'open') m.dc.send(JSON.stringify({ t: 'acao', a })); return; }
+    const pcs = rede.aparelhos.filter((x) => x.online && x.tipo === 'pc'), pc = pcs.find((x) => x.nome === m.nomePc) || pcs[0];
+    if (!pc) { avisar('pareie este celular com o PC em 📡 Aparelhos pra usar 💾 📂 🏠', 5000); return; }
+    mandarJogo(pc.id, { t: "acao", a });   // mesmo canal "jogo": o PC responde "feito"
+  }
+  // ☰ no Jogar no PC: o menu rápido do PC aparece aqui (o PC manda os itens e os valores; o toque volta pra lá)
+  function menuRemoto() {
+    const mm = $('#modo-controle .mc-menu'); if (!mm) return;
+    if (!mm.hidden) { mm.hidden = true; return; }
+    mm.hidden = false;
+    const m = modoControle; if (m && m.dc && m.dc.readyState === 'open') m.dc.send(JSON.stringify({ t: 'menu' }));
+  }
+  function desenharMenuRemoto(itens) {
+    const lista = $('#modo-controle .mc-menu-pc'); if (!lista) return;
+    lista.textContent = '';
+    const manda = (o) => { const m = modoControle; if (m && m.dc && m.dc.readyState === 'open') m.dc.send(JSON.stringify(o)); };
+    for (const it of itens) {
+      const li = document.createElement('div'); li.className = 'mc-item';
+      const nm = document.createElement('button'); nm.textContent = it.t + (it.v ? ': ' + it.v : '');
+      if (it.aj) {
+        const menos = document.createElement('button'); menos.textContent = '◀'; menos.className = 'mc-aj'; menos.onclick = () => manda({ t: 'menu-item', i: it.i, d: -1 });
+        const mais = document.createElement('button'); mais.textContent = '▶'; mais.className = 'mc-aj'; mais.onclick = () => manda({ t: 'menu-item', i: it.i, d: 1 });
+        nm.onclick = () => manda({ t: 'menu-item', i: it.i, d: 1 });
+        li.append(menos, nm, mais);
+      } else { nm.onclick = () => { manda({ t: 'menu-item', i: it.i, d: 0 }); $('#modo-controle .mc-menu').hidden = true; }; li.append(nm); }
+      lista.appendChild(li);
+    }
+  }
   // pede o jogo ao PC e responde a oferta de vídeo dele; tudo pelo canal "jogo" da rede (cifrado)
   function conectarAoPc(m, pcId, jogo) {
     const pcNome = (rede.aparelhos.find((a) => a.id === pcId) || {}).nome || 'PC';
@@ -258,7 +299,8 @@
           if (typeof ev.data !== 'string') return;
           if (ev.data[0] === 'P') { const ms = Math.round(performance.now() - +ev.data.slice(1)); const el = $('#modo-controle .mc-ping'); if (el) el.textContent = '📶 ' + ms + ' ms'; return; }
           let j; try { j = JSON.parse(ev.data); } catch (x) { return; }
-          if (j.t === 'feito') { avisar(j.a === 'salvar-estado' ? '💾 estado salvo no PC' : '📂 último estado carregado', 2500); return; }
+          if (j.t === 'menu') { desenharMenuRemoto(j.itens || []); return; }
+          if (j.t === 'feito') { avisar(j.a === 'salvar-estado' ? '💾 estado salvo no PC' : j.a === 'carregar-ultimo' ? '📂 último estado carregado' : j.a === 'home' ? '🏠 Início do PC' : '✅ ' + j.a, 2500); return; }
           if (j.t === 'jogo') { const k = j.sis + '\t' + j.nome; if (k !== m.jogo) { m.jogo = k; consoleDoControle(j.sis, j.nome); } }
         };
         dc.onclose = () => { if (modoControle === m) { avisar('🖥 a conexão com o PC caiu', 5000); sairModoControle(); } };
@@ -298,7 +340,7 @@
   }
   function enviarControle() {
     const m = modoControle; if (!m) return;
-    const b = estado() | (performance.now() - (m.menu || 0) < 150 ? 0x3000 : 0), e16 = [eixosToque[0], eixosToque[1], 0, 0].map((v) => (Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767)));
+    const b = estado() | (m.extra || 0) | (performance.now() - (m.menu || 0) < 150 ? 0x3000 : 0), e16 = [eixosToque[0], eixosToque[1], 0, 0].map((v) => (Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767)));
     const e = KofLibretro.empacotar(e16), agora = performance.now();
     if (m.pc) {   // 🖥 Jogar no PC: os 6 bytes vão pelo canal de dados do WebRTC (sem fila: botão velho não serve)
       const dc = m.dc; if (!dc || dc.readyState !== 'open') return;
@@ -336,6 +378,12 @@
     jogando = false; atualizarJogando();
   }
   window.entrarModoControle = entrarModoControle;
+  // resposta dos atalhos 💾 📂 no celular como controle (chega pela rede)
+  rede.ouvintes.push((msg) => {
+    if (msg.t !== 'msg' || msg.canal !== 'jogo' || !modoControle || modoControle.pc) return;
+    let p; try { p = JSON.parse(msg.dados); } catch (e) { return; }
+    if (p.t === 'feito') avisar(p.a === 'salvar-estado' ? '💾 estado salvo no PC' : p.a === 'carregar-ultimo' ? '📂 último estado carregado' : '🏠 Início do PC', 2500);
+  });
 
   // ----- voltar do Android: no jogo abre o menu rápido; nas telas, volta -----
   history.pushState({ kofnes: 1 }, '');

@@ -29,6 +29,16 @@
   "🎮 Jogar no PC" no PC online da tela Aparelhos e "🖥 Jogar no PC" na ficha da biblioteca (`acao jogar-pc`). Sem mudança no
   Java (CASCA continua 14). Teste: `testes/navegador/jogar-no-pc.cjs` (ROM de Mega Drive vermelha gerada; confere cor, som,
   botão, ping, menu, sair). Falta: filtro/moldura do celular por cima do vídeo, tela deitada, qualidade no menu, PS2.
+- **🎮 CONTROLE TOTAL (26/10, PUBLICADO direto na main a pedido do Marcelo):** (1) `navegarPad` no app.js: fora do jogo, em
+  qualquer tela (`TELAS_PAD`, a última visível no html fica por cima), o direcional do controle (físico ou celular; o teclado
+  NÃO, `& ~teclado`) escolhe o botão mais perto naquela direção (`moverPad`, classe `.foco-pad`), segurar repete, A clica
+  (select/range: ◀▶ mudam o valor), B clica o × da janela ou `voltar()`, Start = Início (no Início A/Start = ação principal,
+  X = biblioteca); a biblioteca e a abertura seguem com o código delas; desligado com menu rápido, #modo-tela, capturando
+  tecla ou transmitindo. (2) celular (android.js): barrinha `.mc-atalhos` no modo controle e no Jogar no PC: ⏪ segurando =
+  `m.extra = 0x6000` (Select+Y = rebobinar do PC), 💾/📂/🏠 (`atalhoPc`: no Jogar no PC pelo canal de dados; no celular como
+  controle pela rede, canal `jogo` `{t:'acao'}`, precisa estar pareado), ☰. (3) Jogar no PC: ☰ pede `{t:'menu'}` e o PC manda
+  os itens do `ITENS_RAPIDO` que não abrem tela (`itemRemoto`: ajustes ◀▶, 💾, ⟲, ↺; `menuParaCelular`); toque = `menu-item
+  {i, d}`. `acaoDoCelular` (jogarpc.js, lista `ACOES_CELULAR`). Teste: `jogar-no-pc.cjs` (⏪, 💾, menu, tema, navegação, B).
 - **Aberto / a fazer, nesta ordem:**
   0. **ATUALIZAÇÃO 25/10 (última mensagem do chat): o Marcelo disse "deu certo, muito foda"** logo depois de receber as
      instruções do controle: tudo indica que o **celular como controle conectou**. Confirmar com ele no começo do chat novo

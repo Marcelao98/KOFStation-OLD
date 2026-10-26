@@ -18,7 +18,11 @@ function esperarIce(pc) {
   });
 }
 rede.ouvintes.push((m) => {
-  if (m.t === 'msg' && m.canal === 'jogo') { let p; try { p = JSON.parse(m.dados); } catch (e) { return; } pedidoDoCelular(m.de, p); }
+  if (m.t === 'msg' && m.canal === 'jogo') {
+    let p; try { p = JSON.parse(m.dados); } catch (e) { return; }
+    if (p.t === 'acao' && !CELULAR) { acaoDoCelular(p.a, (o) => mandarJogo(m.de, o)); return; }   // atalhos do celular como controle
+    pedidoDoCelular(m.de, p);
+  }
   if (m.t === 'lista' && transm.de && !rede.aparelhos.some((a) => a.id === transm.de && a.online)) pararTransmissao('o celular saiu da rede');
 });
 async function pedidoDoCelular(de, p) {
@@ -78,8 +82,14 @@ async function comecarTransmissao(de) {
     if (typeof e.data === 'string') {
       if (e.data.startsWith('p')) { dc.send('P' + e.data.slice(1)); return; }   // ping: o celular mede o atraso
       let j; try { j = JSON.parse(e.data); } catch (x) { return; }
-      if (j.t === 'acao' && ['salvar-estado', 'carregar-ultimo'].includes(j.a)) {   // menu ☰ do celular
-        acao(j.a).then(() => { fecharJanelas(); pausado = false; if (dc.readyState === 'open') dc.send(JSON.stringify({ t: 'feito', a: j.a })); });
+      if (j.t === 'acao') acaoDoCelular(j.a, (o) => { if (dc.readyState === 'open') dc.send(JSON.stringify(o)); });
+      else if (j.t === 'menu') dc.send(JSON.stringify(menuParaCelular()));
+      else if (j.t === 'menu-item') {
+        const it = ITENS_RAPIDO[j.i];
+        if (it && itemRemoto(it)) {
+          try { if (j.d && it.aj) it.aj(j.d); else if (it.f) { it.f(); dc.send(JSON.stringify({ t: 'feito', a: it.t })); } } catch (x) { console.warn(x); }
+          setTimeout(() => { if (transm.pc) { fecharJanelas(); pausado = false; } if (dc.readyState === 'open') dc.send(JSON.stringify(menuParaCelular())); }, 50);
+        }
       }
       return;
     }
@@ -102,6 +112,17 @@ async function comecarTransmissao(de) {
   mandarJogo(de, { t: 'oferta', sdp: pc.localDescription.sdp });
   transmitirQuadro();
 }
+// atalhos do celular (☰ do Jogar no PC, ou a barrinha do celular como controle pela rede)
+const ACOES_CELULAR = ['salvar-estado', 'carregar-ultimo', 'home'];
+async function acaoDoCelular(a, responder) {
+  if (!ACOES_CELULAR.includes(a)) return;
+  await acao(a);
+  if (transm.pc && a !== 'home') { fecharJanelas(); pausado = false; }   // jogando no celular: o jogo segue
+  responder({ t: 'feito', a });
+}
+// o menu rápido do PC no celular: só o que muda o jogo sem abrir tela no PC (ajustes ◀▶, salvar, carregar, reiniciar)
+const itemRemoto = (it) => (!it.so || it.so()) && (it.aj || /^(💾|⟲|↺)/.test(it.t));
+const menuParaCelular = () => ({ t: 'menu', itens: ITENS_RAPIDO.map((it, i) => ({ i, t: it.t, v: it.v ? String(it.v()) : '', aj: !!it.aj, it })).filter((x) => itemRemoto(x.it)).map(({ it, ...x }) => x) });
 // console e nome do jogo pro celular trocar o controle (o mesmo que o celular como controle recebe)
 function contarAoCelular() {
   const dc = transm.dc; if (!dc || dc.readyState !== 'open') return;
@@ -129,4 +150,5 @@ function pararTransmissao(motivo) {
   remoto.bits = 0; remoto.eixos.fill(0);
   if (motivo) { avisar('🖥 transmissão encerrada: ' + motivo, 4000); if (de) mandarJogo(de, { t: 'erro', texto: motivo }); }
 }
+if (window.KOFnes) KOFnes.padTeste = (b) => { remoto.bits = b; };   // teste: aperta botões como se viessem do celular
 if (window.KOFnes) KOFnes.transmissao = () => ({ ligada: transmitindo(), estado: transm.pc && transm.pc.connectionState, dc: transm.dc && transm.dc.readyState, bits: remoto.bits });

@@ -3233,6 +3233,71 @@ async function mostrarBiblioteca(pedir, relerPasta) {
   }
 }
 function fecharJanelas() { fecharTemas(false); for (const id of ['home', 'biblioteca', 'estados', 'guia', 'teclas', 'estatisticas', 'jukebox', 'bios-tela', 'aparelhos']) $('#' + id).hidden = true; if (typeof pararCamera === 'function') pararCamera(); capturando = null; if (rapidoAberto) fecharRapido(); }
+// ---- controle (físico ou o celular) mexe em todas as telas: o direcional escolhe o botão mais perto naquela direção,
+// A aperta, B volta/fecha, Start vai pro Início (no Início, A/Start fazem a ação principal e X abre a biblioteca)
+const TELAS_PAD = ['home', 'estados', 'guia', 'teclas', 'aparelhos', 'bios-tela', 'bug', 'jukebox', 'temas', 'molduras', 'estatisticas'];
+const FOCAVEIS = 'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"]), li[data-acao]';
+const pad = { el: null, dir: 0, prox: 0 };
+function telaDoPad() {
+  if (rapidoAberto || !$('#modo-tela').hidden || capturando || (typeof transm !== 'undefined' && transm.pc)) return null;
+  const abertas = [...document.querySelectorAll(TELAS_PAD.map((i) => '#' + i).join(','))].filter((e) => !e.hidden);
+  return abertas.pop() || null;   // a última no html fica por cima
+}
+const visivelPad = (e) => { if (e.disabled || e.closest('[hidden]')) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden'; };
+function escolherPad(e) {
+  if (pad.el) pad.el.classList.remove('foco-pad');
+  pad.el = e; e.classList.add('foco-pad');
+  try { e.focus({ preventScroll: true }); } catch (x) { /* não focável */ }
+  e.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+function soltarPad() { if (pad.el) pad.el.classList.remove('foco-pad'); pad.el = null; pad.dir = 0; }
+addEventListener('pointerdown', () => { if (pad.el && !CELULAR) soltarPad(); }, true);   // voltou pro mouse: some o destaque
+function moverPad(tela, dx, dy) {
+  const cands = [...tela.querySelectorAll(FOCAVEIS)].filter(visivelPad);
+  if (!cands.length) return;
+  const atual = pad.el && tela.contains(pad.el) && visivelPad(pad.el) ? pad.el : null;
+  if (!atual) { escolherPad(cands.find((e) => e.classList.contains('grande')) || cands[0]); return; }
+  const a = atual.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+  let melhor = null, nota = Infinity;
+  for (const c of cands) {
+    if (c === atual || c.contains(atual) || atual.contains(c)) continue;
+    const r = c.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const anda = dx ? (cx - ax) * dx : (cy - ay) * dy;   // quanto anda na direção pedida
+    if (anda <= 2) continue;
+    const lado = dx ? Math.abs(cy - ay) : Math.abs(cx - ax);
+    const n = anda + lado * 2.5;
+    if (n < nota) { nota = n; melhor = c; }
+  }
+  if (melhor) escolherPad(melhor);
+}
+function navegarPad(tela, b, novo) {
+  if (pad.el && !tela.contains(pad.el)) soltarPad();
+  const el = pad.el;
+  // direção: anda na hora e repete segurando
+  const dir = b & 0x0F00, agora = performance.now();
+  if (!dir) pad.dir = 0;
+  else if (dir !== pad.dir || agora >= pad.prox) {
+    pad.prox = agora + (dir !== pad.dir ? 380 : 110); pad.dir = dir;
+    const dx = dir & 0x0100 ? 1 : dir & 0x0200 ? -1 : 0, dy = dir & 0x0400 ? 1 : dir & 0x0800 ? -1 : 0;
+    if (el && dx && el.tagName === 'SELECT') { el.selectedIndex = (el.selectedIndex + dx + el.options.length) % el.options.length; el.dispatchEvent(new Event('change', { bubbles: true })); }
+    else if (el && dx && el.type === 'range') { if (dx > 0) el.stepUp(); else el.stepDown(); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }
+    else moverPad(tela, dx, dy);
+  }
+  const home = tela.id === 'home';
+  if (novo & 0x0080) {   // A
+    if (el) el.click();
+    else if (home) { const pr = $('#hm-destaque .grande'); if (pr) pr.click(); }
+    else moverPad(tela, 0, 1);
+  }
+  if (novo & 0x1000) {   // Start
+    if (home) { const pr = $('#hm-destaque .grande'); if (pr) pr.click(); } else acao('home');
+  }
+  if (novo & 0x0040 && home) acao('biblioteca');   // X no Início
+  if (novo & 0x8000) {   // B: fecha a janela (o × dela) ou volta
+    const x = tela.querySelector('.titulo-j .x');
+    if (x && visivelPad(x)) x.click(); else voltar();
+  }
+}
 // controle também navega na biblioteca
 let padAntes = 0;
 setInterval(() => {
@@ -3243,13 +3308,13 @@ setInterval(() => {
     else if (novo & 0x8000 && !$('#ab-guia').hidden) acao('ab-voltar');
     return;
   }
-  if (!$('#home').hidden) {               // no início: A/Start = ação principal, X = biblioteca
-    const b = estado(), novo = b & ~padAntes; padAntes = b;
-    if (novo & (0x0080 | 0x1000)) { const pr = $('#hm-destaque .grande'); if (pr) pr.click(); }
-    if (novo & 0x0040) acao('biblioteca');
+  if ($('#biblioteca').hidden) {          // as outras telas: o direcional anda pelos botões (navegarPad)
+    const tela = telaDoPad();
+    if (!tela) { padAntes = 0; soltarPad(); return; }
+    const b = estado() & ~teclado, novo = b & ~padAntes; padAntes = b;   // o teclado já tem as teclas dele nas telas
+    navegarPad(tela, b, novo);
     return;
   }
-  if ($('#biblioteca').hidden) { padAntes = 0; return; }
   const b = estado(), novo = b & ~padAntes; padAntes = b;
   const ir = (code) => listaTecla({ code, preventDefault() {}, target: null, key: '' });
   if (novo & 0x0400) ir('ArrowDown');
