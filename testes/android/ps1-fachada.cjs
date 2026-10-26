@@ -2,11 +2,11 @@
 // Java (Ps1Jogo). Confere que um CD de PS1 vai pro nativo sem ser lido pelo JavaScript, que os botões e a área do jogo
 // chegam a cada quadro, que pausar para o sinal, savestate pela ponte, reabrir pela biblioteca e trocar pra outro console.
 //   node testes/android/ps1-fachada.cjs dist/web/KOFnes-android.html "Cubo de Teste.cue" "Cubo de Teste.bin" rom.sfc
-const { chromium } = require('/opt/node22/lib/node_modules/playwright');
+const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const [,, html, cue, bin, sfc] = process.argv;
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
+  const b = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await ctx.route('https://appassets.androidplatform.net/**', (rt) => {
     const nome = decodeURIComponent(new URL(rt.request().url()).pathname.slice(1)) || 'index.html';
