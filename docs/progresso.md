@@ -15,7 +15,7 @@ A história contada fica no [HISTORICO.md](../HISTORICO.md) e a engenharia em [a
 | Neo Geo | FBNeo (não comercial) | ✅ | ✅ | Testado (KOF); precisa do neogeo.zip |
 | PlayStation | PCSX-ReARMed (GPL-2) | ✅ WebAssembly | ✅ nativo | Liso no PC; o nativo do celular falta confirmar com jogo de verdade |
 | Nintendo 64 | Mupen64Plus-Next (GPL-2) | ✅ WebAssembly | ✅ nativo | Falta confirmar com jogo de verdade |
-| PlayStation 2 | PCSX2/LRPS2 (GPL-3) no kofnativo; Play! (BSD-2) de reserva | 🟡 Linux | ❌ | Falta confirmar o Shadow of the Colossus. Windows sem o kofnativo ainda. Ver [ps2.md](ps2.md) |
+| PlayStation 2 | PCSX2/LRPS2 (GPL-3) no kofnativo; Play! (BSD-2) de reserva | ✅ Linux · 🟡 Windows | ❌ | Shadow of the Colossus rodando no Linux. Windows publicado, falta testar num Windows de verdade. Ver [ps2.md](ps2.md) |
 
 ## O que o app já faz
 
@@ -31,7 +31,7 @@ A história contada fica no [HISTORICO.md](../HISTORICO.md) e a engenharia em [a
 
 ## Em aberto
 
-1. **PS2:** confirmar no Linux do Marcelo, depois levar o kofnativo pro Windows e pôr molduras.
+1. **PS2:** testar no Windows de verdade.
 2. **Motor novo** (se precisar de mais desempenho): emulação num Worker e som por AudioWorklet.
 3. **Fase 3 dos saves:** sincronizar saves e estatísticas entre PC e celular pela conexão do controle.
 4. **Versão comercial** (ideia): trocar os núcleos não comerciais (Snes9x, Genesis Plus GX, FBNeo) por Geolith, ares, Gearsystem/BlastEm ou o núcleo Kof.

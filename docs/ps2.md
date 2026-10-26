@@ -7,7 +7,7 @@ Como o PS2 entrou no KOFstation, o que deu errado no caminho e onde ele está ho
 | | |
 |---|---|
 | **PC Linux** | PCSX2 de verdade (núcleo LRPS2), num programa nosso chamado **kofnativo** que o lançador `kofnes.sh` abre junto. Publicado na versão 202610260522. O Shadow of the Colossus rodou direto no kofnativo no PC do Marcelo (60 fps no Ryzen 5 4600H); falta confirmar pelo KOFstation. |
-| **PC Windows** | Ainda não tem o kofnativo. Sem ele, o PS2 cai no Play! do navegador, que só roda jogos leves. |
+| **PC Windows** | Publicado em 26/10: o `KOFstation.exe` baixa e abre o PCSX2 junto, como no Linux. Compilado daqui com o llvm-mingw (`pc-nativo/construir-windows.sh`). Falta testar num Windows de verdade; no Wine ele cai ao reservar a memória do PS2, uma limitação do Wine. |
 | **Celular** | Não tem PS2. |
 | **BIOS** | Precisa da BIOS do console de quem joga: o arquivo **.bin de 4 MB**. Os .DIFF, .rom1, .rom2, .erom, .nvm e .mec que vêm junto não servem. Ela é guardada pela tela **🔑 BIOS dos consoles** (card no Início ou Arquivo). O KOFstation não traz BIOS nenhuma. |
 | **Imagem** | **Modo página** (padrão desde 26/10): o jogo aparece dentro do KOFstation, com tema, moldura, filtros e menus por cima, igual aos outros consoles. O modo janela antigo continua de reserva. |
@@ -50,5 +50,5 @@ página (KOFstation.html, web/ps2.js)  ←── WebSocket 127.0.0.1:8643 ──
 ## Próximos passos
 
 1. O Marcelo confirmar o Shadow of the Colossus pelo KOFstation no Linux.
-2. kofnativo pro Windows (compilar LRPS2 + kofnativo com mingw e o `KOFstation.exe` abrir junto).
+2. Testar o PS2 num Windows de verdade (10 ou 11).
 3. Medir o atraso do controle no modo página (deve ser 1 a 2 quadros a mais que no modo janela).

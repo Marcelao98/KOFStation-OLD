@@ -33,8 +33,9 @@
 #include <string.h>
 #include <stdarg.h>
 #include <time.h>
+#include <tlhelp32.h>
 
-#define LANCADOR 11
+#define LANCADOR 12
 #define GITHUB L"raw.githubusercontent.com"
 #define MAX_NUCLEOS 32
 #ifndef WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY
@@ -284,30 +285,32 @@ static long long tamanhoArq(const wchar_t *arq) {
 
 // núcleos do versao.txt: linhas "nucleo=<arquivo>:<tamanho>"
 typedef struct { wchar_t nome[96]; long long tam; } Nucleo;
-static int lerNucleos(const wchar_t *arq, Nucleo *lista) {
+static int lerLista(const wchar_t *arq, Nucleo *lista, const char *chave) {
     FILE *f = _wfopen(arq, L"rb");
     if (!f) return 0;
     char linha[256];
     int n = 0;
     while (n < MAX_NUCLEOS && fgets(linha, sizeof(linha), f)) {
-        if (strncmp(linha, "nucleo=", 7) != 0) continue;
-        char *dois = strchr(linha + 7, ':');
+        size_t k = strlen(chave);
+        if (strncmp(linha, chave, k) != 0) continue;
+        char *nome = linha + k, *dois = strchr(nome, ':');
         if (!dois) continue;
         *dois = 0;
-        // só nome simples de arquivo .js (nada de pasta ou "..")
-        if (strpbrk(linha + 7, "/\\:") || strstr(linha + 7, "..") || strlen(linha + 7) > 90) continue;
-        swprintf(lista[n].nome, 96, L"%hs", linha + 7);
+        // só nome simples de arquivo (nada de pasta ou "..")
+        if (strpbrk(nome, "/\\:") || strstr(nome, "..") || strlen(nome) > 90) continue;
+        swprintf(lista[n].nome, 96, L"%hs", nome);
         lista[n].tam = _strtoi64(dois + 1, NULL, 10);
         if (lista[n].tam > 0) n++;
     }
     fclose(f);
     return n;
 }
+static int lerNucleos(const wchar_t *arq, Nucleo *lista) { return lerLista(arq, lista, "nucleo="); }
 
 // baixa pra nucleos\ os que faltam ou estão com o tamanho errado; devolve 1 se no fim estão todos lá
-static int baixarNucleos(Atualizacao *a, Nucleo *lista, int n) {
+static int baixarPara(Atualizacao *a, Nucleo *lista, int n, const wchar_t *sub) {
     wchar_t pasta[MAX_PATH], dest[MAX_PATH], novo[MAX_PATH], remoto[160];
-    swprintf(pasta, MAX_PATH, L"%ls\\nucleos", a->dir);
+    swprintf(pasta, MAX_PATH, L"%ls\\%ls", a->dir, sub);
     CreateDirectoryW(pasta, NULL);
     int ok = 1;
     for (int i = 0; i < n; i++) {
@@ -315,7 +318,7 @@ static int baixarNucleos(Atualizacao *a, Nucleo *lista, int n) {
         if (tamanhoArq(dest) == lista[i].tam) continue;
         InterlockedExchange(&a->baixando, 1);
         swprintf(novo, MAX_PATH, L"%ls.novo", dest);
-        swprintf(remoto, 160, L"nucleos/%ls", lista[i].nome);
+        swprintf(remoto, 160, L"%ls/%ls", sub, lista[i].nome);
         long long b = baixar(remoto, novo);
         if (b == lista[i].tam && MoveFileExW(novo, dest, MOVEFILE_REPLACE_EXISTING)) {
             anotar("núcleo %ls baixado (%lld bytes)", lista[i].nome, b);
@@ -328,10 +331,12 @@ static int baixarNucleos(Atualizacao *a, Nucleo *lista, int n) {
     return ok;
 }
 
-// apaga de nucleos\ o que não está mais na lista (núcleo de versão velha)
-static void limparNucleos(Atualizacao *a, Nucleo *lista, int n) {
+static int baixarNucleos(Atualizacao *a, Nucleo *lista, int n) { return baixarPara(a, lista, n, L"nucleos"); }
+
+// apaga de nucleos\ (ou nativo\) o que não está mais na lista (arquivo de versão velha)
+static void limparPasta(Atualizacao *a, Nucleo *lista, int n, const wchar_t *sub) {
     wchar_t busca[MAX_PATH], arq[MAX_PATH];
-    swprintf(busca, MAX_PATH, L"%ls\\nucleos\\*", a->dir);
+    swprintf(busca, MAX_PATH, L"%ls\\%ls\\*", a->dir, sub);
     WIN32_FIND_DATAW d;
     HANDLE h = FindFirstFileW(busca, &d);
     if (h == INVALID_HANDLE_VALUE) return;
@@ -340,11 +345,12 @@ static void limparNucleos(Atualizacao *a, Nucleo *lista, int n) {
         int usado = 0;
         for (int i = 0; i < n && !usado; i++) usado = _wcsicmp(d.cFileName, lista[i].nome) == 0;
         if (usado) continue;
-        swprintf(arq, MAX_PATH, L"%ls\\nucleos\\%ls", a->dir, d.cFileName);
-        if (DeleteFileW(arq)) anotar("núcleo velho apagado: %ls", d.cFileName);
+        swprintf(arq, MAX_PATH, L"%ls\\%ls\\%ls", a->dir, sub, d.cFileName);
+        if (DeleteFileW(arq)) anotar("arquivo velho apagado: %ls\\%ls", sub, d.cFileName);
     } while (FindNextFileW(h, &d));
     FindClose(h);
 }
+static void limparNucleos(Atualizacao *a, Nucleo *lista, int n) { limparPasta(a, lista, n, L"nucleos"); }
 
 static DWORD WINAPI atualizar(LPVOID arg) {
     Atualizacao *a = (Atualizacao *)arg;
@@ -369,6 +375,10 @@ static DWORD WINAPI atualizar(LPVOID arg) {
     // núcleos primeiro: o html novo só entra se todos os núcleos dele já estiverem na pasta
     // (também conserta a pasta de quem atualizou o html por um lançador antigo, que não baixa núcleo)
     int nucleosOk = baixarNucleos(a, nucs, nn);
+    // PS2 nativo (kofnativo + PCSX2): opcional, não segura a página; sem ele o PS2 fica no Play! do navegador
+    static Nucleo nats[8];
+    int nnat = lerLista(vNova, nats, "nativo_windows=");
+    if (nnat > 0 && baixarPara(a, nats, nnat, L"nativo")) limparPasta(a, nats, nnat, L"nativo");
     int trocouHtml = 0;
     if (nova > aqui && tamHtml > 0 && !nucleosOk) {
         anotar("faltou baixar algum núcleo: fica a versão daqui (tenta de novo na próxima vez)");
@@ -437,6 +447,52 @@ static DWORD WINAPI avisoPrimeiraVez(LPVOID nada) {
     MessageBoxW(NULL, L"Baixando o KOFstation pela primeira vez (uns 20 MB, com todos os consoles).\n\n"
                       L"A janela do jogo abre sozinha quando terminar.", L"KOFstation", MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND);
     return 0;
+}
+
+// ---------------- PS2 nativo: o kofnativo (PCSX2) roda junto com a janela do KOFstation ----------------
+// acha nativo\<prefixo>*<sufixo> (o nome tem o hash da versão)
+static int acharNativo(const wchar_t *dir, const wchar_t *padrao, wchar_t *saida) {
+    wchar_t busca[MAX_PATH]; swprintf(busca, MAX_PATH, L"%ls\\nativo\\%ls", dir, padrao);
+    WIN32_FIND_DATAW d; HANDLE h = FindFirstFileW(busca, &d);
+    if (h == INVALID_HANDLE_VALUE) return 0;
+    swprintf(saida, MAX_PATH, L"%ls\\nativo\\%ls", dir, d.cFileName); FindClose(h); return 1;
+}
+// kofnativo de uma sessão anterior que ficou aberto seguraria a porta 8643 (e a página falaria com ele)
+static void fecharKofnativosVelhos(void) {
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0); if (snap == INVALID_HANDLE_VALUE) return;
+    PROCESSENTRY32W e; e.dwSize = sizeof e;
+    for (BOOL ok = Process32FirstW(snap, &e); ok; ok = Process32NextW(snap, &e))
+        if (_wcsnicmp(e.szExeFile, L"kofnativo", 9) == 0) {
+            HANDLE p = OpenProcess(PROCESS_TERMINATE, FALSE, e.th32ProcessID);
+            if (p) { TerminateProcess(p, 0); CloseHandle(p); anotar("kofnativo antigo fechado (%lu)", e.th32ProcessID); }
+        }
+    CloseHandle(snap);
+}
+static HANDLE trabalhoNativo;   // job: se o lançador cair, o kofnativo cai junto
+static HANDLE abrirNativo(const wchar_t *exe, const wchar_t *dll, const wchar_t *dados) {
+    wchar_t log[MAX_PATH], log1[MAX_PATH], linha[MAX_PATH * 3];
+    CreateDirectoryW(dados, NULL);
+    swprintf(log, MAX_PATH, L"%ls\\kofnativo.log", dados); swprintf(log1, MAX_PATH, L"%ls\\kofnativo.log.1", dados);
+    MoveFileExW(log, log1, MOVEFILE_REPLACE_EXISTING);
+    SECURITY_ATTRIBUTES sa = { sizeof sa, NULL, TRUE };
+    HANDLE arq = CreateFileW(log, GENERIC_WRITE, FILE_SHARE_READ, &sa, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    STARTUPINFOW si; ZeroMemory(&si, sizeof si); si.cb = sizeof si;
+    if (arq != INVALID_HANDLE_VALUE) { si.dwFlags = STARTF_USESTDHANDLES; si.hStdOutput = si.hStdError = arq; si.hStdInput = NULL; }
+    swprintf(linha, MAX_PATH * 3, L"\"%ls\" \"%ls\" \"%ls\"", exe, dll, dados);
+    PROCESS_INFORMATION pi;
+    BOOL ok = CreateProcessW(exe, linha, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, dados, &si, &pi);
+    if (arq != INVALID_HANDLE_VALUE) CloseHandle(arq);
+    if (!ok) { anotar("não consegui abrir o kofnativo (erro %lu)", GetLastError()); return NULL; }
+    if (!trabalhoNativo) {
+        trabalhoNativo = CreateJobObjectW(NULL, NULL);
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION li; ZeroMemory(&li, sizeof li);
+        li.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        SetInformationJobObject(trabalhoNativo, JobObjectExtendedLimitInformation, &li, sizeof li);
+    }
+    AssignProcessToJobObject(trabalhoNativo, pi.hProcess);
+    CloseHandle(pi.hThread);
+    anotar("PCSX2 nativo aberto");
+    return pi.hProcess;
 }
 
 int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
@@ -524,6 +580,15 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
     if (UrlCreateFromPathW(html, url, &n, 0) != S_OK) return 1;
     InterlockedExchange(&at.abriu, 1);
 
+    wchar_t natExe[MAX_PATH], natDll[MAX_PATH], natDados[MAX_PATH];
+    HANDLE nat = NULL;
+    if (acharNativo(dir, L"kofnativo-*.exe", natExe) && acharNativo(dir, L"pcsx2_libretro-*.dll", natDll)) {
+        if (!GetEnvironmentVariableW(L"LOCALAPPDATA", natDados, MAX_PATH)) wcscpy(natDados, dir);
+        wcscat(natDados, L"\\KOFnes"); CreateDirectoryW(natDados, NULL); wcscat(natDados, L"\\nativo");
+        fecharKofnativosVelhos();
+        nat = abrirNativo(natExe, natDll, natDados);
+    }
+    HANDLE navProc = NULL;
     int achou = acharNavegador(L"msedge.exe", nav, MAX_PATH);
     if (!achou) {
         const wchar_t *padroes[] = { L"ProgramFiles(x86)", L"ProgramFiles" };
@@ -547,7 +612,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
                  L"\"%ls\" --app=\"%ls\" --user-data-dir=\"%ls\" --no-first-run --no-default-browser-check "
                  L"--autoplay-policy=no-user-gesture-required --window-size=840,780 "
                  L"--disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests "   // celular como controle: rede local liberada só nesta janela
-                 L"--enable-features=SharedArrayBuffer",   // PS2 (Play!): threads do WebAssembly numa página file://
+                 L"--enable-features=SharedArrayBuffer "   // PS2 (Play!): threads do WebAssembly numa página file://
+                 L"--disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding",   // PS2 nativo: a página não fica lenta atrás
                  nav, url, perfil);
         STARTUPINFOW si;
         ZeroMemory(&si, sizeof(si));
@@ -555,7 +621,7 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
         PROCESS_INFORMATION pi;
         if (CreateProcessW(NULL, linha, NULL, NULL, FALSE, 0, NULL, dir, &si, &pi)) {
             CloseHandle(pi.hThread);
-            CloseHandle(pi.hProcess);
+            navProc = pi.hProcess;
         } else {
             ShellExecuteW(NULL, L"open", html, NULL, dir, SW_SHOWNORMAL);
         }
@@ -568,6 +634,22 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
         }
         CloseHandle(t);
     }
+    // PS2 nativo: enquanto a janela do KOFstation estiver aberta, o kofnativo fica vivo (caiu = abre de novo, até 5 vezes);
+    // fechou a janela = fecha o kofnativo
+    if (nat && navProc) {
+        for (int quedas = 0;;) {
+            HANDLE h[2] = { navProc, nat };
+            DWORD r = WaitForMultipleObjects(2, h, FALSE, INFINITE);
+            if (r != WAIT_OBJECT_0 + 1) break;
+            CloseHandle(nat); nat = NULL;
+            anotar("o kofnativo saiu sozinho");
+            if (++quedas > 5) break;
+            Sleep(1000);
+            nat = abrirNativo(natExe, natDll, natDados); if (!nat) break;
+        }
+        if (nat) { TerminateProcess(nat, 0); CloseHandle(nat); }
+    }
+    if (navProc) CloseHandle(navProc);
     if (registro) fclose(registro);
     return 0;
 }

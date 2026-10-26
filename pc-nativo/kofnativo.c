@@ -19,13 +19,32 @@
 // Compilar: pc-nativo/construir.sh. Uso: kofnativo <núcleo.so> <pasta de dados>
 #define _GNU_SOURCE
 #define GL_GLEXT_PROTOTYPES
+#ifdef _WIN32
+// Windows (compilado com o llvm-mingw): soquetes do winsock, DLL pelo LoadLibrary, caminhos UTF-8 convertidos pra UTF-16
+// e o OpenGL 3.3 pelo glad (o opengl32 do Windows só traz o 1.1; o resto é carregado depois que o contexto existe)
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <windows.h>
+#include <shellapi.h>
+#include <direct.h>
+#include "glad.h"
+#define SDL_MAIN_HANDLED
+#include <SDL2/SDL.h>
+#define MSG_NOSIGNAL 0
+#define fecharSock closesocket
+static wchar_t *largo(const char *u) { static wchar_t w[4][1200]; static int v; v = (v + 1) & 3; MultiByteToWideChar(CP_UTF8, 0, u, -1, w[v], 1200); return w[v]; }
+#else
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_opengl.h>
 #include <arpa/inet.h>
 #include <dlfcn.h>
-#include <errno.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <sys/socket.h>
+#define fecharSock close
+#endif
+#include <errno.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -33,11 +52,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 #include "libretro.h"
+#ifdef _WIN32
+#define mkdir(c, m) _wmkdir(largo(c))
+#define fopen(c, m) _wfopen(largo(c), largo(m))
+#endif
 
 #define PORTA 8643
 static char pastaDados[1024], pastaSistema[1100], pastaSaves[1100];
@@ -84,7 +106,7 @@ static void base64(const uint8_t *d, int n, char *out) {
 }
 static int tudo(int s, const void *b, size_t n) {
     const uint8_t *p = b;
-    while (n) { ssize_t r = send(s, p, n, MSG_NOSIGNAL); if (r <= 0) return -1; p += r; n -= r; }
+    while (n) { ssize_t r = send(s, (const char *)p, n, MSG_NOSIGNAL); if (r <= 0) return -1; p += r; n -= r; }
     return 0;
 }
 // manda um quadro: op 1 = texto, 2 = binário; "pre" vai na frente dos dados (ex.: a letra do binário)
@@ -96,7 +118,7 @@ static void enviar(int op, const void *pre, size_t np, const void *d, size_t n) 
         if (t < 126) cab[1] = t;
         else if (t < 65536) { cab[1] = 126; cab[2] = t >> 8; cab[3] = t; nc = 4; }
         else { cab[1] = 127; for (int i = 0; i < 8; i++) cab[2 + i] = (uint64_t)t >> (56 - 8 * i); nc = 10; }
-        if (tudo(cliente, cab, nc) || (np && tudo(cliente, pre, np)) || (n && tudo(cliente, d, n))) { close(cliente); cliente = -1; }
+        if (tudo(cliente, cab, nc) || (np && tudo(cliente, pre, np)) || (n && tudo(cliente, d, n))) { fecharSock(cliente); cliente = -1; }
     }
     pthread_mutex_unlock(&envio);
 }
@@ -343,22 +365,22 @@ static Cmd *tirar(void) {
     pthread_mutex_lock(&filaTrava); Cmd *c = fila; if (c) { fila = c->prox; if (!fila) filaFim = &fila; } pthread_mutex_unlock(&filaTrava); return c;
 }
 
-static int lerTudo(int s, void *b, size_t n) { uint8_t *p = b; while (n) { ssize_t r = recv(s, p, n, 0); if (r <= 0) return -1; p += r; n -= r; } return 0; }
+static int lerTudo(int s, void *b, size_t n) { uint8_t *p = b; while (n) { ssize_t r = recv(s, (char *)p, n, 0); if (r <= 0) return -1; p += r; n -= r; } return 0; }
 static void atender(int s) {
     char req[8192]; int n = 0;
-    while (n < (int)sizeof req - 1) { ssize_t r = recv(s, req + n, 1, 0); if (r <= 0) { close(s); return; } n++; req[n] = 0; if (n >= 4 && !memcmp(req + n - 4, "\r\n\r\n", 4)) break; }
-    char *k = strcasestr(req, "Sec-WebSocket-Key:");
+    while (n < (int)sizeof req - 1) { ssize_t r = recv(s, req + n, 1, 0); if (r <= 0) { fecharSock(s); return; } n++; req[n] = 0; if (n >= 4 && !memcmp(req + n - 4, "\r\n\r\n", 4)) break; }
+    char *k = NULL; for (char *q = req; *q && !k; q++) if (!strncasecmp(q, "Sec-WebSocket-Key:", 18)) k = q;   // strcasestr não existe no Windows
     if (!k) {   // navegador comum: diz que está vivo
         const char *r = "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nAccess-Control-Allow-Origin: *\r\nConnection: close\r\n\r\nkofnativo ok\n";
-        tudo(s, r, strlen(r)); close(s); return;
+        tudo(s, r, strlen(r)); fecharSock(s); return;
     }
     k += 18; while (*k == ' ') k++;
     char chave[128]; int i = 0; while (k[i] && k[i] != '\r' && i < 100) { chave[i] = k[i]; i++; } chave[i] = 0;
     strcat(chave, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11");
     uint8_t h[20]; sha1((uint8_t *)chave, strlen(chave), h); char aceite[64]; base64(h, 20, aceite);
     char r[256]; int nr = snprintf(r, sizeof r, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n", aceite);
-    pthread_mutex_lock(&envio); if (cliente >= 0) close(cliente); tudo(s, r, nr); cliente = s; pthread_mutex_unlock(&envio);
-    int one = 1, buf = 8 << 20; setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one); setsockopt(s, SOL_SOCKET, SO_SNDBUF, &buf, sizeof buf);
+    pthread_mutex_lock(&envio); if (cliente >= 0) fecharSock(cliente); tudo(s, r, nr); cliente = s; pthread_mutex_unlock(&envio);
+    int one = 1, buf = 8 << 20; setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char *)&one, sizeof one); setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char *)&buf, sizeof buf);
     uint8_t *junta = NULL; size_t njunta = 0; int opJunta = 0;
     for (;;) {
         uint8_t c[2]; if (lerTudo(s, c, 2)) break;
@@ -390,17 +412,20 @@ static void atender(int s) {
     }
     free(junta);
     pthread_mutex_lock(&envio); if (cliente == s) cliente = -1; pthread_mutex_unlock(&envio);
-    close(s);
+    fecharSock(s);
     pthread_mutex_lock(&discoTrava); pthread_cond_broadcast(&discoChegou); pthread_mutex_unlock(&discoTrava);
     enfileirar(strdup("caiu"), NULL, 0);
 }
 static void *servidor(void *x) {
     (void)x;
     int s = socket(AF_INET, SOCK_STREAM, 0), one = 1;
-    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
+#ifndef _WIN32
+    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&one, sizeof one);   // no Windows o REUSEADDR deixaria dois kofnativo na mesma porta
+#endif
+    (void)one;
     struct sockaddr_in a = {0}; a.sin_family = AF_INET; a.sin_port = htons(PORTA); a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     if (bind(s, (void *)&a, sizeof a) || listen(s, 4)) { fprintf(stderr, "[kofnativo] porta %d ocupada (já tem outro aberto?)\n", PORTA); exit(2); }
-    for (;;) { int c = accept(s, NULL, NULL); if (c >= 0) atender(c); }
+    for (;;) { int c = (int)accept(s, NULL, NULL); if (c >= 0) atender(c); }
     return NULL;
 }
 
@@ -548,16 +573,41 @@ static uint8_t *lerArquivo(const char *caminho, long *n) {
 }
 // a pasta de saves inteira (cartões de memória do PCSX2) <-> um pacote só: [u16 nome][nome][u32 tamanho][dados] por arquivo,
 // caminhos relativos à pasta; a página guarda o pacote no banco (vai no backup .kofsave)
-#include <ftw.h>
 static uint8_t *pacote; static size_t npacote, cappacote;
 static void poe(const void *d, size_t n) { if (npacote + n > cappacote) { cappacote = (npacote + n) * 2; pacote = realloc(pacote, cappacote); } memcpy(pacote + npacote, d, n); npacote += n; }
-static int juntarUm(const char *c, const struct stat *st, int tipo, struct FTW *f) {
-    (void)f; if (tipo != FTW_F) return 0;
-    long n; uint8_t *d = lerArquivo(c, &n); if (!d) return 0;
-    const char *rel = c + strlen(pastaSaves) + 1; uint16_t nl = strlen(rel); uint32_t tam = n; (void)st;
-    poe(&nl, 2); poe(rel, nl); poe(&tam, 4); poe(d, n); free(d); return 0;
+static void juntarUm(const char *c) {
+    long n; uint8_t *d = lerArquivo(c, &n); if (!d) return;
+    const char *rel = c + strlen(pastaSaves) + 1; uint16_t nl = strlen(rel); uint32_t tam = n;
+    poe(&nl, 2); poe(rel, nl); poe(&tam, 4); poe(d, n); free(d);
 }
-static void juntarSaves(void) { npacote = 0; nftw(pastaSaves, juntarUm, 16, FTW_PHYS); }
+#ifdef _WIN32
+static void percorrer(const char *dir, int fundo) {
+    if (fundo > 16) return;
+    char c[2048]; snprintf(c, sizeof c, "%s/*", dir);
+    WIN32_FIND_DATAW e; HANDLE h = FindFirstFileW(largo(c), &e); if (h == INVALID_HANDLE_VALUE) return;
+    do {
+        char nome[1024]; WideCharToMultiByte(CP_UTF8, 0, e.cFileName, -1, nome, sizeof nome, NULL, NULL);
+        if (!strcmp(nome, ".") || !strcmp(nome, "..")) continue;
+        snprintf(c, sizeof c, "%s/%s", dir, nome);
+        if (e.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) percorrer(c, fundo + 1); else juntarUm(c);
+    } while (FindNextFileW(h, &e));
+    FindClose(h);
+}
+#else
+#include <dirent.h>
+static void percorrer(const char *dir, int fundo) {
+    if (fundo > 16) return;
+    DIR *d = opendir(dir); if (!d) return;
+    for (struct dirent *e; (e = readdir(d));) {
+        if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+        char c[2048]; snprintf(c, sizeof c, "%s/%s", dir, e->d_name);
+        struct stat st; if (lstat(c, &st)) continue;
+        if (S_ISDIR(st.st_mode)) percorrer(c, fundo + 1); else if (S_ISREG(st.st_mode)) juntarUm(c);
+    }
+    closedir(d);
+}
+#endif
+static void juntarSaves(void) { npacote = 0; percorrer(pastaSaves, 0); }
 static void espalharSaves(const uint8_t *d, size_t n) {
     for (size_t o = 0; o + 6 <= n;) {
         uint16_t nl; memcpy(&nl, d + o, 2); uint32_t tam; memcpy(&tam, d + o + 2 + nl, 4);
@@ -679,6 +729,12 @@ static void desenhar(void) {
 }
 
 int main(int argc, char **argv) {
+#ifdef _WIN32
+    // argumentos em UTF-8 (o argv do Windows vem na página de código local e estraga caminho com acento)
+    { int n; wchar_t **w = CommandLineToArgvW(GetCommandLineW(), &n); static char *u[8]; argc = n < 8 ? n : 8;
+      for (int i = 0; i < argc; i++) { u[i] = malloc(2048); WideCharToMultiByte(CP_UTF8, 0, w[i], -1, u[i], 2048, NULL, NULL); } argv = u; }
+    WSADATA wsa; WSAStartup(MAKEWORD(2, 2), &wsa);
+#endif
     if (argc < 3) { fprintf(stderr, "uso: kofnativo <núcleo.so> <pasta de dados>\n"); return 1; }
     snprintf(pastaDados, sizeof pastaDados, "%s", argv[2]); mkdir(pastaDados, 0755);
     snprintf(pastaSistema, sizeof pastaSistema, "%s/sistema", pastaDados); mkdir(pastaSistema, 0755);
@@ -688,8 +744,14 @@ int main(int argc, char **argv) {
     // o cycle skip leve deixou em 60 cravado (a página ainda pode trocar com "sistema pcsx2_ee_cycle_skip disabled")
     opcao("pcsx2_ee_cycle_skip", getenv("KOF_EE_SKIP") ? getenv("KOF_EE_SKIP") : "Mild Underclock");
 
+#ifdef _WIN32
+    HMODULE so = LoadLibraryW(largo(argv[1]));
+    if (!so) { fprintf(stderr, "[kofnativo] não abri o núcleo (erro %lu)\n", GetLastError()); return 1; }
+#define dlsym(m, n) (void *)GetProcAddress(m, n)
+#else
     void *so = dlopen(argv[1], RTLD_NOW | RTLD_LOCAL);
     if (!so) { fprintf(stderr, "[kofnativo] não abri o núcleo: %s\n", dlerror()); return 1; }
+#endif
 #define PEGA(c, n) *(void **)&nucleo.c = dlsym(so, "retro_" n); if (!nucleo.c) { fprintf(stderr, "falta retro_%s\n", n); return 1; }
     PEGA(init, "init") PEGA(deinit, "deinit") PEGA(run, "run") PEGA(reset, "reset") PEGA(load_game, "load_game")
     PEGA(unload_game, "unload_game") PEGA(get_av_info, "get_system_av_info") PEGA(serialize_size, "serialize_size")
@@ -699,7 +761,10 @@ int main(int argc, char **argv) {
 
     // SIGTERM/SIGINT/SIGHUP = sair de verdade (o SDL transformava em SDL_QUIT, que aqui só pausa: o processo ficava órfão segurando a porta)
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
-    signal(SIGTERM, sair); signal(SIGINT, sair); signal(SIGHUP, sair);
+    signal(SIGTERM, sair); signal(SIGINT, sair);
+#ifdef SIGHUP
+    signal(SIGHUP, sair);
+#endif
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER) < 0) { fprintf(stderr, "SDL: %s\n", SDL_GetError()); return 1; }
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3); SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
@@ -709,6 +774,9 @@ int main(int argc, char **argv) {
     if (!janela) { fprintf(stderr, "SDL janela: %s\n", SDL_GetError()); return 1; }
     SDL_GLContext ctx = ctxJanela = SDL_GL_CreateContext(janela);
     if (!ctx) { fprintf(stderr, "OpenGL 3.3: %s\n", SDL_GetError()); return 1; }
+#ifdef _WIN32
+    if (!gladLoadGLLoader((GLADloadproc)SDL_GL_GetProcAddress)) { fprintf(stderr, "OpenGL 3.3: o glad não carregou as funções\n"); return 1; }
+#endif
     SDL_GL_SetSwapInterval(0);
     glGenTextures(2, texQuadro);
     for (int i = 0; i < 2; i++) { glBindTexture(GL_TEXTURE_2D, texQuadro[i]); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
