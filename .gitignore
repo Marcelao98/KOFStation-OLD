@@ -8,3 +8,5 @@ dist/
 hs_err_pid*.log
 web/jogos/.rdb/
 __pycache__/
+pc-nativo/saida/
+pc-nativo/libretro.h

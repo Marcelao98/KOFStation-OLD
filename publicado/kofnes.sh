@@ -10,7 +10,7 @@
 # Os núcleos (Game Boy, NES, Sega...) moram em nucleos/<núcleo>-<hash>.js; o versao.txt lista cada um
 # ("nucleo=<arquivo>:<tamanho>") e o que falta é baixado antes de trocar o html. Um "fonte.txt" do lado
 # do script (ou KOFNES_URL) troca o endereço de onde baixa (pra testar uma branch).
-LANCADOR=5
+LANCADOR=6
 BASE="${KOFNES_URL:-https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/publicado}"
 
 eu="$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")"
@@ -97,6 +97,18 @@ atualizar() {
             anotar "núcleo $n veio errado (esperava $t bytes)"; rm -f "$dir/nucleos/$n.novo"; nucok=0
         fi
     done
+    # PS2 pelo PCSX2 nativo (pc-nativo/: o kofnativo + o núcleo LRPS2): opcional; sem ele, o PS2 fica no Play! do navegador
+    mkdir -p "$dir/nativo"
+    for linha in $(sed -n 's/^nativo_linux=\([A-Za-z0-9._-]*:[0-9][0-9]*\).*/\1/p' "$dir/versao.txt.novo"); do
+        n="${linha%%:*}"; t="${linha##*:}"
+        [ "$(tamanho "$dir/nativo/$n")" = "$t" ] && continue
+        echo "Baixando o PCSX2 (PS2) pela primeira vez: $n..."
+        if baixar "nativo/$n" "$dir/nativo/$n.novo" 600 && [ "$(tamanho "$dir/nativo/$n.novo")" = "$t" ]; then
+            mv -f "$dir/nativo/$n.novo" "$dir/nativo/$n" && anotar "nativo $n baixado ($t bytes)"
+        else
+            anotar "nativo $n veio errado (esperava $t bytes)"; rm -f "$dir/nativo/$n.novo"
+        fi
+    done
     trocou=0
     if [ "$nova" -gt "$aqui" ] && [ "$tam" -gt 0 ] && [ "$nucok" -eq 0 ]; then
         anotar "faltou baixar algum núcleo: fica a versão daqui (tenta de novo na próxima vez)"
@@ -128,6 +140,12 @@ atualizar() {
             for f in "$dir"/nucleos/*; do
                 [ -f "$f" ] || continue
                 grep -q "^nucleo=$(basename "$f"):" "$dir/versao.txt" || { rm -f "$f" && anotar "núcleo velho apagado: $(basename "$f")"; }
+            done
+        fi
+        if grep -q '^nativo_linux=' "$dir/versao.txt"; then
+            for f in "$dir"/nativo/*; do
+                [ -f "$f" ] || continue
+                grep -q "^nativo_linux=$(basename "$f"):" "$dir/versao.txt" || { rm -f "$f" && anotar "nativo velho apagado: $(basename "$f")"; }
             done
         fi
     else
@@ -176,13 +194,32 @@ case "$nav" in /snap/*|*/snap/bin/*) perfil="$HOME/snap/$(basename "$nav")/commo
 mkdir -p "$perfil" 2>/dev/null
 anotar "navegador: $nav${flat:+ ($flat)}"
 
+# PS2 nativo: o kofnativo (PCSX2) fica esperando a página em 127.0.0.1:8643 e fecha junto com o KOFstation
+natpid=""
+kof="$(ls "$dir"/nativo/kofnativo-* 2>/dev/null | head -n 1)"; nuc="$(ls "$dir"/nativo/pcsx2_libretro-*.so.gz 2>/dev/null | head -n 1)"
+if [ -n "$kof" ] && [ -n "$nuc" ] && [ "$(uname -m)" = x86_64 ]; then
+    nd="$dados/KOFnes/nativo"; so="$nd/$(basename "$nuc" .gz)"
+    mkdir -p "$nd"
+    if [ ! -f "$so" ]; then rm -f "$nd"/pcsx2_libretro-*.so; gzip -dc "$nuc" >"$so.tmp" && mv -f "$so.tmp" "$so" || rm -f "$so.tmp"; fi
+    chmod +x "$kof" 2>/dev/null
+    if [ -f "$so" ]; then
+        "$kof" "$so" "$nd" >"$nd/kofnativo.log" 2>&1 &
+        natpid=$!; anotar "PCSX2 nativo aberto ($(basename "$kof"))"
+    fi
+fi
+
 # a rede local liberada é pro celular como controle (a página do arquivo falando com ws://192.168...); só vale nesta janela.
-# SharedArrayBuffer: o PS2 (Play!) usa threads do WebAssembly, que numa página file:// só existem com essa opção
+# SharedArrayBuffer: o PS2 (Play!) usa threads do WebAssembly, que numa página file:// só existem com essa opção.
+# Sem "segundo plano lento": com a janela do PCSX2 na frente, a página continua repassando o celular como controle
 set -- --app="file://$html" --class=KOFnes --no-first-run --no-default-browser-check \
        --autoplay-policy=no-user-gesture-required --window-size=840,780 --ozone-platform-hint=auto \
        --disable-features=LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests \
-       --enable-features=SharedArrayBuffer $KOFNES_ARGS
+       --enable-features=SharedArrayBuffer --disable-background-timer-throttling \
+       --disable-backgrounding-occluded-windows --disable-renderer-backgrounding $KOFNES_ARGS
 if [ -n "$flat" ]; then
-    exec flatpak run "$flat" "$@"      # o Flatpak tem perfil próprio e só enxerga o que o sandbox deixa
+    flatpak run "$flat" "$@"      # o Flatpak tem perfil próprio e só enxerga o que o sandbox deixa
+else
+    "$nav" --user-data-dir="$perfil" "$@"
 fi
-exec "$nav" --user-data-dir="$perfil" "$@"
+[ -n "$natpid" ] && kill "$natpid" 2>/dev/null
+exit 0

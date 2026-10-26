@@ -75,6 +75,8 @@ const KofLibretro = (() => {
     // BIOS não precisa (o Play! imita). O DVD não é copiado: o Play! lê pedaços do arquivo escolhido
     ps2: { nome: 'PlayStation 2', curto: 'PS2', ext: ['elf', 'cso', 'isz'], nucleo: 'play', analogico: 'misto', largura: 640, altura: 448, tv43: true,
       semRebob: true, musica: false, minimo: 0, grande: true, canais: [],
+      // a BIOS só é usada pelo PCSX2 nativo (kofnativo); o Play! no navegador imita a BIOS. 4 MB, extraída do console
+      bios: [{ arquivo: 'bios-ps2.bin', tamanho: 4194304, opcional: true }],
       botoes: ['Cima', 'Baixo', 'Esquerda', 'Direita', 'A', 'B', 'X', 'Y', 'L', 'R', 'Start', 'Select'] },
   };
   const extensao = (nome) => (/\.([^.]+)$/.exec(nome || '') || [])[1]?.toLowerCase() || '';

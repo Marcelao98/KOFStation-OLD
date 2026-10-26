@@ -1,7 +1,7 @@
 # KOFstation (antigo KOFnes) — contexto pra próxima sessão
 
 ## ⏩ ONDE PAROU (25/10, fim do chat longo; leia isto primeiro)
-- **main publicada: versão 202610260219 (erros que ficam na tela + bloco wasm no erro do PS2), CASCA 13, lançador 10 (exe) / LANCADOR=5 (kofnes.sh)** (26/10: PS2 no PC + controle 2; publicado com `COMPILAR=web/compilar-sem-kof.sh web/publicar.sh`, sem o compilador Kof, porque snes/ e os núcleos não mudaram; precisa do `nucleo-libretro/saida/play.js` do `nucleo-ps2/construir.sh`) (repositório agora é `Marcelao98/KOFStation`; o nome antigo redireciona).
+- **main publicada: versão 202610260240 (PS2 pelo PCSX2 nativo no Linux, LANCADOR=6), CASCA 13, lançador 10 (exe) / LANCADOR=5 (kofnes.sh)** (26/10: PS2 no PC + controle 2; publicado com `COMPILAR=web/compilar-sem-kof.sh web/publicar.sh`, sem o compilador Kof, porque snes/ e os núcleos não mudaram; precisa do `nucleo-libretro/saida/play.js` do `nucleo-ps2/construir.sh`) (repositório agora é `Marcelao98/KOFStation`; o nome antigo redireciona).
   Na main: N64 (PC wasm + celular nativo), PS1 nativo, analógico (N64/PS1), saves no banco + backup `.kofsave`, celular
   como controle do PC, busca por gênero/empresa, pasta de ROMs no APK, painel de desempenho (F3), **SNES do PC = Snes9x**
   (Kof como opção em Emulação). Detalhes de cada um nas notas abaixo.
@@ -69,6 +69,23 @@
 - Ambiente desta sessão (some no container novo): Kof4j em `/home/user/Kof4j`, núcleos compilados em
   `nucleo-libretro/saida/` (fora do git), libs nativas em `android/nativo/lib/` (fora do git; `android/nativo/construir.sh`
   baixa do LemuroidCores). ROMs livres: PeterLemon SNES/N64/PSX, cubo do PS1 montado com genisoimage.
+
+> **PS2 pelo PCSX2 NATIVO no Linux (26/10, PUBLICADO 202610260240; falta o Marcelo testar com a BIOS dele):** o Play! falhou
+> no Shadow of the Colossus (CompileError do gerador de wasm do Play!; `nucleo-ps2/codegen-kof.patch` faz o erro trazer o
+> bloco em base64). Agora: `pc-nativo/kofnativo.c` (C + SDL2 estático + OpenGL 3.3) carrega o núcleo **LRPS2**
+> (github.com/libretro/ps2, PCSX2 libretro, GPL-3, commit 38d3a83f) numa janela própria em tela cheia por cima da página;
+> WebSocket em 127.0.0.1:8643 (protocolo no topo do .c): `abrir <tam> <nome>` e o DVD vem da página aos pedaços (VFS
+> `kof://disco/...`, blocos de 1 MB com cache), BIOS (`bios-ps2.bin`, 4 MB, loja `bios`; SISTEMAS.ps2.bios opcional),
+> pasta de saves inteira num pacote (`ps2/pcsx2` no banco), savestate (`estado`/'E', `carregar`), teclado (`teclas`),
+> pad/celular (`pad`), filtro = o shader da página convertido pra GLSL 3.30 (`filtro`/`uni`), Esc/F1/Guide na janela =
+> `pausou` (a página pausa; voltar ao jogo = `mostrar`). Página: `web/ps2.js` (`conectarNativo`, `fachadaNativa`, nucleo
+> 'pcsx2'; sem kofnativo cai no Play!). `pc-nativo/construir.sh` (SDL2 2.30.9 estático + LRPS2) -> `pc-nativo/saida/`;
+> `publicar.sh` leva pra `publicado/nativo/` (`kofnativo-<hash>`, `pcsx2_libretro-<hash>.so.gz`) e escreve `nativo_linux=`
+> no versao.txt; **kofnes.sh LANCADOR=6** baixa, descompacta em `~/.local/share/KOFnes/nativo/`, abre o kofnativo antes do
+> navegador e mata quando o navegador fecha; flags novas contra "segundo plano lento". Teste:
+> `xvfb-run -a node testes/navegador/ps2-nativo.cjs <html> pc-nativo/saida/kofnativo pc-nativo/saida/pcsx2_libretro.so <iso>`
+> (sem BIOS de verdade: confere conexão, BIOS indo, erro na tela e filtro compilando). Windows: ainda não (falta compilar
+> LRPS2 + kofnativo pro Windows e o lançador_win abrir). Cuidado: `pkill -f`/`pgrep -f` com o nome casam o próprio shell.
 
 > **PlayStation 2 (branch `ps2`, 25/10, não publicado):** núcleo **Play!** (github.com/jpd002/Play-, BSD-2, commit 505dac73)
 > em WebAssembly, só no PC. `nucleo-ps2/construir.sh` (emscripten **4.0.1** do emsdk, cmake + ninja; ~15 min na 1ª vez)

@@ -164,6 +164,7 @@ function fachadaPs2(arq) {
       return { lr: 'play', d: paraB64(u) };
     },
     async restaurarAsync(o) {
+      if (o.lr !== 'play') throw new Error('esse estado foi salvo no PCSX2: abra o KOFstation pelo lançador com o PCSX2');
       await this.ligando;
       const t = atob(o.d), u = new Uint8Array(t.length); for (let i = 0; i < t.length; i++) u[i] = t.charCodeAt(i);
       play.m.FS.writeFile('/estado.ps2', u); play.m.loadState('/estado.ps2');
@@ -180,21 +181,13 @@ function diagnosticoPs2(arq) {
 }
 async function abrirPs2(arq) {
   try {
-    await iniciarPlay();
-    const f = fachadaPs2(arq);
+    const nat = await conectarNativo();   // o PCSX2 nativo (kofnativo) se estiver aberto; senão o Play! no navegador
+    if (!nat) await iniciarPlay();
+    const f = nat ? await fachadaNativa(arq) : fachadaPs2(arq);
+    if (!f) return;   // falta a BIOS: a tela de BIOS abre e reabre o jogo depois
     await abrirBytes(arq.name, marcaPs2(arq.name), true, { nativo: f });
   } catch (e) { e.detalhe = diagnosticoPs2(arq); throw e; }
   avisar('💿 PlayStation 2', 1500);
-}
-// o Play! não avisa quando o jogo não começa (só escreve no log): sem nenhum quadro em 15 s de jogo rodando, mostra o erro
-function vigiarInicio(arq) {
-  clearInterval(vigiarInicio.t);
-  const antes = play.m.getFrames(); let rodando = 0;
-  vigiarInicio.t = setInterval(() => {
-    if (!play.vivo) return;   // pausado (menu etc.): não conta
-    if (play.m.getFrames() > antes + 5) { clearInterval(vigiarInicio.t); return; }
-    if (++rodando > 15) { clearInterval(vigiarInicio.t); avisarErro('o jogo de PS2 não começou (tela preta). Aperte "copiar" e me mande o texto.', diagnosticoPs2(arq)); }
-  }, 1000);
 }
 // o Play! não avisa quando o jogo não começa (só escreve no log): sem nenhum quadro em 15 s de jogo rodando, mostra o erro
 function vigiarInicio(arq) {
@@ -217,8 +210,132 @@ async function ps2Jogo(j) {
   const it = (await lerPasta(false).catch(() => [])).find((x) => x.arquivo.toLowerCase() === (j.arquivo || '').toLowerCase());
   if (!it) throw new Error('o DVD desse jogo de PS2 não fica guardado dentro do app: deixe ele na pasta de ROMs ou abra o arquivo de novo');
   const arq = await it.h.getFile();
+  if (await conectarNativo()) {
+    const f = await fachadaNativa(arq);
+    if (!f) throw new Error('falta a BIOS do PS2: escolha em Arquivo → BIOS…');
+    return { bytes: marcaPs2(arq.name), extras: { nativo: f } };
+  }
   await iniciarPlay();
   return { bytes: marcaPs2(arq.name), extras: { nativo: fachadaPs2(arq) } };
 }
 // pros testes (testes/navegador/ps2.cjs): o cartão de memória
 KOFnes.ps2 = { gravarNoCartao: (nome, bytes) => { play.m.FS.mkdirTree(PS2_MC + '/' + nome.replace(/\/[^/]*$/, '')); play.m.FS.writeFile(PS2_MC + '/' + nome, bytes); }, lerDoCartao: (nome) => { try { return Array.from(play.m.FS.readFile(PS2_MC + '/' + nome)); } catch (e) { return null; } }, guardarCartao };
+
+// ---------- PS2 pelo PCSX2 nativo (pc-nativo/kofnativo.c) ----------
+// O kofnativo é um programa do PC que o lançador abre junto: roda o PCSX2 (núcleo libretro LRPS2) de verdade, numa janela
+// própria por cima desta, com o MESMO filtro desta página (KofVisual.fonte vai pra ele). Fala por WebSocket em
+// 127.0.0.1:8643. O DVD continua sendo lido daqui (File.slice), aos pedaços que ele pede. Esc na janela dele = pausa aqui.
+const NAT_CHAVE_SAVES = 'ps2/pcsx2';   // a pasta de saves do PCSX2 inteira (cartões de memória), num save só
+const NAT_BIOS = 'bios-ps2.bin';
+const nat = { ws: null, arq: null, quadros: 0, visivel: false, filtro: '', uni: '', pad: '', espera: null, avisos: [] };
+function conectarNativo() {
+  if (nat.ws && nat.ws.readyState === 1) return Promise.resolve(true);
+  if (location.protocol !== 'file:' && !/^(localhost|127\.)/.test(location.hostname)) return Promise.resolve(false);
+  return new Promise((ok) => {
+    let ws; try { ws = new WebSocket('ws://127.0.0.1:8643'); } catch (e) { ok(false); return; }
+    ws.binaryType = 'arraybuffer';
+    const desiste = setTimeout(() => { try { ws.close(); } catch (e) { /* já fechou */ } ok(false); }, 800);
+    ws.onopen = () => { clearTimeout(desiste); nat.ws = ws; ok(true); };
+    ws.onerror = () => { clearTimeout(desiste); ok(false); };
+    ws.onclose = () => { if (nat.ws === ws) { nat.ws = null; nat.visivel = false; if (snes && snes.nucleo === 'pcsx2') avisarErro('o PCSX2 (kofnativo) fechou. Abra o KOFstation de novo pelo lançador.', logPs2.join('\n')); } };
+    ws.onmessage = (e) => mensagemNativa(e.data);
+  });
+}
+const natEnviar = (t) => { if (nat.ws && nat.ws.readyState === 1) nat.ws.send(t); };
+function natResposta(tipo) { return new Promise((ok, erro) => { nat.espera = { tipo, ok, erro }; setTimeout(() => { if (nat.espera && nat.espera.tipo === tipo) { nat.espera = null; erro(new Error('o PCSX2 não respondeu')); } }, 20000); }); }
+async function mensagemNativa(d) {
+  if (typeof d !== 'string') {   // binário: 'E' estado, 'M' pasta de saves
+    const u = new Uint8Array(d), tipo = String.fromCharCode(u[0]), corpo = u.subarray(1);
+    if (tipo === 'M') guardarSavesNativos(corpo);
+    if (nat.espera && nat.espera.tipo === tipo) { const w = nat.espera; nat.espera = null; w.ok(corpo); }
+    return;
+  }
+  const [cmd, ...r] = d.split(' '), resto = r.join(' ');
+  if (cmd === 'ler') {   // pedaço do DVD: lê do arquivo e devolve ['D', id u32, dados]
+    const [id, ini, n] = r.map(Number);
+    const b = new Uint8Array(await nat.arq.slice(ini, ini + n).arrayBuffer()), m = new Uint8Array(5 + b.length);
+    m[0] = 68; new DataView(m.buffer).setUint32(1, id, true); m.set(b, 5);
+    if (nat.ws) nat.ws.send(m);
+  } else if (cmd === 'quadros') nat.quadros += +r[0];
+  else if (cmd === 'pausou') { nat.visivel = false; pausado = true; guardarSavesNativos(); }
+  else if (cmd === 'log') { logPs2.push(resto); if (logPs2.length > 40) logPs2.shift(); }
+  else if (cmd === 'erro') { if (nat.espera) { const w = nat.espera; nat.espera = null; w.erro(new Error(resto)); } else avisarErro('PS2: ' + resto, logPs2.join('\n')); }
+  else if (cmd === 'pronto' || cmd === 'carregou') { if (nat.espera && nat.espera.tipo === cmd) { const w = nat.espera; nat.espera = null; w.ok(r); } }
+}
+// pasta de saves do PCSX2 <-> banco (vai no backup .kofsave); o kofnativo manda um pacote com todos os arquivos
+async function guardarSavesNativos(corpo) {
+  if (!corpo) { natEnviar('pedecartao'); return; }   // pede; a resposta volta por aqui com o pacote
+  if (!corpo.length) return;
+  try {
+    const marca = corpo.length + ':' + KofGuarda.crc32(corpo);
+    if (marca === nat.marcaSaves) return;
+    nat.marcaSaves = marca;
+    const reg = await KofGuarda.empacotarSave(corpo, { chave: NAT_CHAVE_SAVES, quando: Date.now(), aparelho: APARELHO });
+    reg.nome = 'Cartões de memória do PS2 (PCSX2)';
+    await bdMudar('saves', NAT_CHAVE_SAVES, (velho) => {
+      if (velho && velho.hash === reg.hash) return null;
+      if (velho) reg.anterior = { dados: velho.dados, cheio: velho.cheio, hash: velho.hash, quando: velho.quando, aparelho: velho.aparelho };
+      return reg;
+    });
+  } catch (e) { console.warn('não consegui guardar os saves do PCSX2', e); }
+}
+// teclas da página (Controles) -> ids do libretro, pro teclado funcionar com a janela do PCSX2 na frente
+function natTeclas() {
+  const l = [];
+  for (const [nome, bit] of BOTOES_SNES) {
+    const tecla = mapa[nome], m = KofLibretro.mascara(bit);
+    if (tecla && m) l.push(tecla + ':' + Math.log2(m & -m));
+  }
+  natEnviar('teclas ' + l.join(' '));
+}
+// filtro: manda o shader e os valores quando mudam (a janela nativa desenha igual a página)
+function natFiltro() {
+  const fonte = KofVisual.fonte(visual.v);
+  if (fonte !== nat.filtro) { nat.filtro = fonte; natEnviar('filtro\n' + fonte); }
+  const liga = visual.v.ligarTv > 0.5 ? Math.min(1, (performance.now() - ligaIni) / 650) : 1;
+  const uni = 'uni 0 ' + divisao + ' ' + liga + ' 0 ' + Array.from(KofVisual.vetor(visual.v)).join(' ');
+  if (uni !== nat.uni) { nat.uni = uni; natEnviar(uni); }
+}
+async function fachadaNativa(arq) {
+  const bios = await bdPegar('bios', NAT_BIOS).catch(() => null);
+  if (!bios) { pedirBios('ps2', () => abrirPs2(arq)); return null; }
+  nat.ws.send('bios ' + NAT_BIOS); nat.ws.send(bios.dados);
+  try { const r = await bdPegar('saves', NAT_CHAVE_SAVES); if (r) { natEnviar('cartao'); nat.ws.send(await KofGuarda.abrirSave(r)); } } catch (e) { /* sem saves ainda */ }
+  natTeclas(); natFiltro();
+  nat.arq = arq; nat.quadros = 0; nat.visivel = false; logPs2.length = 0;
+  const nome = arq.name.replace(/[\r\n]/g, ' ');
+  const f = {
+    sistema: 'ps2', nucleo: 'pcsx2', lr: true, nativo: true, largura: 640, altura: 448, proporcao: 4 / 3,
+    fps: 59.94, taxaAudio: 48000, rgba: new Uint32Array(640 * 448), quadros: 0, pad: [0],
+    apu: { dsp: { outCount: 0, outBuf: new Int16Array(4) } },   // o som sai pelo kofnativo
+    cart: { title: arq.name.replace(/\.[^.]+$/, ''), hasSram: () => false, sram: new Uint8Array(0) },
+    ps2Quadros: () => nat.quadros,
+    runFrame() {
+      // a página voltou pro jogo (P, Esc, menu fechado): a janela do PCSX2 aparece de novo
+      if (!nat.visivel) { nat.visivel = true; natEnviar('mostrar'); }
+      if (this.quadros++ % 30 === 0) { natEnviar('volume ' + (mudo ? 0 : volume / 100)); natFiltro(); }
+      const p = 'pad ' + KofLibretro.mascara(this.pad[0]) + ' ' + (KofLibretro.empacotar(this.eixos) | 0);
+      if (p !== nat.pad) { nat.pad = p; natEnviar(p); }
+    },
+    reset() {
+      if (this.aberto) { natEnviar('reiniciar'); return; }
+      this.aberto = true;
+      this.ligando = natResposta('pronto');
+      natEnviar('abrir ' + arq.size + ' ' + nome);
+      this.ligando.catch((e) => avisarErro('o PS2 não abriu: ' + e.message, diagnosticoPs2(arq)));
+      return this.ligando;
+    },
+    fecharNativo() { natEnviar('fechar'); nat.visivel = false; guardarSavesNativos(); },
+    async estadoAsync() { natEnviar('estado'); const u = await natResposta('E'); return { lr: 'pcsx2', d: paraB64(u) }; },
+    async restaurarAsync(o) {
+      if (o.lr !== 'pcsx2') throw new Error('esse estado foi salvo no outro emulador de PS2 (Play!)');
+      await this.ligando;
+      const t = atob(o.d), u = new Uint8Array(t.length); for (let i = 0; i < t.length; i++) u[i] = t.charCodeAt(i);
+      const r = natResposta('carregou'); natEnviar('carregar'); nat.ws.send(u); await r;
+    },
+  };
+  return f;
+}
+// o celular como controle manda os botões pra página mesmo com a janela do PCSX2 na frente: repassa sem esperar o quadro
+setInterval(() => { if (nat.visivel && snes && snes.nucleo === 'pcsx2') snes.runFrame && (snes.pad[0] = estado(), snes.eixos = lerEixos(), snes.runFrame()); }, 16);
+setInterval(() => { if (nat.ws && snes && snes.nucleo === 'pcsx2') guardarSavesNativos(); }, 60000);
