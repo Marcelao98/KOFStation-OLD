@@ -3,7 +3,7 @@
 const { chromium } = require('/opt/node22/lib/node_modules/playwright');
 const [,, html, rom, saida = '/tmp'] = process.argv;
 (async () => {
-  const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
+  const b = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
   const p = await (await b.newContext({ viewport: { width: 1000, height: 720 } })).newPage(); const erros = [], r = {};
   p.on('pageerror', (e) => erros.push(e.message));
   await p.goto('file://' + html); await p.waitForTimeout(500);

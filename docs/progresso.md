@@ -21,6 +21,7 @@ A história contada fica no [HISTORICO.md](../HISTORICO.md) e a engenharia em [a
 
 - **Biblioteca** com pasta de ROMs, capas, busca por gênero, empresa, ano e série (base do libretro-database, CC BY-SA 4.0).
 - **Saves** no banco do navegador, **backup `.kofsave`**, savestates, rebobinar.
+- **Modos de jogo** escolhidos ao abrir o jogo: 😄 Só alegria, 🙂 Normal, 😤 Raiz e 💀 Hardcore. Também tem a aba **Opções de emulação** (limite de estados, tempo de rebobinar, salvar automático...).
 - **126 temas**, filtros e efeitos de imagem (F4), molduras, painel de desempenho (F3).
 - **Jukebox** com os canais de som de cada console e trilha própria (violino e FM).
 - **Traduções** IPS/BPS/UPS.

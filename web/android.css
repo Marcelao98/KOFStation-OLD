@@ -371,3 +371,5 @@ html.celular body[data-sis="n64"] #ctl.skin-classico :is([data-b="X"], [data-b="
 html.celular body[data-sis="nes"] #ctl.skin-classico :is([data-b="A"], [data-b="B"]) { --c: #c8202c; }
 html.celular body:is([data-sis="gb"], [data-sis="gba"]) #ctl.skin-classico :is([data-b="A"], [data-b="B"]) { --c: #8e2a63; }
 body.modo-controle #ctl [data-b="turbo"], body.modo-controle #ctl [data-b="rew"] { display: none; }   /* sem jogo aqui: turbo e rebobinar não servem; o ☰ abre o menu do PC */
+/* modo de jogo: Raiz não rebobina; Hardcore não rebobina nem acelera */
+body[data-modo="raiz"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [data-b="turbo"] { visibility: hidden; }

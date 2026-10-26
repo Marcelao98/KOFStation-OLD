@@ -1570,6 +1570,25 @@ html.celular body.com-visual #palco { padding-right: 0; padding-bottom: 58vh; }
 #bios-lista li span { display: grid; gap: 2px; min-width: 0; flex: 1; text-align: left; }
 #bios-lista li small { color: var(--fraco); overflow-wrap: anywhere; }
 #bios-lista li button { flex: none; width: auto; min-width: 130px; margin: 0; }
+/* escolha do modo de jogo (ao abrir um jogo) */
+#modo-ops { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+#modo-ops .modo-op { display: grid; gap: 4px; text-align: left; padding: 14px; border: 2px solid var(--borda); border-radius: 12px; background: var(--painel2); color: var(--texto); font: inherit; cursor: pointer; }
+#modo-ops .modo-op b { font-size: 17px; }
+#modo-ops .modo-op small { color: var(--fraco); }
+#modo-ops .modo-op.ativo { border-color: color-mix(in srgb, var(--destaque) 45%, var(--borda)); }
+#modo-ops .modo-op:hover, #modo-ops .modo-op:focus-visible, #modo-ops .modo-op:focus { border-color: var(--destaque); outline: none; transform: translateY(-1px); }
+.modo-perg { display: flex; gap: 8px; align-items: center; }
+@media (max-width: 560px) { #modo-ops { grid-template-columns: 1fr; } }
+/* abas da tela de estados + opções de emulação */
+.abas-estados { display: flex; gap: 6px; margin: 8px 0; }
+.abas-estados button { flex: 1; padding: 8px; border: 1px solid var(--borda); border-radius: 8px; background: var(--painel2); color: var(--fraco); font: inherit; cursor: pointer; }
+.abas-estados button.ativo { color: var(--texto); border-color: var(--destaque); }
+#emu-opcoes { display: grid; gap: 10px; }
+#emu-opcoes[hidden] { display: none; }
+.emu-op { display: grid; grid-template-columns: 1fr minmax(160px, 220px); gap: 2px 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--borda); border-radius: 10px; background: var(--painel2); }
+.emu-op select { grid-row: 1 / 3; grid-column: 2; padding: 6px; border-radius: 6px; background: var(--painel); color: var(--texto); border: 1px solid var(--borda); font: inherit; }
+.emu-op small { grid-column: 1; }
+@media (max-width: 560px) { .emu-op { grid-template-columns: 1fr; } .emu-op select { grid-row: auto; grid-column: 1; } }
 /* ============ KOFnes no celular (só entra no KOFnes-android.html) ============ */
 html.celular, html.celular body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 html.celular .so-pc, html.celular kbd { display: none !important; }
@@ -1943,6 +1962,8 @@ html.celular body[data-sis="n64"] #ctl.skin-classico :is([data-b="X"], [data-b="
 html.celular body[data-sis="nes"] #ctl.skin-classico :is([data-b="A"], [data-b="B"]) { --c: #c8202c; }
 html.celular body:is([data-sis="gb"], [data-sis="gba"]) #ctl.skin-classico :is([data-b="A"], [data-b="B"]) { --c: #8e2a63; }
 body.modo-controle #ctl [data-b="turbo"], body.modo-controle #ctl [data-b="rew"] { display: none; }   /* sem jogo aqui: turbo e rebobinar não servem; o ☰ abre o menu do PC */
+/* modo de jogo: Raiz não rebobina; Hardcore não rebobina nem acelera */
+body[data-modo="raiz"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [data-b="turbo"] { visibility: hidden; }
 
 </style>
 </head>
@@ -1971,6 +1992,7 @@ body.modo-controle #ctl [data-b="turbo"], body.modo-controle #ctl [data-b="rew"]
     <button data-acao="carregar-ultimo">Carregar último estado<kbd>F8</kbd></button>
     <button data-acao="estados">Estados salvos…<kbd>F6</kbd></button>
     <button data-acao="auto-toggle">Salvar automático: ligado</button>
+    <button data-acao="emu-opcoes">🎮 Modo de jogo e opções de emulação…</button>
     <hr>
     <button data-acao="teclas">Configurar teclas…</button>
   </div></div>
@@ -2115,12 +2137,22 @@ body.modo-controle #ctl [data-b="turbo"], body.modo-controle #ctl [data-b="rew"]
     </div>
   </section>
 
+  <section id="modo-tela" class="janela" hidden>
+    <div class="titulo-j"><span>🎮 Como você quer jogar <b id="modo-jogo"></b>?</span></div>
+    <div id="modo-ops"></div>
+    <label class="modo-perg"><input type="checkbox" id="modo-perguntar"> perguntar sempre que abrir um jogo</label>
+    <p class="dica">dá pra trocar no meio do jogo pelo menu rápido<span class="so-pc"> (F2)</span> ou em Estados salvos → Opções de emulação</p>
+  </section>
   <section id="estados" class="janela" hidden>
     <div class="titulo-j"><span>💾 Estados salvos — <select id="estados-jogo"></select></span>
       <button class="x" data-acao="fechar-estados">×</button></div>
+    <div class="abas-estados"><button data-acao="aba-estados" class="ativo">💾 Estados</button><button data-acao="aba-emu">⚙ Opções de emulação</button></div>
+    <div id="emu-opcoes" hidden></div>
+    <div id="estados-conteudo">
     <div id="grade-estados"></div>
     <p id="estados-vazio" class="dica">Nenhum estado salvo deste jogo. <span class="so-pc">Aperte <b>F5</b> durante o jogo.</span><span class="so-cel">Toque em ☰ e depois em Salvar estado.</span></p>
     <button class="grande" data-acao="salvar-estado">Salvar estado agora<span class="so-pc"> (F5)</span></button>
+    </div>
   </section>
 
   <section id="guia" class="janela" hidden>
@@ -2416,6 +2448,13 @@ body.modo-controle #ctl [data-b="turbo"], body.modo-controle #ctl [data-b="rew"]
 <script>
 const KofNucleo = (() => {
 'use strict';
+function kofArrayGet(array, index) {
+    return array[index];
+}
+function kofArraySet(array, index, value, kind) {
+    if (kind === 0) { array[index] = value; return; }
+}
+
 function kofArrayGet(array, index) {
     return array[index];
 }
@@ -13667,6 +13706,7 @@ addEventListener('keydown', (e) => {
     return;
   }
   ligarSom();
+  if (!$('#modo-tela').hidden) { modoTecla(e); return; }
   if (capturando) { capturar(e); return; }
   if (showTimer && e.code === 'Escape') { e.preventDefault(); pararShowcase(false); return; }
   if (!$('#bug').hidden) { if (e.code === 'Escape') fecharBug(); return; }   // digitando a descrição
@@ -13735,15 +13775,16 @@ function laco(t) {
   const querVoltar = snes && voltando() && !pausado && !rapidoAberto && $('#biblioteca').hidden && $('#bug').hidden && $('#home').hidden;
   if (querVoltar && rebob && (rebobinou || rebobPronto())) { rebobinarPasso(); ultimo = marco = t; contados = 0; return; }
   if (rebobinou) terminarRebobinar();
+  if (querVoltar && !rebobLigado && !rebobinou) avisar('modo ' + nomeModo(modo) + ': sem rebobinar', 1500);
   if (querVoltar && rebob && rebobRecarga > 0) avisar('⏳ rebobinar recarregando: ' + Math.ceil(rebobRecarga / 60) + ' s de jogo', 900);
-  if (!snes || pausado || !$('#biblioteca').hidden || !$('#estados').hidden || !$('#jukebox').hidden || !$('#home').hidden || !$('#guia').hidden) { ultimo = marco = t; contados = 0; return; }
+  if (!snes || pausado || !$('#modo-tela').hidden || !$('#biblioteca').hidden || !$('#estados').hidden || !$('#jukebox').hidden || !$('#home').hidden || !$('#guia').hidden) { ultimo = marco = t; contados = 0; return; }
   if (juke.tocando) jukePausar();
   const dt = Math.min(t - ultimo, 100);
   sobra += dt; ultimo = t;
   if (!document.hidden) jogando += dt;   // estatística: só o tempo rodando de verdade
   let vezes = 0;
   try {
-    if (turbo) {
+    if (turbo && modo !== 'hardcore') {
       for (let k = 0; k < 4; k++) { rodarQuadro(); snes.apu.dsp.outCount = 0; }
       vezes = 4; sobra = 0;
     } else {
@@ -14278,7 +14319,7 @@ $('#arquivo-spc').addEventListener('change', (e) => { if (e.target.files.length)
 // estado (um marco) e anota os botões de cada quadro dali pra frente. O pacote
 // do bug leva o marco anterior + os botões até agora: rodando de novo, o
 // núcleo (determinístico) chega no mesmo lugar, quadro a quadro.
-const VERSAO = '202610261106 · 99b4600', REPO = 'Marcelao98/KOFSnes';
+const VERSAO = '202610261211 · b51323b', REPO = 'Marcelao98/KOFSnes';
 let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAtual = null;
 // eixos pro núcleo (-32767..32767): controle físico (com zona morta) ou a tela de toque; tudo parado = 0 (aí a ponte do N64
 // usa o direcional como analógico, como antes)
@@ -14398,14 +14439,41 @@ function avisarSeAtualizou() {
 // Estilo Príncipe da Pérsia: segure Backspace (ou Select+Y) e o jogo volta no tempo, em preto e
 // branco, até 5 s. Soltou, ou acabou o tempo: a ampulheta zera e leva 6× isso de jogo pra encher
 // de novo. É o "deu ruim", não uma fita (pra guardar um momento existem os savestates).
-// Sem opção no menu; a chave "rebobLimite" do localStorage só existe pros testes.
-const RECARGA_X = 6;                        // jogar 6× o limite recarrega
-const rebobLimite = [3, 5, 10, 15].includes(+ler('rebobLimite')) ? +ler('rebobLimite') : 5;   // segundos
+// Quanto volta e se recarrega vem do modo de jogo (abaixo); o tempo do modo Normal é opção (Opções de emulação).
+// Modos de jogo: o jogador escolhe ao abrir um jogo (ou no menu rápido / Opções de emulação). Só alegria = rebobina à
+// vontade; Normal = rebobina um pouco e recarrega jogando; Raiz = estados sim, rebobinar não; Hardcore = nada disso (nem
+// estados, nem rebobinar, nem acelerar). O save da bateria (o do próprio jogo) e o "continuar de onde parou" valem em todos.
+const MODOS = [
+  ['alegria', '😄 Só alegria', 'rebobina à vontade (até 30 s, sem esperar) e salva estados quando quiser'],
+  ['normal', '🙂 Normal', 'rebobina um pouco (recarrega jogando) e salva estados'],
+  ['raiz', '😤 Raiz', 'salva estados, mas sem rebobinar'],
+  ['hardcore', '💀 Hardcore', 'sem estados, sem rebobinar e sem acelerar: como no console'],
+];
+let modo = MODOS.some(([k]) => k === ler('modo')) ? ler('modo') : 'normal';
+const nomeModo = (m) => MODOS.find(([k]) => k === m)[1];
+const comEstados = () => modo !== 'hardcore';
+const REBOB_SEG = [3, 5, 10, 15, 30];
+const rebobNormal = () => (REBOB_SEG.includes(+ler('rebobLimite')) ? +ler('rebobLimite') : 5);   // segundos do modo Normal
+let rebobLimite = 5, RECARGA_X = 6;   // jogar 6× o limite recarrega (Só alegria: sem recarga)
+function aplicarModo() {
+  rebobLimite = modo === 'alegria' ? 30 : rebobNormal(); RECARGA_X = modo === 'alegria' ? 0 : 6;
+  rebobLigado = modo === 'alegria' || modo === 'normal';
+  if (modo === 'hardcore') turbo = false;
+  document.body.dataset.modo = modo;
+  if (snes) novoRebob();
+  if (typeof marcarOpcoesEmu === 'function') marcarOpcoesEmu();
+}
+function mudarModo(m, quieto) {
+  if (!MODOS.some(([k]) => k === m)) return;
+  modo = m; guardar('modo', m); aplicarModo();
+  if (!quieto) avisar('modo ' + nomeModo(m), 2000);
+}
+setTimeout(() => aplicarModo(), 0);
 let rebob = null, rebobLigado = true, desdeFoto = 0, voltandoTecla = false, rebobinou = 0, rebobRecarga = 0, rebobTotal = 1, ampTexto = '';
 const voltando = () => voltandoTecla || (estado() & 0x6000) === 0x6000;
 const rebobPronto = () => !!rebob && rebobRecarga <= 0 && rebob.fotos > 0;
 function novoRebob() {
-  rebob = rebobLigado && snes && !(SIS[snes.sistema] && (SIS[snes.sistema].grande || SIS[snes.sistema].semRebob)) ? KofEstado.Rebobinador(snes, 48 << 20, rebobLimite * 30) : null;   // ~30 fotos por segundo (PS1: o estado tem ~4 MB, fica sem)
+  rebob = rebobLigado && rebobLimite > 0 && snes && !(SIS[snes.sistema] && (SIS[snes.sistema].grande || SIS[snes.sistema].semRebob)) ? KofEstado.Rebobinador(snes, 48 << 20, rebobLimite * 30) : null;   // ~30 fotos por segundo (PS1: o estado tem ~4 MB, fica sem)
   desdeFoto = 0; rebobRecarga = 0; marcarAmpulheta(); novoMarco(true);
 }
 function marcarAmpulheta() {
@@ -14424,7 +14492,7 @@ function rebobinarPasso() {
 }
 function terminarRebobinar() {
   document.body.classList.remove('rebobinando');
-  if (rebobinou && rebob) { rebob.limpar(); rebobTotal = rebobRecarga = rebobLimite * RECARGA_X * 60; }   // usou: zera e recarrega
+  if (rebobinou && rebob && RECARGA_X) { rebob.limpar(); rebobTotal = rebobRecarga = rebobLimite * RECARGA_X * 60; }   // usou: zera e recarrega (Só alegria: continua)
   rebobinou = 0; ini = fim = 0; sobra = 0; desdeFoto = 0; novoMarco(true); marcarAmpulheta();
 }
 
@@ -15058,6 +15126,7 @@ async function abrirBytes(nome, bytes, guardarNaBiblioteca, extras) {
   } catch (e) { console.warn('biblioteca indisponível', e); }
   contarSessao(jogoId, romNome);
   contarJogoAoControle();
+  perguntarModo();
 }
 async function atualizarCapa() {   // print do jogo atual vira a capa dele na biblioteca
   if (!snes || !jogoId) return;
@@ -15326,29 +15395,112 @@ async function salvarAuto() {
     autoAntes = Date.now();
   } catch (e) { console.warn('auto-save falhou', e); }
 }
-setInterval(() => { if (snes && !pausado && Date.now() - autoAntes > (snes.nativo ? 120000 : 30000)) salvarAuto(); }, 5000);   // nativo: o estado é grande, salva a cada 2 min
+const AUTO_SEG = [15, 30, 60];
+const autoSeg = () => (AUTO_SEG.includes(+ler('autoSeg')) ? +ler('autoSeg') : 30);
+setInterval(() => { if (snes && !pausado && Date.now() - autoAntes > (snes.nativo ? Math.max(120, autoSeg()) : autoSeg()) * 1000) salvarAuto(); }, 5000);   // nativo: o estado é grande, no mínimo a cada 2 min
+
+// ---------------- modo de jogo (ao abrir um jogo) e opções de emulação ----------------
+let modoPerguntado = { id: null, quando: 0 };
+function perguntarModo() {
+  aplicarModo();
+  if (ler('modoPerguntar') === '0') return;
+  if (navigator.webdriver && !window.__kofModo) return;   // testes automáticos: só o teste dos modos quer ver a escolha
+  if (modoPerguntado.id === jogoId && Date.now() - modoPerguntado.quando < 10000) return;   // o mesmo jogo reaberto logo em seguida (troca de núcleo, estado)
+  modoPerguntado = { id: jogoId, quando: Date.now() };
+  $('#modo-jogo').textContent = romNome || 'este jogo';
+  const ops = $('#modo-ops'); ops.innerHTML = '';
+  for (const [k, nome, desc] of MODOS) {
+    const b = elem('button', 'modo-op' + (k === modo ? ' ativo' : ''));
+    b.dataset.modo = k; b.append(elem('b', '', nome), elem('small', '', desc));
+    b.onclick = () => escolherModo(k); ops.append(b);
+  }
+  $('#modo-perguntar').checked = true;
+  $('#modo-tela').hidden = false;
+  (ops.querySelector('.ativo') || ops.firstChild).focus({ preventScroll: true });
+}
+function escolherModo(k) {
+  if (!$('#modo-perguntar').checked) { guardar('modoPerguntar', '0'); avisar('não vou mais perguntar: o modo fica em Estados salvos → Opções de emulação', 4000); }
+  $('#modo-tela').hidden = true;
+  mudarModo(k, false);
+  ultimo = 0; sobra = 0;   // o tempo parado na escolha não vira quadros atrasados
+}
+function modoTecla(e) {
+  const bs = [...document.querySelectorAll('#modo-ops .modo-op')], i = bs.indexOf(document.activeElement);
+  if (e.code === 'ArrowDown' || e.code === 'ArrowRight') { e.preventDefault(); bs[(i + 1) % bs.length].focus(); }
+  else if (e.code === 'ArrowUp' || e.code === 'ArrowLeft') { e.preventDefault(); bs[(i - 1 + bs.length) % bs.length].focus(); }
+  else if (e.code === 'Escape') { e.preventDefault(); escolherModo(modo); }   // Esc: fica no modo de sempre
+}
+// controle na escolha de modo: direcional escolhe, A/Start confirma
+let padModo = 0;
+setInterval(() => {
+  if ($('#modo-tela').hidden) { padModo = 0; return; }
+  const b = estado() | direcionalDosEixos(), novo = b & ~padModo; padModo = b;
+  const bs = [...document.querySelectorAll('#modo-ops .modo-op')]; let i = bs.indexOf(document.activeElement); if (i < 0) i = 0;
+  if (novo & 0x0500) bs[(i + 1) % bs.length].focus();
+  if (novo & 0x0A00) bs[(i - 1 + bs.length) % bs.length].focus();
+  if (novo & (0x0080 | 0x1000)) bs[i].click();
+}, 50);
+
+// aba "Opções de emulação" da tela de estados
+const OPCOES_EMU = () => [
+  ['Modo de jogo', 'modo', MODOS.map(([k, n]) => [k, n]), () => modo, (v) => mudarModo(v), () => MODOS.find(([k]) => k === modo)[2]],
+  ['Perguntar o modo ao abrir um jogo', 'modoPerguntar', [['1', 'sim'], ['0', 'não']], () => (ler('modoPerguntar') === '0' ? '0' : '1'), (v) => guardar('modoPerguntar', v), () => 'a escolha aparece toda vez que um jogo abre'],
+  ['Rebobinar no modo Normal', 'rebobLimite', REBOB_SEG.map((s) => [String(s), s + ' segundos']), () => String(rebobNormal()), (v) => { guardar('rebobLimite', v); aplicarModo(); }, () => `segura Backspace${CELULAR ? ' (ou ⏪)' : ' ou Select+Y'}; recarrega depois de jogar ${rebobNormal() * 6} s. No Só alegria são 30 s sem esperar. Quanto mais tempo, mais memória`],
+  ['Estados salvos por jogo', 'maxEstados', LIMITES_ESTADOS.map((n) => [String(n), n ? 'até ' + n : 'sem limite']), () => String(maxEstados()), (v) => guardar('maxEstados', v), () => 'chegou no limite, o mais antigo sai (cada estado tem de 1 a 16 MB; PS2 bem mais)'],
+  ['Salvar automático (continuar de onde parou)', 'autoSeg', [['0', 'desligado'], ...AUTO_SEG.map((s) => [String(s), 'a cada ' + s + ' s'])], () => (autoSalvar ? String(autoSeg()) : '0'), (v) => { autoSalvar = v !== '0'; guardar('autoSalvar', autoSalvar ? '1' : '0'); if (autoSalvar) guardar('autoSeg', v); marcarAuto(); }, () => 'vale em todos os modos (é o "suspender" do console); PS1/N64/PS2 no mínimo a cada 2 min'],
+  ['Pausar ao sair da janela', 'pausaAuto', [['1', 'sim'], ['0', 'não']], () => (pausaAuto ? '1' : '0'), (v) => { pausaAuto = v === '1'; guardar('pausaAuto', v); marcarSom(); }, () => 'trocou de janela ou de app: o jogo espera você'],
+  ...(CELULAR || typeof KofNucleo === 'undefined' ? [] : [['Núcleo do Super Nintendo', 'nucleoSnes', [['snes9x', 'Snes9x (o mais rápido)'], ['kof', 'Kof (o feito no Brasil)']], () => nucleoSnes(), (v) => { if (v !== nucleoSnes()) acao('nucleo-snes'); }, () => 'vale a partir do próximo jogo de SNES']]),
+];
+function montarOpcoesEmu() {
+  const c = $('#emu-opcoes'); c.innerHTML = '';
+  for (const [rotulo, id, escolhas, atual, mudar, dica] of OPCOES_EMU()) {
+    const l = elem('label', 'emu-op'), s = document.createElement('select'); s.id = 'emu-' + id;
+    for (const [v, t] of escolhas) { const o = document.createElement('option'); o.value = v; o.textContent = t; s.append(o); }
+    s.value = atual();
+    const d = elem('small', 'dica', dica());
+    s.onchange = () => { mudar(s.value); marcarOpcoesEmu(); };
+    l.append(elem('span', '', rotulo), s, d); c.append(l);
+  }
+  if (snes && SIS[snes.sistema] && (SIS[snes.sistema].grande || SIS[snes.sistema].semRebob)) c.append(elem('p', 'dica', '⚠ ' + SIS[snes.sistema].nome + ' não tem rebobinar em nenhum modo: o estado dele é grande demais.'));
+}
+function marcarOpcoesEmu() {
+  if (!$('#emu-opcoes') || $('#emu-opcoes').hidden) return;
+  for (const [, id, , atual, , dica] of OPCOES_EMU()) { const s = $('#emu-' + id); if (s) { s.value = atual(); s.nextElementSibling.textContent = dica(); } }
+}
+function abaEstados(emu) {
+  $('#emu-opcoes').hidden = !emu; $('#estados-conteudo').hidden = emu;
+  $('[data-acao="aba-estados"]').classList.toggle('ativo', !emu); $('[data-acao="aba-emu"]').classList.toggle('ativo', emu);
+  if (emu) montarOpcoesEmu();
+}
 
 // ---------------- savestates ----------------
+const semEstadosAviso = () => avisar('💀 modo Hardcore: sem estados salvos (troque o modo no menu rápido)', 3000);
 async function salvarEstado() {
   if (!snes) { avisar('abra um jogo primeiro'); return; }
+  if (!comEstados()) { semEstadosAviso(); return; }
   try {
     const dados = await comprimir(JSON.stringify(await capturarEstado()));
+    // limite baixado nas opções: antes de apagar mais de um estado antigo, pergunta
+    const ja = maxEstados() ? ((await bdOp('estados', 'readonly', (o) => o.index('jogo').getAllKeys(jogoId))) || []).length : 0;
+    const limitar = !maxEstados() || ja + 1 - maxEstados() <= 1 || confirm(`O limite agora é ${maxEstados()} estados por jogo e este jogo tem ${ja}. Apagar os ${ja + 1 - maxEstados()} mais antigos?`);
     await bdGuardar('estados', { jogo: jogoId, nome: romNome, quando: Date.now(), capa: foto(256), dados });
     atualizarCapa();
-    const apagados = await limitarEstados(jogoId);
-    avisar(apagados ? `💾 estado salvo (limite de ${MAX_ESTADOS} por jogo: apaguei o mais antigo)` : '💾 estado salvo', apagados ? 3500 : 1500);
+    const apagados = limitar ? await limitarEstados(jogoId) : 0;
+    avisar(apagados ? `💾 estado salvo (limite de ${maxEstados()} por jogo: apaguei ${apagados === 1 ? 'o mais antigo' : 'os ' + apagados + ' mais antigos'})` : '💾 estado salvo', apagados ? 3500 : 1500);
     if (!$('#estados').hidden) mostrarEstados(jogoId);
   } catch (e) { avisar('não consegui salvar o estado: ' + e.message, 4000); }
 }
-// no máximo MAX_ESTADOS savestates por jogo (cada um tem de 1 a 16 MB): o mais antigo sai
-const MAX_ESTADOS = 20;
+// no máximo maxEstados() savestates por jogo (cada um tem de 1 a 16 MB): o mais antigo sai. Opção: 10/20/50/100/0 = sem limite
+const LIMITES_ESTADOS = [10, 20, 50, 100, 0];
+const maxEstados = () => { const v = ler('maxEstados'); return v !== null && LIMITES_ESTADOS.includes(+v) ? +v : 20; };
 async function limitarEstados(jogo) {
   const ns = await bdOp('estados', 'readonly', (o) => o.index('jogo').getAllKeys(jogo));
-  const sobra = (ns || []).sort((a, b) => a - b).slice(0, Math.max(0, (ns || []).length - MAX_ESTADOS));
+  const sobra = (ns || []).sort((a, b) => a - b).slice(0, Math.max(0, maxEstados() ? (ns || []).length - maxEstados() : 0));
   for (const n of sobra) await bdApagar('estados', n);
   return sobra.length;
 }
 async function carregarEstado(est) {
+  if (!comEstados()) { semEstadosAviso(); return; }
   try {
     if (est.jogo !== jogoId) {          // estado de outro jogo: abre o jogo antes
       const j = await bdPegar('jogos', est.jogo);
@@ -15385,11 +15537,12 @@ async function estadosDe(id) {
 }
 async function carregarUltimo() {
   if (!snes) { avisar('abra um jogo primeiro'); return; }
+  if (!comEstados()) { semEstadosAviso(); return; }
   const l = await estadosDe(jogoId);
   if (l.length) carregarEstado(l[0]); else avisar((CELULAR ? 'nenhum estado salvo deste jogo (☰ → Salvar estado)' : 'nenhum estado salvo deste jogo (F5 salva)'));
 }
-async function mostrarEstados(id) {
-  fecharJanelas(); $('#estados').hidden = false;
+async function mostrarEstados(id, emu) {
+  fecharJanelas(); $('#estados').hidden = false; abaEstados(!!emu);
   const todos = await bdTodos('estados'), jogos = await bdTodos('jogos');
   const nomes = {}; jogos.forEach((j) => { nomes[j.id] = j.nome; });
   todos.forEach((e) => { if (!nomes[e.jogo]) nomes[e.jogo] = e.nome; });
@@ -15984,6 +16137,7 @@ const ITENS_RAPIDO = [
   { t: '🗂 Estados salvos', f: () => { fecharRapido(); acao('estados'); } },
   { t: '☕ Biblioteca', f: () => { fecharRapido(); acao('biblioteca'); } },
   { t: '📈 Painel de desempenho', v: () => (desemp.visivel ? 'ligado' : 'desligado'), aj: () => alternarDesempenho(), f: () => { alternarDesempenho(); fecharRapido(); } },
+  { t: '🎮 Modo', v: () => nomeModo(modo), aj: (d) => mudarModo(ciclar(MODOS, modo, d)), f: () => { fecharRapido(); acao('emu-opcoes'); } },
   { t: '🎨 Tema', v: () => TODOS_TEMAS.find(([k]) => k === temaSalvo)[1], aj: (d) => tema(ciclar(TODOS_TEMAS, temaSalvo, d)), f: () => { fecharRapido(); acao('temas'); } },
   { t: 'Filtro', so: () => !semImagem(), v: () => (FILTROS.find(([k]) => k === filtro) || [0, 'Meu jeito'])[1], aj: (d) => aplicarFiltro(ciclar(FILTROS, FILTROS.some(([k]) => k === filtro) ? filtro : 'original', d)) },
   { t: 'Cores do Game Boy', so: () => !!(snes && snes.sistema === 'gb'), v: () => PALETAS_GB.find(([k]) => k === paletaGb)[1], aj: (d) => mudarPaletaGb(ciclar(PALETAS_GB, paletaGb, d)) },
@@ -16662,6 +16816,9 @@ async function acao(a) {
     case 'do-zero': await jogar(true); break;
     case 'estados-do-sel': { const r = visiveis[selecionada]; await mostrarEstados(r && r.jogo ? r.jogo.id : jogoId); break; }
     case 'estados': await mostrarEstados(jogoId); break;
+    case 'emu-opcoes': await mostrarEstados(jogoId, true); break;
+    case 'aba-estados': abaEstados(false); break;
+    case 'aba-emu': abaEstados(true); break;
     case 'fechar-estados': voltar(); break;
     case 'salvar-estado': await salvarEstado(); break;
     case 'carregar-ultimo': await carregarUltimo(); break;

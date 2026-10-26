@@ -34,6 +34,7 @@
     <button data-acao="carregar-ultimo">Carregar último estado<kbd>F8</kbd></button>
     <button data-acao="estados">Estados salvos…<kbd>F6</kbd></button>
     <button data-acao="auto-toggle">Salvar automático: ligado</button>
+    <button data-acao="emu-opcoes">🎮 Modo de jogo e opções de emulação…</button>
     <hr>
     <button data-acao="teclas">Configurar teclas…</button>
   </div></div>
@@ -178,12 +179,22 @@
     </div>
   </section>
 
+  <section id="modo-tela" class="janela" hidden>
+    <div class="titulo-j"><span>🎮 Como você quer jogar <b id="modo-jogo"></b>?</span></div>
+    <div id="modo-ops"></div>
+    <label class="modo-perg"><input type="checkbox" id="modo-perguntar"> perguntar sempre que abrir um jogo</label>
+    <p class="dica">dá pra trocar no meio do jogo pelo menu rápido<span class="so-pc"> (F2)</span> ou em Estados salvos → Opções de emulação</p>
+  </section>
   <section id="estados" class="janela" hidden>
     <div class="titulo-j"><span>💾 Estados salvos — <select id="estados-jogo"></select></span>
       <button class="x" data-acao="fechar-estados">×</button></div>
+    <div class="abas-estados"><button data-acao="aba-estados" class="ativo">💾 Estados</button><button data-acao="aba-emu">⚙ Opções de emulação</button></div>
+    <div id="emu-opcoes" hidden></div>
+    <div id="estados-conteudo">
     <div id="grade-estados"></div>
     <p id="estados-vazio" class="dica">Nenhum estado salvo deste jogo. <span class="so-pc">Aperte <b>F5</b> durante o jogo.</span><span class="so-cel">Toque em ☰ e depois em Salvar estado.</span></p>
     <button class="grande" data-acao="salvar-estado">Salvar estado agora<span class="so-pc"> (F5)</span></button>
+    </div>
   </section>
 
   <section id="guia" class="janela" hidden>
