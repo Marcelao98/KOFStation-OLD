@@ -1987,6 +1987,18 @@ body.modo-controle #ctl [data-b="turbo"], body.modo-controle #ctl [data-b="rew"]
 /* modo de jogo: Raiz não rebobina; Hardcore não rebobina nem acelera */
 body[data-modo="raiz"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [data-b="turbo"] { visibility: hidden; }
 
+/* 🖥 Jogar no PC: a imagem que o PC transmite no lugar da telinha */
+#modo-controle .mc-video { display: none; }
+#modo-controle.remoto { padding: 0; }
+#modo-controle.remoto .mc-tela, #modo-controle.remoto .mc-parear, #modo-controle.remoto .mc-info { display: none; }
+#modo-controle.remoto .mc-video { display: block; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; image-rendering: pixelated; }
+#modo-controle.remoto .mc-barra { z-index: 2; opacity: .85; }
+#modo-controle .mc-ping { position: absolute; right: 10px; bottom: 6px; z-index: 2; font-size: 11px; color: #fff; text-shadow: 0 0 4px #000; }
+#modo-controle .mc-menu { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: rgb(0 0 0 / .72); }
+#modo-controle .mc-menu[hidden] { display: none; }
+#modo-controle .mc-menu button { width: min(80%, 320px); padding: 12px; border-radius: 12px; background: var(--painel); border: 1px solid var(--borda); font-size: 16px; }
+
 </style>
 </head>
 <body>
@@ -2144,6 +2156,7 @@ body[data-modo="raiz"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [dat
         <p id="info-meta" hidden></p>
         <div class="bib-botoes">
           <button class="grande" data-acao="jogar">▶ Jogar</button>
+          <button class="grande sec" data-acao="jogar-pc" hidden>🖥 Jogar no PC</button>
           <button class="grande sec" data-acao="do-zero" hidden>↺ Começar do zero</button>
           <button class="grande sec" data-acao="estados-do-sel">Estados salvos</button>
         </div>
@@ -2514,6 +2527,13 @@ body[data-modo="raiz"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [dat
 <script>
 const KofNucleo = (() => {
 'use strict';
+function kofArrayGet(array, index) {
+    return array[index];
+}
+function kofArraySet(array, index, value, kind) {
+    if (kind === 0) { array[index] = value; return; }
+}
+
 function kofArrayGet(array, index) {
     return array[index];
 }
@@ -12481,7 +12501,7 @@ const KofLibretro = (() => {
   // Cada núcleo mora num arquivo próprio do lado do html (nucleos/<núcleo>-<hash>.js; o hash muda quando o núcleo muda)
   // e só é carregado quando abre um jogo daquele console. O juntar.py escreve aqui a lista exata desta versão.
   // É <script src> e não fetch: o navegador bloqueia fetch de arquivo local (file://), script ele deixa.
-  const ARQUIVOS = {"fbneo": "nucleos/fbneo-3ffc717a.js", "fceumm": "nucleos/fceumm-9243119b.js", "gambatte": "nucleos/gambatte-f3b4deb6.js", "genplus": "nucleos/genplus-cd68890e.js", "mgba": "nucleos/mgba-cefd6783.js", "pcsx": "nucleos/pcsx-1c04c405.js", "snes9x": "nucleos/snes9x-e205bc90.js", "violino": "nucleos/violino-306d94e5.js", "jogos": "nucleos/jogos-371590f5.js", "qr": "nucleos/qr-bc40c8a1.js"};
+  const ARQUIVOS = {"fbneo": "nucleos/fbneo-3ffc717a.js", "fceumm": "nucleos/fceumm-9243119b.js", "gambatte": "nucleos/gambatte-f3b4deb6.js", "genplus": "nucleos/genplus-cd68890e.js", "mgba": "nucleos/mgba-cefd6783.js", "pcsx": "nucleos/pcsx-1c04c405.js", "qr": "nucleos/qr-bc40c8a1.js", "snes9x": "nucleos/snes9x-e205bc90.js", "violino": "nucleos/violino-306d94e5.js", "jogos": "nucleos/jogos-371590f5.js"};
   const fabrica = (n) => (typeof globalThis['Nucleo_' + n] === 'function' ? globalThis['Nucleo_' + n] : null);
   const disponivel = (sis) => !!(SISTEMAS[sis] && (fabrica(SISTEMAS[sis].nucleo) || ARQUIVOS[SISTEMAS[sis].nucleo]
     || (SISTEMAS[sis].nativo && typeof KOFnesApk !== 'undefined' && KOFnesApk[SISTEMAS[sis].nativo + 'Nativo'] && KOFnesApk[SISTEMAS[sis].nativo + 'Nativo']())));
@@ -15490,7 +15510,7 @@ function tamanhoTela(l, a) {
 }
 // novo = chegou um quadro novo (troca de textura: a outra vira o "quadro anterior"); sem isso, só redesenha
 function pintar(novo) {
-  if (!gl) { ctx.putImageData(img, 0, 0); return; }
+  if (!gl) { ctx.putImageData(img, 0, 0); if (novo && typeof transm !== 'undefined' && transm.pc) transmitirQuadro(); return; }
   if (novo) glVez ^= 1;
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, glTex[glVez ^ 1]);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, glTex[glVez]);
@@ -15498,6 +15518,7 @@ function pintar(novo) {
   const agora = performance.now(), liga = visual.v.ligarTv > 0.5 ? Math.min(1, (agora - ligaIni) / 650) : 1;
   gl.uniform4f(glU.u, (agora / 1000) % 1000, divisao, liga, pausado && snes && !rapidoAberto && telaAtual() === 'jogo' ? 1 : 0);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  if (novo && typeof transm !== 'undefined' && transm.pc) transmitirQuadro();   // 🖥 jogando pelo celular (jogarpc.js)
   if (novo && glConferir > 0 && !glRuins.has(glChave)) conferirTela();
 }
 // alguns drivers de celular "compilam" o shader grande mas desenham preto: nos primeiros quadros com imagem, lê uns pixels
@@ -16704,7 +16725,7 @@ $('#arquivo-spc').addEventListener('change', (e) => { if (e.target.files.length)
 // estado (um marco) e anota os botões de cada quadro dali pra frente. O pacote
 // do bug leva o marco anterior + os botões até agora: rodando de novo, o
 // núcleo (determinístico) chega no mesmo lugar, quadro a quadro.
-const VERSAO = '202610261610 · c672535', REPO = 'Marcelao98/KOFSnes';
+const VERSAO = '202610261701 · d8e3a02', REPO = 'Marcelao98/KOFSnes';
 let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAtual = null;
 // eixos pro núcleo (-32767..32767): controle físico (com zona morta) ou a tela de toque; tudo parado = 0 (aí a ponte do N64
 // usa o direcional como analógico, como antes)
@@ -17790,6 +17811,7 @@ let modoPerguntado = { id: null, quando: 0 };
 function perguntarModo() {
   aplicarModo();
   if (ler('modoPerguntar') === '0') return;
+  if (window.__kofRemoto) return;   // aberto pelo celular (🖥 Jogar no PC): ninguém está olhando a tela do PC
   if (navigator.webdriver && !window.__kofModo) return;   // testes automáticos: só o teste dos modos quer ver a escolha
   if (modoPerguntado.id === jogoId && Date.now() - modoPerguntado.quando < 10000) return;   // o mesmo jogo reaberto logo em seguida (troca de núcleo, estado)
   modoPerguntado = { id: jogoId, quando: Date.now() };
@@ -18762,7 +18784,7 @@ setInterval(() => {
 // ---------------- pausa ao sair da janela ----------------
 // só despausa na volta se quem pausou foi a saída (pausa manual continua)
 let pausaAuto = ler('pausaAuto') !== '0', pausadoPorSair = false;
-function sair() { if (pausaAuto && snes && !pausado) { pausado = true; pausadoPorSair = true; } }
+function sair() { if (typeof transm !== 'undefined' && transm.pc) return; if (pausaAuto && snes && !pausado) { pausado = true; pausadoPorSair = true; } }
 // (não pode chamar "voltar": esse nome é o do histórico de telas, e ele ganhava deste — por isso
 // tirar print ou trocar de janela jogava a pessoa pro jogo)
 function retomarAoVoltar() { if (pausadoPorSair) { pausadoPorSair = false; if (!rapidoAberto) { pausado = false; sobra = 0; } } }
@@ -19513,7 +19535,8 @@ function redeEvento(m) {
     if (el) el.textContent = !rede.aparelhos.length ? 'parear o celular com o PC'
       : on.length ? '🟢 conectado: ' + on.map((a) => a.nome).join(', ') : `${rede.aparelhos.length} pareado(s), nenhum na rede agora`;
   }
-  for (const f of rede.ouvintes) try { f(m); } catch (e) { console.warn(e); }
+  if (m.t === 'lista') { const b = $('[data-acao="jogar-pc"]'); if (b) b.hidden = !(CELULAR && pcOnline()); }
+  for (const f of rede.ouvintes.slice()) try { f(m); } catch (e) { console.warn(e); }
   if (!$('#aparelhos').hidden) desenharAparelhos();
 }
 window.__rede = redeEvento;
@@ -19549,7 +19572,13 @@ function desenharAparelhos() {
     s.append(b, sm);
     const rm = document.createElement('button'); rm.className = 'grande sec'; rm.textContent = 'Remover';
     rm.onclick = () => { if (confirm(`Remover ${a.nome}? Pra voltar, precisa parear de novo.`)) redeMandar({ t: 'remover', id: a.id }); };
-    li.append(s, rm); ul.appendChild(li);
+    li.append(s);
+    if (CELULAR && a.online && a.tipo === 'pc') {   // 🖥 Jogar no PC: o jogo que estiver aberto lá (ou escolha na ficha)
+      const j = document.createElement('button'); j.className = 'grande'; j.textContent = '🎮 Jogar no PC';
+      j.onclick = () => { fecharAparelhos(); window.entrarModoControle({ pc: a.id }); };
+      li.append(j);
+    }
+    li.append(rm); ul.appendChild(li);
   }
   $('#ap-vazio').hidden = rede.aparelhos.length > 0;
   // PCs achados na rede (pra parear pelo código, sem câmera)
@@ -19650,8 +19679,17 @@ function pararCamera() {
   const c = $('#ap-camera'); if (c) c.hidden = true;
 }
 $('#ap-nome').addEventListener('change', (e) => { const n = e.target.value.trim(); if (n) redeMandar({ t: 'nome', nome: n }); });
+const pcOnline = () => rede.aparelhos.find((a) => a.online && a.tipo === 'pc');
 function acaoRede(a) {
   switch (a) {
+    case 'jogar-pc': {   // ficha do jogo no celular: o PC abre o mesmo jogo (pela ROM) e transmite
+      const pc = pcOnline(), r = visiveis[selecionada];
+      if (!pc) { avisar('🖥 nenhum PC pareado na rede agora', 4000); return true; }
+      if (!r || !r.jogo) { avisar('🖥 escolha um jogo da biblioteca', 4000); return true; }
+      const j = r.jogo;
+      window.entrarModoControle({ pc: pc.id, jogo: { crc: j.crc || '', arquivo: j.arquivo || '', nome: j.nome || '', sistema: j.sistema || 'snes' } });
+      return true;
+    }
     case 'aparelhos': abrirAparelhos(); return true;
     case 'aparelhos-fechar': fecharAparelhos(); return true;
     case 'ap-parear': apMsg(''); redeMandar({ t: 'parear' }); return true;
@@ -19663,6 +19701,139 @@ function acaoRede(a) {
   return false;
 }
 if (window.KOFnes) KOFnes.parearPeloQr = parearPeloQr;   // teste: entrega o texto que a câmera leria
+
+// ---------------------------------------------------------------- 🖥 Jogar no PC: o PC roda o jogo e transmite pro celular
+// Entra por dentro do app.js, depois do rede.js. O celular pede pelo canal "jogo" da rede (rede/PROTOCOLO.md); a conversa
+// do WebRTC (oferta/resposta) passa por esse mesmo canal cifrado. Vídeo = a imagem crua do jogo ampliada em pixels inteiros
+// (o filtro fica com quem assiste), som = a saída do ScriptProcessor, botões = canal de dados sem fila (6 bytes, o mesmo
+// formato do celular como controle). Só rede de casa: sem STUN/TURN.
+var transm = { pc: null, de: null, dc: null, cv: null, cx: null, peq: null, pcx: null, track: null, destino: null, ganhoAntes: null, info: '' };
+const transmitindo = () => !!transm.pc;
+const ipDoAparelho = (id) => { const a = rede.aparelhos.find((x) => x.id === id); return a && a.ip; };
+// o Chrome esconde o IP da rede de casa atrás de um nome .local: troca pelo IP que a rede já conhece
+const trocarLocal = (sdp, ip) => (ip ? sdp.replace(/[0-9a-f-]{36}\.local/gi, ip) : sdp);
+function mandarJogo(para, o) { redeMandar({ t: 'enviar', para, canal: 'jogo', dados: JSON.stringify(o) }); }
+function esperarIce(pc) {
+  if (pc.iceGatheringState === 'complete') return Promise.resolve();
+  return new Promise((ok) => {
+    const fim = () => { if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', fim); ok(); } };
+    pc.addEventListener('icegatheringstatechange', fim);
+    setTimeout(ok, 2500);   // rede de casa: os candidatos locais saem na hora
+  });
+}
+rede.ouvintes.push((m) => {
+  if (m.t === 'msg' && m.canal === 'jogo') { let p; try { p = JSON.parse(m.dados); } catch (e) { return; } pedidoDoCelular(m.de, p); }
+  if (m.t === 'lista' && transm.de && !rede.aparelhos.some((a) => a.id === transm.de && a.online)) pararTransmissao('o celular saiu da rede');
+});
+async function pedidoDoCelular(de, p) {
+  if (CELULAR) return;   // só o PC transmite (por enquanto)
+  if (p.t === 'pedir') {
+    pararTransmissao();
+    if (p.jogo) {
+      const ok = await abrirJogoPedido(p.jogo).catch((e) => { console.warn(e); return false; });
+      if (!ok) { mandarJogo(de, { t: 'erro', texto: 'o PC não tem esse jogo na biblioteca: abra ele uma vez no PC' }); return; }
+    }
+    if (!snes) { mandarJogo(de, { t: 'erro', texto: 'nenhum jogo aberto no PC: escolha um jogo no celular (🖥 Jogar no PC na ficha)' }); return; }
+    try { await comecarTransmissao(de); } catch (e) { pararTransmissao(); mandarJogo(de, { t: 'erro', texto: 'o PC não conseguiu transmitir: ' + e.message }); }
+  } else if (p.t === 'resposta' && transm.pc && transm.de === de) {
+    await transm.pc.setRemoteDescription({ type: 'answer', sdp: trocarLocal(p.sdp, ipDoAparelho(de)) }).catch((e) => pararTransmissao('resposta inválida: ' + e.message));
+  } else if (p.t === 'fim' && transm.de === de) pararTransmissao();
+}
+// o jogo que o celular escolheu, na biblioteca do PC: pelo CRC (mesma ROM), senão pelo nome do arquivo ou do jogo
+async function abrirJogoPedido(j) {
+  const todos = await bdTodos('jogos');
+  const base = (s) => String(s || '').toLowerCase().replace(/\.[a-z0-9]{2,4}$/, '');
+  const achado = (j.crc && todos.find((x) => x.crc === j.crc)) || todos.find((x) => x.sistema === j.sistema && base(x.arquivo) === base(j.arquivo))
+    || todos.find((x) => x.sistema === j.sistema && base(x.nome) === base(j.nome));
+  if (!achado) return false;
+  if (snes && jogoId === achado.id) return true;   // já está aberto
+  window.__kofRemoto = true;   // abrindo pelo celular: sem a pergunta do modo de jogo na tela do PC
+  try { await abrirJogo({ jogo: achado, nome: achado.arquivo || achado.nome }); } finally { window.__kofRemoto = false; }
+  return !!snes && jogoId === achado.id;
+}
+async function comecarTransmissao(de) {
+  ligarSom();
+  fecharJanelas(); if (rapidoAberto) fecharRapido();
+  pausado = false;
+  const K = Math.max(1, Math.min(4, Math.floor(1280 / Math.max(telaL, telaA))));   // pixels inteiros, até ~1280 de lado
+  transm.cv = document.createElement('canvas'); transm.cv.width = telaL * K; transm.cv.height = telaA * K;
+  transm.cx = transm.cv.getContext('2d'); transm.cx.imageSmoothingEnabled = false;
+  transm.peq = document.createElement('canvas'); transm.pcx = transm.peq.getContext('2d');
+  const video = transm.cv.captureStream(0);
+  transm.track = video.getVideoTracks()[0];
+  transm.track.contentHint = 'motion';
+  const pc = new RTCPeerConnection({ iceServers: [] });
+  transm.pc = pc; transm.de = de; transm.info = '';
+  const tv = pc.addTransceiver(transm.track, { direction: 'sendonly', streams: [video] });
+  // H.264 primeiro: o PC codifica na placa de vídeo e o celular decodifica no chip (menos atraso e bateria)
+  try {
+    const cods = RTCRtpSender.getCapabilities('video').codecs;
+    tv.setCodecPreferences([...cods.filter((c) => /h264/i.test(c.mimeType)), ...cods.filter((c) => !/h264/i.test(c.mimeType))]);
+  } catch (e) { /* navegador sem setCodecPreferences */ }
+  if (audio) {
+    transm.destino = audio.createMediaStreamDestination();
+    no.connect(transm.destino);
+    pc.addTransceiver(transm.destino.stream.getAudioTracks()[0], { direction: 'sendonly', streams: [video] });
+    if (ganho) { transm.ganhoAntes = ganho.gain.value; ganho.gain.value = 0; }   // o som sai no celular, não no PC
+  }
+  const dc = pc.createDataChannel('botoes', { ordered: false, maxRetransmits: 0 });
+  dc.binaryType = 'arraybuffer'; transm.dc = dc;
+  dc.onmessage = (e) => {
+    if (typeof e.data === 'string') {
+      if (e.data.startsWith('p')) { dc.send('P' + e.data.slice(1)); return; }   // ping: o celular mede o atraso
+      let j; try { j = JSON.parse(e.data); } catch (x) { return; }
+      if (j.t === 'acao' && ['salvar-estado', 'carregar-ultimo'].includes(j.a)) {   // menu ☰ do celular
+        acao(j.a).then(() => { fecharJanelas(); pausado = false; if (dc.readyState === 'open') dc.send(JSON.stringify({ t: 'feito', a: j.a })); });
+      }
+      return;
+    }
+    const u = new Int8Array(e.data); if (u.length < 6) return;
+    remoto.bits = (u[0] & 255) | ((u[1] & 255) << 8);
+    for (let k = 0; k < 4; k++) remoto.eixos[k] = Math.round(u[2 + k] * 32767 / 127);
+  };
+  dc.onopen = () => { avisar('🖥 transmitindo pro celular', 3000); contarAoCelular(); };
+  pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(pc.connectionState) && transm.pc === pc) pararTransmissao('a conexão com o celular caiu'); };
+  await pc.setLocalDescription(await pc.createOffer());
+  await esperarIce(pc);
+  if (transm.pc !== pc) return;
+  // qualidade: até 12 Mbps, 60 quadros; se a Wi-Fi apertar, perde nitidez antes de perder quadro
+  try {
+    const s = tv.sender, pr = s.getParameters();
+    pr.encodings = pr.encodings && pr.encodings.length ? pr.encodings : [{}];
+    pr.encodings[0].maxBitrate = 12e6; pr.encodings[0].maxFramerate = 60; pr.degradationPreference = 'maintain-framerate';
+    await s.setParameters(pr);
+  } catch (e) { /* sem ajuste fino */ }
+  mandarJogo(de, { t: 'oferta', sdp: pc.localDescription.sdp });
+  transmitirQuadro();
+}
+// console e nome do jogo pro celular trocar o controle (o mesmo que o celular como controle recebe)
+function contarAoCelular() {
+  const dc = transm.dc; if (!dc || dc.readyState !== 'open') return;
+  const info = JSON.stringify({ t: 'jogo', sis: snes ? snes.sistema || 'snes' : '', nome: snes ? romNome : '' });
+  if (info !== transm.info) { transm.info = info; dc.send(info); }
+}
+// a cada quadro novo (pintar): a imagem crua, ampliada sem borrar
+function transmitirQuadro() {
+  const t = transm; if (!t.pc || !img) return;
+  if (t.peq.width !== telaL || t.peq.height !== telaA) { t.peq.width = telaL; t.peq.height = telaA; }
+  const K = Math.max(1, Math.min(4, Math.floor(1280 / Math.max(telaL, telaA))));
+  if (t.cv.width !== telaL * K || t.cv.height !== telaA * K) { t.cv.width = telaL * K; t.cv.height = telaA * K; t.cx.imageSmoothingEnabled = false; }
+  t.pcx.putImageData(img, 0, 0);
+  t.cx.drawImage(t.peq, 0, 0, t.cv.width, t.cv.height);
+  if (t.track.requestFrame) t.track.requestFrame();
+  if (t.dc && t.dc.readyState === 'open' && (!t.infoQuando || performance.now() - t.infoQuando > 1000)) { t.infoQuando = performance.now(); contarAoCelular(); }
+}
+function pararTransmissao(motivo) {
+  const t = transm; if (!t.pc) return;
+  const de = t.de;
+  try { t.pc.close(); } catch (e) { /* já fechada */ }
+  if (t.destino) try { no.disconnect(t.destino); } catch (e) { /* já desligado */ }
+  if (ganho && t.ganhoAntes !== null) ganho.gain.value = t.ganhoAntes;
+  transm = { pc: null, de: null, dc: null, cv: null, cx: null, peq: null, pcx: null, track: null, destino: null, ganhoAntes: null, info: '' };
+  remoto.bits = 0; remoto.eixos.fill(0);
+  if (motivo) { avisar('🖥 transmissão encerrada: ' + motivo, 4000); if (de) mandarJogo(de, { t: 'erro', texto: motivo }); }
+}
+if (window.KOFnes) KOFnes.transmissao = () => ({ ligada: transmitindo(), estado: transm.pc && transm.pc.connectionState, dc: transm.dc && transm.dc.readyState, bits: remoto.bits });
 
 
 // ---------------- KOFstation no celular (só entra no KOFnes-android.html) ----------------
@@ -19759,7 +19930,7 @@ if (window.KOFnes) KOFnes.parearPeloQr = parearPeloQr;   // teste: entrega o tex
     if (b === 'dpad') f.dir = dir8(c, x, y);
     if (b === 'rew') voltandoTecla = true;
     if (b === 'turbo') turbo = true;
-    if (b === 'menu' && modoControle) { dedos.delete(id); c.classList.remove('on'); modoControle.menu = performance.now(); return; }   // celular como controle: ☰ = Select+Start, o menu rápido do PC
+    if (b === 'menu' && modoControle) { dedos.delete(id); c.classList.remove('on'); if (modoControle.pc) menuRemoto(); else modoControle.menu = performance.now(); return; }   // jogando no PC: o menu é daqui (o do PC ninguém vê)   // celular como controle: ☰ = Select+Start, o menu rápido do PC
     if (b === 'menu') { dedos.delete(id); c.classList.remove('on'); if (snes && !rapidoAberto) abrirRapido(); else if (rapidoAberto) fecharRapido(); return; }
     recalcular();
   }
@@ -19861,10 +20032,13 @@ if (window.KOFnes) KOFnes.parearPeloQr = parearPeloQr;   // teste: entrega o tex
   // senha só aparecem enquanto o PC nunca conectou (depois ele religa sozinho: a senha deste celular não muda) ou no ⓘ
   const CONSOLE_PARECIDO = { ps2: 'ps1', gbc: 'gb' };   // console sem controle próprio aqui usa o de um parecido
   const NOME_CONSOLE = { ps2: 'PlayStation 2', gbc: 'Game Boy Color' };
-  function entrarModoControle() {
-    if (!window.KOFnesApk || !KOFnesApk.controleIniciar) { avisar('isso precisa do app KOFstation (APK) no celular', 4000); return; }
-    const r = JSON.parse(KOFnesApk.controleIniciar() || '{}');
-    if (r.erro || !r.ip) { avisar('não consegui abrir o controle: ' + (r.erro || 'o celular está sem Wi-Fi?'), 5000); return; }
+  // op.pc = 🖥 Jogar no PC: o PC roda o jogo e manda imagem e som (WebRTC, jogarpc.js); o controle é o mesmo de cá
+  function entrarModoControle(op) {
+    const pcId = op && op.pc;
+    if (!window.KOFnesApk || !(pcId ? KOFnesApk.redeCmd : KOFnesApk.controleIniciar)) { avisar('isso precisa do app KOFstation (APK) no celular', 4000); return; }
+    const r = pcId ? { ip: '', porta: 0, senha: '' } : JSON.parse(KOFnesApk.controleIniciar() || '{}');
+    if (!pcId && (r.erro || !r.ip)) { avisar('não consegui abrir o controle: ' + (r.erro || 'o celular está sem Wi-Fi?'), 5000); return; }
+    if (modoControle) sairModoControle();
     if (snes) pausado = true;
     fecharJanelas();
     const d = document.createElement('div'); d.id = 'modo-controle';
@@ -19877,13 +20051,67 @@ if (window.KOFnes) KOFnes.parearPeloQr = parearPeloQr;   // teste: entrega o tex
       : `Não conectou? No navegador do PC abra http://${r.ip}:${r.porta}`;
     d.querySelector('.mc-sair').addEventListener('click', sairModoControle);
     d.querySelector('.mc-info').addEventListener('click', () => { modoControle.info = !modoControle.info; marcarModoControle(); });
+    if (pcId) {
+      d.classList.add('remoto');
+      d.insertAdjacentHTML('beforeend', '<video class="mc-video" playsinline autoplay></video><small class="mc-ping"></small>'
+        + '<div class="mc-menu" hidden><button data-r="salvar-estado">💾 Salvar estado no PC</button><button data-r="carregar-ultimo">📂 Carregar o último estado</button>'
+        + '<button data-r="sair">✕ Parar de jogar no PC</button><button data-r="voltar">▶ Voltar ao jogo</button></div>');
+      d.querySelector('.mc-menu').addEventListener('click', (e) => {
+        const r = e.target.closest('button') && e.target.closest('button').dataset.r; if (!r) return;
+        d.querySelector('.mc-menu').hidden = true;
+        if (r === 'sair') sairModoControle();
+        else if (r !== 'voltar' && modoControle && modoControle.dc && modoControle.dc.readyState === 'open') modoControle.dc.send(JSON.stringify({ t: 'acao', a: r }));
+      });
+      d.querySelector('.mc-status').textContent = 'chamando o PC…';
+    }
     document.body.appendChild(d);
-    modoControle = { sisAntes: document.body.dataset.sis, b: -1, e: -1, quando: 0, visto: 0, n: -1, jogo: null, info: false };
+    modoControle = { sisAntes: document.body.dataset.sis, b: -1, e: -1, quando: 0, visto: 0, n: -1, jogo: null, info: false, pc: pcId || null };
     document.body.classList.add('modo-controle', 'cel-jogo');
     consoleDoControle('', '');
     marcarModoControle();
     modoControle.timer = setInterval(enviarControle, 8);
     requestAnimationFrame(() => ajustarEscala());
+    if (pcId) conectarAoPc(modoControle, pcId, op.jogo || null);
+  }
+  function menuRemoto() { const mm = $('#modo-controle .mc-menu'); if (mm) mm.hidden = !mm.hidden; }
+  // pede o jogo ao PC e responde a oferta de vídeo dele; tudo pelo canal "jogo" da rede (cifrado)
+  function conectarAoPc(m, pcId, jogo) {
+    const pcNome = (rede.aparelhos.find((a) => a.id === pcId) || {}).nome || 'PC';
+    m.ouvinte = async (msg) => {
+      if (msg.t !== 'msg' || msg.canal !== 'jogo' || msg.de !== pcId || modoControle !== m) return;
+      let p; try { p = JSON.parse(msg.dados); } catch (e) { return; }
+      if (p.t === 'erro') { avisar('🖥 ' + p.texto, 7000); sairModoControle(); return; }
+      if (p.t !== 'oferta' || m.rtc) return;
+      const pc = new RTCPeerConnection({ iceServers: [] }); m.rtc = pc;
+      pc.ontrack = (e) => {
+        try { e.receiver.playoutDelayHint = 0; } catch (x) { /* navegador antigo */ }
+        try { e.receiver.jitterBufferTarget = 0; } catch (x) { /* navegador antigo */ }
+        const v = $('#modo-controle .mc-video');
+        if (v && v.srcObject !== e.streams[0]) { v.srcObject = e.streams[0]; v.play().catch(() => {}); }
+      };
+      pc.ondatachannel = (e) => {
+        const dc = e.channel; dc.binaryType = 'arraybuffer'; m.dc = dc;
+        dc.onopen = () => { clearTimeout(m.prazo); m.n = 1; m.nomePc = pcNome; marcarModoControle(); };
+        dc.onmessage = (ev) => {
+          if (typeof ev.data !== 'string') return;
+          if (ev.data[0] === 'P') { const ms = Math.round(performance.now() - +ev.data.slice(1)); const el = $('#modo-controle .mc-ping'); if (el) el.textContent = '📶 ' + ms + ' ms'; return; }
+          let j; try { j = JSON.parse(ev.data); } catch (x) { return; }
+          if (j.t === 'feito') { avisar(j.a === 'salvar-estado' ? '💾 estado salvo no PC' : '📂 último estado carregado', 2500); return; }
+          if (j.t === 'jogo') { const k = j.sis + '\t' + j.nome; if (k !== m.jogo) { m.jogo = k; consoleDoControle(j.sis, j.nome); } }
+        };
+        dc.onclose = () => { if (modoControle === m) { avisar('🖥 a conexão com o PC caiu', 5000); sairModoControle(); } };
+      };
+      pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed' && modoControle === m) { avisar('🖥 não deu pra receber a imagem do PC (mesma Wi-Fi?)', 6000); sairModoControle(); } };
+      try {
+        await pc.setRemoteDescription({ type: 'offer', sdp: trocarLocal(p.sdp, ipDoAparelho(pcId)) });
+        await pc.setLocalDescription(await pc.createAnswer());
+        await esperarIce(pc);
+        if (modoControle === m) mandarJogo(pcId, { t: 'resposta', sdp: pc.localDescription.sdp });
+      } catch (e) { avisar('🖥 ' + e.message, 6000); sairModoControle(); }
+    };
+    rede.ouvintes.push(m.ouvinte);
+    mandarJogo(pcId, { t: 'pedir', jogo });
+    m.prazo = setTimeout(() => { if (modoControle === m && !m.dc) { avisar('🖥 o PC não respondeu: o KOFstation está aberto nele?', 6000); sairModoControle(); } }, 20000);
   }
   // troca o controle pro console do jogo que o PC abriu ('' = nenhum: controle completo, com L2/R2 e analógico)
   function consoleDoControle(sis, nome) {
@@ -19910,6 +20138,12 @@ if (window.KOFnes) KOFnes.parearPeloQr = parearPeloQr;   // teste: entrega o tex
     const m = modoControle; if (!m) return;
     const b = estado() | (performance.now() - (m.menu || 0) < 150 ? 0x3000 : 0), e16 = [eixosToque[0], eixosToque[1], 0, 0].map((v) => (Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767)));
     const e = KofLibretro.empacotar(e16), agora = performance.now();
+    if (m.pc) {   // 🖥 Jogar no PC: os 6 bytes vão pelo canal de dados do WebRTC (sem fila: botão velho não serve)
+      const dc = m.dc; if (!dc || dc.readyState !== 'open') return;
+      if (b !== m.b || e !== m.e || agora - m.quando > 250) { dc.send(new Int8Array([b, b >> 8, e, e >> 8, e >> 16, e >> 24]).buffer); m.b = b; m.e = e; m.quando = agora; }
+      if (agora - m.visto > 1000) { m.visto = agora; dc.send('p' + agora); }
+      return;
+    }
     if (b !== m.b || e !== m.e || agora - m.quando > 250) { KOFnesApk.controleEnviar(b, e); m.b = b; m.e = e; m.quando = agora; }
     if (agora - m.visto > 300) {
       m.visto = agora;
@@ -19926,7 +20160,11 @@ if (window.KOFnes) KOFnes.parearPeloQr = parearPeloQr;   // teste: entrega o tex
   function sairModoControle() {
     const m = modoControle; if (!m) return;
     clearInterval(m.timer); modoControle = null; soltarTudo();
-    try { KOFnesApk.controleParar(); } catch (x) { /* sem ponte */ }
+    if (m.pc) {
+      clearTimeout(m.prazo); mandarJogo(m.pc, { t: 'fim' });
+      const i = rede.ouvintes.indexOf(m.ouvinte); if (i >= 0) rede.ouvintes.splice(i, 1);
+      if (m.rtc) try { m.rtc.close(); } catch (x) { /* já fechada */ }
+    } else try { KOFnesApk.controleParar(); } catch (x) { /* sem ponte */ }
     const d = $('#modo-controle'); if (d) d.remove();
     document.body.classList.remove('modo-controle', 'cel-jogo'); document.body.classList.toggle('analogico', !!(snes && SIS[snes.sistema] && SIS[snes.sistema].analogico));
     const sisJogo = snes ? snes.sistema || 'snes' : '';   // o controle volta a ser o do jogo deste celular

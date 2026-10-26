@@ -1,5 +1,5 @@
-versao=202610261610
-tamanho=1190604
+versao=202610261701
+tamanho=1201391
 lancador=13
 tamanho_exe=101888
 lancador_linux=10
@@ -12,6 +12,7 @@ nucleo=mgba-cefd6783.js:1329989
 nucleo=mupen64-9dc88f6a.js:4564110
 nucleo=pcsx-1c04c405.js:1283422
 nucleo=play-e5f914a5.js:3792710
+nucleo=qr-bc40c8a1.js:256885
 nucleo=snes9x-e205bc90.js:4101685
 nucleo=violino-306d94e5.js:1327057
 nucleo=jogos-371590f5.js:824997
