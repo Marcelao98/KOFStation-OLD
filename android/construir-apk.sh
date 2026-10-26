@@ -30,7 +30,7 @@ for d, n in (("mdpi", 48), ("hdpi", 72), ("xhdpi", 96), ("xxhdpi", 144), ("xxxhd
     os.makedirs(f"{sys.argv[2]}/mipmap-{d}", exist_ok=True)
     im.resize((n, n), Image.NEAREST).save(f"{sys.argv[2]}/mipmap-{d}/ic_launcher.png")
 PY
-javac --release 8 -Xlint:-options -cp "$ANDROID_JAR" -d "$W/classes" $(find "$W/src" -name '*.java') 2>&1 | grep -v "^Picked up" || true
+javac -encoding UTF-8 --release 8 -Xlint:-options -cp "$ANDROID_JAR" -d "$W/classes" $(find "$W/src" -name '*.java') 2>&1 | grep -v "^Picked up" || true
 dalvik-exchange --dex --min-sdk-version=24 --output="$W/classes.dex" "$W/classes" 2>&1 | grep -v "^Picked up" || true
 aapt package -f -M "$W/AndroidManifest.xml" -S "$W/res" -A "$W/assets" -I "$ANDROID_JAR" --min-sdk-version 24 --target-sdk-version 34 -F "$W/base.apk"
 (cd "$W" && aapt add base.apk classes.dex >/dev/null)

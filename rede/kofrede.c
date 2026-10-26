@@ -1,7 +1,10 @@
 // kofrede: ver kofrede.h e PROTOCOLO.md
 #include "kofrede.h"
 #include "terceiros/monocypher.h"
-#include <string.h>
+// sem libc (o celular compila sem os cabeçalhos do Android): o compilador põe memcpy/memset/strlen do aparelho
+#define memcpy __builtin_memcpy
+#define memset __builtin_memset
+#define strlen __builtin_strlen
 
 void kr_publica(uint8_t pk[32], const uint8_t sk[32]) { crypto_x25519_public_key(pk, sk); }
 

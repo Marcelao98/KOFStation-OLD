@@ -10,3 +10,4 @@ web/jogos/.rdb/
 __pycache__/
 pc-nativo/saida/
 pc-nativo/libretro.h
+rede/saida/
