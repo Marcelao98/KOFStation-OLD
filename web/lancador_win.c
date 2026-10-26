@@ -34,7 +34,7 @@
 #include <stdarg.h>
 #include <time.h>
 
-#define LANCADOR 10
+#define LANCADOR 11
 #define GITHUB L"raw.githubusercontent.com"
 #define MAX_NUCLEOS 32
 #ifndef WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY
@@ -460,6 +460,18 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
     if (_wcsicmp(wcsrchr(eu, L'\\') ? wcsrchr(eu, L'\\') + 1 : eu, L"KOFnes.exe") == 0
             && GetFileAttributesW(novoExe) == INVALID_FILE_ATTRIBUTES && MoveFileW(eu, novoExe)) wcscat(renomeou, L"KOFnes.exe → KOFstation.exe");
     if (GetFileAttributesW(html) == INVALID_FILE_ATTRIBUTES) wcscpy(html, antigoHtml);   // não deu pra renomear: usa o antigo
+    // pasta Kof Games: o programa em Kof Games\KOFstation, e ao lado Games\<console>, Novos, Config e Saves. Só cria o que
+    // faltar (a página organiza os jogos); fora de uma pasta KOFstation não mexe em nada
+    {
+        const wchar_t *nomeDir = wcsrchr(dir, L'\\');
+        if (nomeDir && _wcsicmp(nomeDir + 1, L"KOFstation") == 0) {
+            wchar_t r[MAX_PATH], p[MAX_PATH]; wcscpy(r, dir); *wcsrchr(r, L'\\') = 0;
+            static const wchar_t *pastas[] = { L"Games", L"Novos", L"Config", L"Config\\bios", L"Saves", L"Games\\snes", L"Games\\nes",
+                L"Games\\gb", L"Games\\gbc", L"Games\\gba", L"Games\\megadrive", L"Games\\mastersystem", L"Games\\gamegear",
+                L"Games\\neogeo", L"Games\\psx", L"Games\\n64", L"Games\\ps2" };
+            for (unsigned i = 0; i < sizeof pastas / sizeof *pastas; i++) { swprintf(p, MAX_PATH, L"%ls\\%ls", r, pastas[i]); CreateDirectoryW(p, NULL); }
+        }
+    }
     // primeira vez (só o .exe na pasta, baixado pela página de download): o atualizador baixa a página e os núcleos
     // antes de abrir, com um aviso na tela enquanto isso
     int semHtml = GetFileAttributesW(html) == INVALID_FILE_ATTRIBUTES;

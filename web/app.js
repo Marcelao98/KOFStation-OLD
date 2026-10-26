@@ -1904,6 +1904,7 @@ async function bytesDoJogo(j) {
   throw new Error('a ROM desse jogo não está na biblioteca');
 }
 async function abrirArquivo(arq, soltos = []) {
+  if (!CELULAR && arq && arq.slice && arq.lastModified) setTimeout(() => guardarNaArvore(arq, soltos), 2000);   // de fora da pasta Kof Games: guarda uma cópia lá
   try {
     if (typeof nativoArquivo === 'function' && await nativoArquivo(arq)) return;   // APK: CD de PS1 e ROM de N64 vão pro núcleo nativo
     if (typeof ps2Arquivo === 'function' && await ps2Arquivo(arq)) return;   // PC: DVD de PS2 (ps2.js)
@@ -2606,7 +2607,16 @@ function lerPasta(pedir, forcar) {
         if (!KOFnesApk.pastaNome()) return [];
         estadoBib('📁 lendo a pasta de ROMs…');
         l = await listarPastaApk();
-      } else {
+      } else if (await permissaoRaiz(pedir)) {
+        if (!organizado || forcar) {
+          estadoBib('📁 organizando a pasta Kof Games…');
+          const n = await organizar(raiz).catch((e) => { console.warn('organizar', e); return 0; });
+          organizado = true;
+          if (n) avisar(`📁 ${n} jogo${n > 1 ? 's' : ''} ${n > 1 ? 'foram' : 'foi'} pro lugar certo em Kof Games/Games`, 4000);
+        }
+        estadoBib('📁 lendo Kof Games/Games…');
+        await varrer(await raiz.getDirectoryHandle('Games'), 0, l);
+      } else if (!(await bdPegar('c', 'raiz').catch(() => null))) {   // ainda sem a pasta Kof Games: a pasta de ROMs antiga continua valendo
         if (!pasta) pasta = await bdPegar('c', 'pasta');
         if (!pasta) return [];
         let p = await pasta.queryPermission({ mode: 'read' });
@@ -2628,6 +2638,139 @@ function lerPasta(pedir, forcar) {
   })();
   return lendoPasta;
 }
+// ---------------- pasta Kof Games (estrutura fixa) ----------------
+// Kof Games/ KOFstation (o programa) · Games/<console> (os jogos) · Novos (solte jogos aqui: vão sozinhos pro lugar certo)
+// · Config (BIOS, configurações) · Saves (saves e estados). O KOFstation só pede acesso a essa pasta. Jogo solto em Games, numa
+// pasta de console errada ou em Novos é movido pra Games/<console>; jogo aberto de fora é copiado pra lá (o original fica).
+// Nomes curtos, os mesmos do ES-DE/RetroArch: a pasta Games serve em outros front-ends e sincroniza igual em qualquer aparelho.
+const PASTA_SIS = { snes: 'snes', nes: 'nes', gb: 'gb', gbc: 'gbc', gba: 'gba', md: 'megadrive', sms: 'mastersystem', gg: 'gamegear', neogeo: 'neogeo', ps1: 'psx', n64: 'n64', ps2: 'ps2' };
+const PASTAS_KOF = ['Games', 'Novos', 'Config', 'Saves'];
+let raiz = null, organizado = false;
+async function garantirArvore(r) {
+  const g = await r.getDirectoryHandle('Games', { create: true });
+  for (const p of PASTAS_KOF) await r.getDirectoryHandle(p, { create: true });
+  await (await r.getDirectoryHandle('Config')).getDirectoryHandle('bios', { create: true });
+  for (const p of new Set(Object.values(PASTA_SIS))) await g.getDirectoryHandle(p, { create: true });
+  return g;
+}
+async function permissaoRaiz(pedir) {
+  if (!raiz) raiz = await bdPegar('c', 'raiz').catch(() => null);
+  if (!raiz) return false;
+  let p = await raiz.queryPermission({ mode: 'readwrite' });
+  if (p !== 'granted' && pedir) p = await raiz.requestPermission({ mode: 'readwrite' });
+  return p === 'granted';
+}
+// de qual console é esse arquivo (a pasta dele em Games); null = não é jogo
+async function pastaDoArquivo(f) {
+  const n = f.name.toLowerCase(), ext = n.split('.').pop();
+  let sis = null;
+  if (ext === 'zip') {
+    if (neoGeo(f.name)) sis = 'neogeo';
+    else if (await cdDoZip(f).catch(() => null)) sis = 'ps1';
+    else {
+      const its = await itensDoZip(f).catch(() => []), r = its.find((i) => EXT_ROM.test(i.name));
+      if (r) return pastaDoArquivo({ name: r.name, size: r.size, slice: () => new Blob([]) });   // ROM zipada: vai pela ROM de dentro
+      if (f.size < (128 << 20) && SIS_ATIVOS.includes('neogeo') && KofLibretro.setNeoGeoDoZip(new Uint8Array(await f.arrayBuffer()))) sis = 'neogeo';
+    }
+  } else if (['iso', 'img', 'chd', 'cso', 'isz', 'elf'].includes(ext) && typeof ehPs2 === 'function' && f.slice && await ehPs2(f).catch(() => false)) sis = 'ps2';
+  else if (['bin', 'img'].includes(ext)) sis = f.size > 0x9000 && f.slice && cdPs1(new Uint8Array(await f.slice(0, 0x9001).arrayBuffer())) ? 'ps1' : f.size > (16 << 20) ? 'ps1' : 'md';
+  else if (['iso', 'cue', 'chd', 'pbp'].includes(ext)) sis = 'ps1';
+  else if (['cso', 'isz', 'elf'].includes(ext)) sis = 'ps2';
+  else sis = sistemaDoNome(f.name);
+  if (!sis || !PASTA_SIS[sis]) return null;
+  return sis === 'gb' && ext === 'gbc' ? 'gbc' : PASTA_SIS[sis];
+}
+// move um arquivo entre pastas da árvore (move() do navegador; se não tiver, copia e apaga). Nome repetido: "nome (2).ext"
+async function moverArq(de, nome, para) {
+  let novo = nome;
+  for (let i = 2; ; i++) { try { await para.getFileHandle(novo); novo = nome.replace(/(\.[^.]+)?$/, ` (${i})$1`); } catch (e) { break; } }
+  const h = await de.getFileHandle(nome);
+  if (h.move) { try { await h.move(para, novo); return novo; } catch (e) { /* cai pra cópia */ } }
+  const f = await h.getFile(), w = await (await para.getFileHandle(novo, { create: true })).createWritable();
+  await f.stream().pipeTo(w);
+  await de.removeEntry(nome);
+  return novo;
+}
+async function moverPasta(de, nome, para) {   // pasta inteira (CD com .cue e .bin): recria e move arquivo por arquivo
+  const orig = await de.getDirectoryHandle(nome), dest = await para.getDirectoryHandle(nome, { create: true });
+  for await (const [n, h] of orig.entries()) { if (h.kind === 'file') await moverArq(orig, n, dest); else await moverPasta(orig, n, dest); }
+  await de.removeEntry(nome, { recursive: true });
+}
+// arruma o que estiver fora do lugar: arquivos soltos em Games e em Novos, pastas jogadas lá e jogos na pasta de console errada
+async function organizar(raizH) {
+  const games = await garantirArvore(raizH), novos = await raizH.getDirectoryHandle('Novos'), consoles = new Set(Object.values(PASTA_SIS));
+  let movidos = 0;
+  const destino = async (p) => games.getDirectoryHandle(p, { create: true });
+  async function arrumar(dir, ehRaizGames) {
+    const lista = []; for await (const e of dir.entries()) lista.push(e);
+    // CD (.cue + .bin): os .bin listados no .cue vão junto com ele
+    const presos = new Set();
+    for (const [n, h] of lista) if (h.kind === 'file' && /\.cue$/i.test(n)) {
+      const t = await (await h.getFile()).text().catch(() => '');
+      for (const m of t.matchAll(/FILE\s+"([^"]+)"/gi)) presos.add(m[1].toLowerCase());
+    }
+    for (const [n, h] of lista) {
+      if (ehRaizGames && h.kind === 'directory' && consoles.has(n)) continue;
+      if (h.kind === 'directory') {
+        // pasta com CD dentro anda inteira; senão, arruma arquivo por arquivo e apaga a pasta se esvaziar
+        let cd = null; for await (const [m, x] of h.entries()) if (x.kind === 'file' && /\.(cue|gdi|m3u)$/i.test(m)) { cd = m; break; }
+        if (cd) { const p = await pastaDoArquivo(await (await h.getFileHandle(cd)).getFile()); if (p) { await moverPasta(dir, n, await destino(p)); movidos++; } continue; }
+        await arrumar(h, false);
+        let vazia = true; for await (const _ of h.entries()) { vazia = false; break; }
+        if (vazia) await dir.removeEntry(n).catch(() => {});
+        continue;
+      }
+      if (presos.has(n.toLowerCase())) continue;
+      const p = await pastaDoArquivo(await h.getFile()).catch(() => null);
+      if (!p) continue;   // não é jogo: fica onde está
+      const dest = await destino(p);
+      if (/\.cue$/i.test(n)) {
+        const t = await (await h.getFile()).text();
+        for (const m of t.matchAll(/FILE\s+"([^"]+)"/gi)) await moverArq(dir, m[1], dest).catch(() => {});
+      }
+      await moverArq(dir, n, dest); movidos++;
+    }
+  }
+  await arrumar(games, true);
+  await arrumar(novos, false);
+  // jogo na pasta de console errada (só pela extensão que não deixa dúvida: .sfc em gba/ etc.)
+  for (const c of consoles) {
+    const d = await destino(c);
+    for await (const [n, h] of d.entries()) {
+      if (h.kind !== 'file' || /\.(zip|iso|img|bin|chd|cue|pbp|cso|isz)$/i.test(n)) continue;
+      const sis = sistemaDoNome(n); if (!sis) continue;
+      const p = sis === 'gb' && /\.gbc$/i.test(n) ? 'gbc' : PASTA_SIS[sis];
+      if (p && p !== c && !(c === 'gbc' && p === 'gb')) { await moverArq(d, n, await destino(p)); movidos++; }
+    }
+  }
+  return movidos;
+}
+// jogo aberto de fora da árvore: copia pra Games/<console>/ (o original fica onde estava); já existe com o mesmo tamanho = nada
+async function guardarNaArvore(arq, soltos = []) {
+  try {
+    if (!arq || !arq.slice || !(await permissaoRaiz(false))) return;
+    const p = await pastaDoArquivo(arq); if (!p) return;
+    const dest = await (await garantirArvore(raiz)).getDirectoryHandle(p, { create: true });
+    let copiados = 0;
+    for (const f of [arq, ...soltos.filter((s) => s !== arq && s.slice)]) {
+      try { const h = await dest.getFileHandle(f.name); if ((await h.getFile()).size === f.size) continue; } catch (e) { /* não existe */ }
+      const w = await (await dest.getFileHandle(f.name, { create: true })).createWritable();
+      await f.stream().pipeTo(w); copiados++;
+    }
+    if (copiados) { pastaCache = null; avisar(`📁 ${arq.name} guardado em Kof Games/Games/${p}`, 3500); }
+  } catch (e) { console.warn('não copiei pra Kof Games', e); }
+}
+async function escolherRaiz() {
+  let r;
+  try { r = await showDirectoryPicker({ id: 'kofgames', mode: 'readwrite', startIn: 'documents' }); } catch (e) { return; }   // cancelou
+  if (/^(kofstation|games|novos|config|saves)$/i.test(r.name) || Object.values(PASTA_SIS).includes(r.name)) { avisar('essa é uma pasta de dentro: escolha a pasta Kof Games (a de cima)', 5000); return; }
+  let tem = false; for await (const [n] of r.entries()) if (/^(KOFstation|Games)$/.test(n)) { tem = true; break; }
+  if (!tem && !/kof games/i.test(r.name) && !confirm(`Usar "${r.name}" como a pasta do KOFstation?\nVou criar dentro dela: Games (com uma pasta por console), Novos, Config e Saves.`)) return;
+  raiz = r; await bdPor('c', 'raiz', r); pasta = null; pastaCache = null; organizado = false;
+  await mostrarBiblioteca(true, true);
+}
+// pros testes (testes/navegador/pastas.cjs)
+setTimeout(() => { KOFnes.kofGames = { usar: (h) => { raiz = h; organizado = false; pastaCache = null; }, organizar: async () => ((await permissaoRaiz(false)) ? organizar(raiz) : -1), guardar: guardarNaArvore }; }, 0);
 async function montarItens() {
   let jogos = [];
   await carregarEstat();
@@ -3794,7 +3937,7 @@ async function acao(a) {
     case 'pasta':
       if (!temPasta) { avisar('este navegador não deixa escolher pasta; use Adicionar arquivo', 4000); break; }
       if (pastaApk) { if (await escolherPastaApk()) { pastaCache = null; await mostrarBiblioteca(true, true); } break; }
-      try { pasta = await showDirectoryPicker({ id: 'kofnes-roms', mode: 'read' }); await bdPor('c', 'pasta', pasta); pastaCache = null; await mostrarBiblioteca(true, true); } catch (e) { /* cancelou */ }
+      await escolherRaiz(); break;
       break;
     case 'biblioteca': await mostrarBiblioteca(true); break;
     case 'reler-pasta': await mostrarBiblioteca(true, true); break;

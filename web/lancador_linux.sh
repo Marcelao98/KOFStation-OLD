@@ -10,7 +10,7 @@
 # Os núcleos (Game Boy, NES, Sega...) moram em nucleos/<núcleo>-<hash>.js; o versao.txt lista cada um
 # ("nucleo=<arquivo>:<tamanho>") e o que falta é baixado antes de trocar o html. Um "fonte.txt" do lado
 # do script (ou KOFNES_URL) troca o endereço de onde baixa (pra testar uma branch).
-LANCADOR=8
+LANCADOR=9
 BASE="${KOFNES_URL:-https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/publicado}"
 
 eu="$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")"
@@ -22,6 +22,15 @@ if [ -z "$KOFNES_URL" ] && [ -s "$dir/fonte.txt" ]; then
 fi
 log="$dir/atualizacao.log"
 dados="${XDG_DATA_HOME:-$HOME/.local/share}"
+
+# pasta Kof Games: o programa fica em Kof Games/KOFstation; ao lado ficam Games/<console>, Novos, Config e Saves.
+# O lançador só cria o que faltar (a página organiza os jogos); fora de uma pasta KOFstation não mexe em nada
+case "$(basename "$dir")" in
+    KOFstation)
+        r="$(dirname "$dir")"
+        for p in snes nes gb gbc gba megadrive mastersystem gamegear neogeo psx n64 ps2; do mkdir -p "$r/Games/$p" 2>/dev/null; done
+        mkdir -p "$r/Novos" "$r/Config/bios" "$r/Saves" 2>/dev/null ;;
+esac
 
 anotar() { printf '%s  %s\n' "$(date +%H:%M:%S)" "$*" >>"$log" 2>/dev/null; }
 
