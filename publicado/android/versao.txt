@@ -1,6 +1,6 @@
-versao=202610261243
-casca=13
-html=KOFnes-android.html:1168761
+versao=202610261610
+casca=14
+html=KOFnes-android.html:1240093
 nucleo=fbneo-3ffc717a.js:8120825
 nucleo=fceumm-9243119b.js:1559435
 nucleo=gambatte-f3b4deb6.js:872073
@@ -8,5 +8,6 @@ nucleo=genplus-cd68890e.js:3775899
 nucleo=jogos-371590f5.js:824997
 nucleo=mgba-cefd6783.js:1329989
 nucleo=pcsx-1c04c405.js:1283422
+nucleo=qr-bc40c8a1.js:256885
 nucleo=snes9x-e205bc90.js:4101685
 nucleo=violino-306d94e5.js:1327057
