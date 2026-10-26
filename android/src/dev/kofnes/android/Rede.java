@@ -59,7 +59,8 @@ public class Rede {
     public void cmd(String json) {
         try {
             final JSONObject j = new JSONObject(json); String t = j.optString("t");
-            if (t.equals("eu") || t.equals("lista")) avisarLista();
+            if (t.equals("eu")) { avisarLista(); solto(new Runnable() { public void run() { religarTodos(); } }); }   // o app abriu: liga pros PCs
+            else if (t.equals("lista")) avisarLista();
             else if (t.equals("nome")) { String n = j.optString("nome").trim(); if (n.length() > 0) { nome = n.length() > 60 ? n.substring(0, 60) : n; guarda.gravar("nome", nome); } avisarLista(); }
             else if (t.equals("achar")) solto(new Runnable() { public void run() { evento(achar()); } });
             else if (t.equals("parear-com")) solto(new Runnable() { public void run() { parearCom(j.optString("ip"), j.optInt("porta", PORTA), j.optString("senha"), j.optString("modo", "c")); } });

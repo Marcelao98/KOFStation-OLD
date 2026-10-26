@@ -68,6 +68,15 @@ def separar_nucleos():
         lista["jogos"] = "nucleos/" + nome
         linhas.append(f"{nome}:{len(dados)}\n")
         print(f"  nucleos/{nome}: {len(dados) // 1024} KB")
+    # leitor de QR (jsQR, Apache-2) pro celular parear com o PC pela câmera: só carrega na hora de ler
+    qr = web / "terceiros" / "jsQR.js"
+    if qr.exists():
+        dados = qr.read_bytes()
+        nome = f"qr-{hashlib.sha256(dados).hexdigest()[:8]}.js"
+        (pasta / nome).write_bytes(dados)
+        lista["qr"] = "nucleos/" + nome
+        linhas.append(f"{nome}:{len(dados)}\n")
+        print(f"  nucleos/{nome}: {len(dados) // 1024} KB")
     if os.environ.get("KOFNES_LISTA"):
         pathlib.Path(os.environ["KOFNES_LISTA"]).write_text("".join(linhas))
     return json.dumps(lista)
@@ -110,6 +119,9 @@ if android:
     pagina = pagina.replace('<html lang="pt-BR"', '<html class="celular" lang="pt-BR"', 1)
     pagina = pagina.replace('<meta name="viewport" content="width=device-width, initial-scale=1">', '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">\n<meta name="theme-color" content="#1a110b">\n<link rel="manifest" href="manifest.webmanifest">\n<link rel="apple-touch-icon" href="icone-192.png">\n<meta name="mobile-web-app-capable" content="yes">', 1)
 app_js = (web / "app.js").read_text()
+# a tela 📡 Aparelhos (rede entre PC e celular) entra por dentro do app.js, no PC e no celular
+fim = app_js.rstrip().rfind("})();")
+app_js = app_js[:fim] + "\n" + (web / "rede.js").read_text() + "\n" + app_js[fim:]
 if android:   # o app.js é uma função só ((() => {...})()): o código do celular entra por dentro, antes do fecha-parênteses final
     fim = app_js.rstrip().rfind("})();")
     app_js = app_js[:fim] + "\n" + (web / "android.js").read_text() + "\n" + app_js[fim:]
@@ -129,6 +141,7 @@ partes = {
         + (somfm.read_text() + "\n" + (web / "somfm.js").read_text() + "\n" if somfm.exists() else "")
         + ((web / "neogeo-jogos.js").read_text() + "\n" if nucleos else "")   # lista dos jogos de Neo Geo (reconhecer o zip)
         + ((web / "nucleo.js").read_text().replace("/*{{NUCLEOS}}*/ {}", separar_nucleos()) + "\n" if nucleos else "")   # depois do estado.js: ele troca o savestate pelo do núcleo libretro
+        + (web / "terceiros" / "qrcode.js").read_text() + "\n"   # desenha o QR do pareamento (qrcode-generator, MIT)
         + (web / "guarda.js").read_text() + "\n"   # saves, estatísticas por aparelho e o pacote .kofsave
         + (web / "jogos.js").read_text() + "\n"   # a busca por gênero/empresa/ano (a base vem em nucleos/jogos-<hash>.js)
         + app_js

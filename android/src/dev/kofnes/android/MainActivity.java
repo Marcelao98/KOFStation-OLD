@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final int PEDIDO_ARQUIVO = 1, PEDIDO_SALVAR = 2, PEDIDO_PASTA = 3;
     // sobe a cada mudança neste Java: página publicada com casca maior pede APK novo (ela pode usar algo que esta não tem)
-    static final int CASCA = 13;
+    static final int CASCA = 14;
     private static final String FONTE = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/publicado/";
     private static final String APK = "https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/android/apk/KOFstation.apk";
     private File raizWeb;   // pasta da versão baixada (null = a que veio dentro do APK)
@@ -54,6 +54,9 @@ public class MainActivity extends Activity {
     private ControleServidor controle;   // o celular como controle do PC (null = desligado)
     private N64Jogo n64;   // Nintendo 64 nativo (null = sem N64 nesse aparelho)
     private Pasta pasta;
+    private Rede rede;   // aparelhos pareados (PC): criada no 1º redeCmd
+    private android.webkit.PermissionRequest pedidoCamera;
+    private static final int PEDIDO_CAMERA = 4;
 
     @Override
     protected void onCreate(Bundle b) {
@@ -97,6 +100,18 @@ public class MainActivity extends Activity {
             }
         });
         web.setWebChromeClient(new WebChromeClient() {
+            // câmera pra ler o QR do pareamento (getUserMedia na página): pede a permissão do Android na hora
+            @Override
+            public void onPermissionRequest(final android.webkit.PermissionRequest r) {
+                runOnUiThread(new Runnable() { public void run() {
+                    boolean soCamera = true;
+                    for (String x : r.getResources()) if (!x.equals(android.webkit.PermissionRequest.RESOURCE_VIDEO_CAPTURE)) soCamera = false;
+                    if (!soCamera) { r.deny(); return; }
+                    if (checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) { r.grant(r.getResources()); return; }
+                    pedidoCamera = r;
+                    requestPermissions(new String[] { android.Manifest.permission.CAMERA }, PEDIDO_CAMERA);
+                } });
+            }
             @Override
             public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p) {
                 if (escolha != null) escolha.onReceiveValue(null);
@@ -184,8 +199,36 @@ public class MainActivity extends Activity {
         }
     }
 
+    @Override
+    public void onRequestPermissionsResult(int pedido, String[] perms, int[] res) {
+        if (pedido != PEDIDO_CAMERA || pedidoCamera == null) return;
+        android.webkit.PermissionRequest r = pedidoCamera; pedidoCamera = null;
+        if (res.length > 0 && res[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) r.grant(r.getResources()); else r.deny();
+    }
+
     /** O que a página enxerga como window.KOFnesApk. */
     public class Ponte {
+        // ---- rede entre aparelhos (Rede.java): os mesmos pedidos/eventos JSON do kofservico do PC (rede/PROTOCOLO.md) ----
+        @JavascriptInterface
+        public void redeCmd(String json) {
+            synchronized (MainActivity.this) {
+                if (rede == null) {
+                    final android.content.SharedPreferences p = getSharedPreferences("rede", MODE_PRIVATE);
+                    Rede.Guarda g = new Rede.Guarda() {
+                        public String ler(String k) { return p.getString(k, null); }
+                        public void gravar(String k, String v) { p.edit().putString(k, v).apply(); }
+                    };
+                    Rede.Eventos ev = new Rede.Eventos() { public void evento(final String j) {
+                        runOnUiThread(new Runnable() { public void run() { web.evaluateJavascript("window.__rede && window.__rede(" + j + ")", null); } });
+                    } };
+                    try { rede = new Rede(g, ev, "celular", android.os.Build.MODEL); }
+                    catch (Throwable e) { return; }   // sem a libkofrede.so
+                    String ip = ControleServidor.ipLocal();   // broadcast da rede de casa (/24) além do 255.255.255.255
+                    if (ip != null && ip.indexOf('.') > 0) rede.alvosAchar.add(ip.substring(0, ip.lastIndexOf('.')) + ".255");
+                }
+            }
+            rede.cmd(json);
+        }
         @JavascriptInterface
         public void salvar(String nome, String mime, String base64) {
             paraSalvar = Base64.decode(base64, Base64.DEFAULT);

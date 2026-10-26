@@ -3230,7 +3230,7 @@ async function mostrarBiblioteca(pedir, relerPasta) {
     if (antes) { const j = visiveis.indexOf(antes); if (j >= 0) marcarSel(j); }
   }
 }
-function fecharJanelas() { fecharTemas(false); for (const id of ['home', 'biblioteca', 'estados', 'guia', 'teclas', 'estatisticas', 'jukebox', 'bios-tela']) $('#' + id).hidden = true; capturando = null; if (rapidoAberto) fecharRapido(); }
+function fecharJanelas() { fecharTemas(false); for (const id of ['home', 'biblioteca', 'estados', 'guia', 'teclas', 'estatisticas', 'jukebox', 'bios-tela', 'aparelhos']) $('#' + id).hidden = true; if (typeof pararCamera === 'function') pararCamera(); capturando = null; if (rapidoAberto) fecharRapido(); }
 // controle também navega na biblioteca
 let padAntes = 0;
 setInterval(() => {
@@ -3912,6 +3912,7 @@ function tema(nome) {
 async function acao(a) {
   fecharMenus();
   if (a.startsWith('bios:')) return escolherBios(a.slice(5));
+  if (acaoRede(a)) return;
   switch (a) {
     case 'abrir': $('#arquivo').click(); break;
     case 'traducao': {   // escolhe o .ips/.bps/.ups; com jogo aberto aplica nele, senão pede a ROM depois

@@ -22,6 +22,7 @@
     <button data-acao="exportar-saves">💾 Backup dos saves (.kofsave)</button>
     <button data-acao="importar-saves">📥 Trazer backup…</button>
     <button data-acao="controle-celular">📱 Celular como controle…</button>
+    <button data-acao="aparelhos">📡 Aparelhos (PC e celular)…</button>
     <hr>
     <button data-acao="reiniciar">Reiniciar<kbd>F1</kbd></button>
   </div></div>
@@ -129,6 +130,7 @@
         <button data-acao="estatisticas"><i>📊</i><b>Estatísticas</b><small>quanto você jogou, e o quê</small></button>
         <button data-acao="temas"><i>🎨</i><b>Temas</b><small><span class="n-temas">28</span> jeitos de deixar com a sua cara</small></button>
         <button data-acao="guia"><i>📖</i><b>Guia</b><small>tudo que o KOFstation sabe fazer</small></button>
+        <button data-acao="aparelhos"><i>📡</i><b>Aparelhos</b><small>parear o celular com o PC</small></button>
         <button data-acao="bios-tela"><i>🔑</i><b>BIOS</b><small id="hm-bios">guarde a BIOS dos consoles (PS2, Neo Geo...)</small></button>
       </div>
     </div>
@@ -357,6 +359,43 @@
       <div class="ab-nav"><button class="grande sec" data-acao="ab-voltar">◂ Voltar</button><button class="grande" data-acao="ab-proximo">Próximo ▸</button></div>
     </div>
     <button class="ab-pular" data-acao="ab-pular">Pular ▸</button>
+  </section>
+  <section id="aparelhos" class="janela" hidden>
+    <div class="titulo-j"><span>📡 Aparelhos</span><button class="x" data-acao="aparelhos-fechar">×</button></div>
+    <div id="ap-sem">
+      <p class="so-pc">O serviço de rede do KOFstation não está rodando. Ele abre junto quando você usa o <b>KOFstation.exe</b>
+        (Windows) ou o <b>kofnes.sh</b> (Linux): feche e abra o KOFstation por ele.</p>
+      <p class="so-cel">Esse app ainda não tem a rede: atualize o KOFstation (APK novo).</p>
+    </div>
+    <div id="ap-com">
+      <p>Pareie o celular com o PC uma vez e depois eles se acham sozinhos na mesma Wi-Fi. Nada passa pela internet: a
+        conversa é cifrada e só aparelho pareado entra.</p>
+      <label class="ap-nome">Nome deste aparelho <input id="ap-nome" maxlength="40"></label>
+      <h3>Pareados</h3>
+      <ul id="ap-lista" class="ap-lista"></ul>
+      <p id="ap-vazio" class="fraco">Nenhum ainda.</p>
+      <div class="so-pc">
+        <button class="grande" data-acao="ap-parear">➕ Parear um celular</button>
+        <div id="ap-qr" hidden>
+          <div id="ap-qr-img"></div>
+          <div>
+            <p>No celular: KOFstation → <b>📡 Aparelhos</b> → <b>Ler o QR do PC</b>.</p>
+            <p>Sem câmera? Escolha este PC na lista do celular e digite o código:</p>
+            <p id="ap-codigo"></p>
+            <small id="ap-tempo"></small>
+            <button class="grande sec" data-acao="ap-parear-fim">Cancelar</button>
+          </div>
+        </div>
+      </div>
+      <div class="so-cel">
+        <button class="grande" data-acao="ap-ler-qr">📷 Ler o QR do PC</button>
+        <div id="ap-camera" hidden><video id="ap-video" playsinline muted></video><button class="grande sec" data-acao="ap-camera-fim">Cancelar</button></div>
+      </div>
+      <h3>Na rede agora <button class="grande sec ap-achar" data-acao="ap-achar">🔎 Procurar</button></h3>
+      <ul id="ap-achados" class="ap-lista"></ul>
+      <p id="ap-achados-vazio" class="fraco" hidden>Nenhum aparelho novo achado. Os dois estão na mesma Wi-Fi e com o KOFstation aberto?</p>
+      <p id="ap-msg" hidden></p>
+    </div>
   </section>
   <section id="bios-tela" class="janela" hidden>
     <div class="titulo-j"><span id="bios-titulo">🔑 Falta a BIOS do <b id="bios-nome">Neo Geo</b></span><button class="x" data-acao="bios-fechar">×</button></div>
