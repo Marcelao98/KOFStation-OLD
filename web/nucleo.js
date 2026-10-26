@@ -257,7 +257,7 @@ const KofLibretro = (() => {
     constructor(rom, sis, mod) {
       const S = SISTEMAS[sis];
       this.lr = true; this.sistema = sis; this.nucleo = S.nucleo; this.s9x = S.nucleo === 'snes9x';
-      this.mod = mod; this.rom = rom; this.pad = [0, 0];
+      this.mod = mod; this.rom = rom; this.pad = [0, 0, 0, 0];
       this.largura = S.largura; this.altura = S.altura;
       this.rgba = new Uint32Array(S.largura * S.altura);      // já no formato do canvas (0xAABBGGRR)
       const eu = this;
@@ -350,6 +350,10 @@ const KofLibretro = (() => {
       const mod = this.mod;
       mod._lr_pad(this.sistema === 'n64' ? mascaraN64(this.pad[0]) : mascara(this.pad[0]));
       const e = this.eixos; if (e && mod._lr_eixos) mod._lr_eixos(e[0], e[1], e[2], e[3]);
+      if (mod._lr_pad_n) for (let j = 1; j < 4; j++) {   // jogadores 2 a 4 (núcleo antigo sem isso: só o 1)
+        mod._lr_pad_n(j, this.sistema === 'n64' ? mascaraN64(this.pad[j]) : mascara(this.pad[j]));
+        const ej = this.eixosN && this.eixosN[j]; mod._lr_eixos_n(j, ej ? ej[0] : 0, ej ? ej[1] : 0, ej ? ej[2] : 0, ej ? ej[3] : 0);
+      }
       if (mod._lr_audio_status && this.atrasado !== undefined) mod._lr_audio_status(this.ocupacao | 0, this.atrasado ? 1 : 0);   // o app diz se está atrasado
       mod._lr_run(1, 1);
       this.quadros++;

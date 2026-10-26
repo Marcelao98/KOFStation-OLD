@@ -21,5 +21,7 @@ open(T + "/icone.png", "wb").write(base64.b64decode(re.search(r"data:image/png;b
 PY
 for f in "$RAIZ"/publicado/nucleos/*.js; do n=$(basename "$f"); case $n in jogos-*|violino-*) continue;; esac; cp "$f" "$T/nuc/${n%-*}.js"; done
 [ -f "$RAIZ/nucleo-libretro/saida/play.js" ] && cp "$RAIZ/nucleo-libretro/saida/play.js" "$T/nuc/"
+# núcleos recompilados aqui (nucleo-libretro/construir.sh) valem no lugar dos publicados
+for f in "$RAIZ"/nucleo-libretro/saida/*.js; do [ -f "$f" ] && cp "$f" "$T/nuc/"; done
 python3 "$RAIZ/web/juntar.py" "$T/kof" "$RAIZ/web" "$T/icone.png" "$S/KOFnes.html" "$T/nuc" pc 2>&1 | grep -v Deprecat | grep -v utcnow | tail -1
 KOFNES_LISTA= python3 "$RAIZ/web/juntar.py" "$T/kof" "$RAIZ/web" "$T/icone.png" "$S/KOFnes-android.html" "$T/nuc" 2>&1 | grep -v Deprecat | grep -v utcnow | tail -1

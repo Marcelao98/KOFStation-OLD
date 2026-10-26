@@ -410,3 +410,6 @@ body[data-modo="raiz"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [dat
 #modo-controle.remoto.filtrado .mc-barra, #modo-controle.remoto.filtrado .mc-atalhos, #modo-controle.remoto.filtrado .mc-menu { pointer-events: auto; }
 #modo-controle.remoto.filtrado .mc-video { opacity: 0; pointer-events: none; }
 body.modo-controle.remoto-filtro #tela, body.modo-controle.remoto-filtro #moldura { visibility: visible; }
+/* celular como controle pela rede: a cor do jogador na luz */
+#modo-controle.pela-rede.ligado .mc-luz { background: var(--jog-cor, #3ccf6a); box-shadow: 0 0 8px var(--jog-cor, #3ccf6a); }
+#modo-controle.pela-rede .mc-info { display: none; }

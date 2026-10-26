@@ -121,7 +121,7 @@ if android:
 app_js = (web / "app.js").read_text()
 # a tela 📡 Aparelhos (rede entre PC e celular) entra por dentro do app.js, no PC e no celular
 fim = app_js.rstrip().rfind("})();")
-app_js = app_js[:fim] + "\n" + (web / "rede.js").read_text() + "\n" + (web / "jogarpc.js").read_text() + "\n" + app_js[fim:]
+app_js = app_js[:fim] + "\n" + (web / "rede.js").read_text() + "\n" + (web / "jogarpc.js").read_text() + "\n" + (web / "jogadores.js").read_text() + "\n" + app_js[fim:]
 if android:   # o app.js é uma função só ((() => {...})()): o código do celular entra por dentro, antes do fecha-parênteses final
     fim = app_js.rstrip().rfind("})();")
     app_js = app_js[:fim] + "\n" + (web / "android.js").read_text() + "\n" + app_js[fim:]

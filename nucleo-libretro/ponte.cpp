@@ -69,7 +69,8 @@ extern "C" {
 static uint32_t* quadro = nullptr;     // RGBA (formato do canvas), até maxL x maxA
 static unsigned maxL = 0, maxA = 0, larg = 0, alt = 0;
 static int copiar = 1;
-static uint32_t botoes = 0;            // máscara RETRO_DEVICE_ID_JOYPAD_*; 16-19 = C cima/baixo/esquerda/direita (N64)
+#define JOGADORES 4
+static uint32_t botoes[JOGADORES];    // por jogador: máscara RETRO_DEVICE_ID_JOYPAD_*; 16-19 = C cima/baixo/esquerda/direita (N64)
 static const unsigned AUDIO_MAX = 32768;   // quadros estéreo por retro_run (sobra até pra núcleo que manda áudio em lotes)
 static int16_t audio[AUDIO_MAX * 2];
 static unsigned audioQuadros = 0;
@@ -171,16 +172,16 @@ static size_t amostras(const int16_t* d, size_t n) {
 static void amostra(int16_t e, int16_t dir) { int16_t p[2] = { e, dir }; amostras(p, 1); }
 static void sondar() {}
 static int16_t eixo(int menos, int mais) { return (int16_t)((mais ? 0x7FFF : 0) - (menos ? 0x7FFF : 0)); }
-static int16_t eixos[4];               // analógicos de verdade (controle físico ou de toque): esquerdo X/Y, direito X/Y
+static int16_t eixos[JOGADORES][4];    // analógicos de verdade (controle físico ou de toque): esquerdo X/Y, direito X/Y
 static int16_t entrada(unsigned porta, unsigned dispositivo, unsigned idx, unsigned id) {
-    if (porta != 0) return 0;
+    if (porta >= JOGADORES) return 0;
     if ((dispositivo & RETRO_DEVICE_MASK) == RETRO_DEVICE_ANALOG) {
         if (idx > RETRO_DEVICE_INDEX_ANALOG_RIGHT) return 0;
         int k = idx == RETRO_DEVICE_INDEX_ANALOG_LEFT ? 0 : 2;
-        if (eixos[k] || eixos[k + 1]) return eixos[k + (id == RETRO_DEVICE_ID_ANALOG_Y)];
+        if (eixos[porta][k] || eixos[porta][k + 1]) return eixos[porta][k + (id == RETRO_DEVICE_ID_ANALOG_Y)];
 #ifdef KOF_GL
         // N64 sem analógico mexido: o direcional vira o analógico (inclinação total) e os bits 16-19, os botões C
-        uint32_t b = botoes;
+        uint32_t b = botoes[porta];
         if (k == 0)
             return id == RETRO_DEVICE_ID_ANALOG_X ? eixo(b >> RETRO_DEVICE_ID_JOYPAD_LEFT & 1, b >> RETRO_DEVICE_ID_JOYPAD_RIGHT & 1)
                                                   : eixo(b >> RETRO_DEVICE_ID_JOYPAD_UP & 1, b >> RETRO_DEVICE_ID_JOYPAD_DOWN & 1);
@@ -189,7 +190,7 @@ static int16_t entrada(unsigned porta, unsigned dispositivo, unsigned idx, unsig
         return 0;
 #endif
     }
-    uint32_t pad = botoes & 0xFFFF;   // no N64 o direcional vale também como o direcional do controle (menus usam ele)
+    uint32_t pad = botoes[porta] & 0xFFFF;   // no N64 o direcional vale também como o direcional do controle (menus usam ele)
     if ((dispositivo & RETRO_DEVICE_MASK) != RETRO_DEVICE_JOYPAD) return 0;
     if (id == RETRO_DEVICE_ID_JOYPAD_MASK) return (int16_t)pad;
     return (pad >> id) & 1;
@@ -371,10 +372,15 @@ EMSCRIPTEN_KEEPALIVE int lr_ok() { return okUltimo; }
 EMSCRIPTEN_KEEPALIVE uint8_t* lr_mem_ptr(unsigned id) { return (uint8_t*)retro_get_memory_data(id); }
 EMSCRIPTEN_KEEPALIVE size_t lr_mem_size(unsigned id) { return retro_get_memory_size(id); }
 
-EMSCRIPTEN_KEEPALIVE void lr_pad(int mascara) { botoes = (uint32_t)mascara; }
-EMSCRIPTEN_KEEPALIVE void lr_eixos(int lx, int ly, int rx, int ry) { eixos[0] = lx; eixos[1] = ly; eixos[2] = rx; eixos[3] = ry; }
+EMSCRIPTEN_KEEPALIVE void lr_pad(int mascara) { botoes[0] = (uint32_t)mascara; }
+EMSCRIPTEN_KEEPALIVE void lr_eixos(int lx, int ly, int rx, int ry) { eixos[0][0] = lx; eixos[0][1] = ly; eixos[0][2] = rx; eixos[0][3] = ry; }
+// jogadores 2 a 4 (multijogador): mesmo formato, por porta
+EMSCRIPTEN_KEEPALIVE void lr_pad_n(unsigned j, int mascara) { if (j < JOGADORES) botoes[j] = (uint32_t)mascara; }
+EMSCRIPTEN_KEEPALIVE void lr_eixos_n(unsigned j, int lx, int ly, int rx, int ry) { if (j < JOGADORES) { eixos[j][0] = lx; eixos[j][1] = ly; eixos[j][2] = rx; eixos[j][3] = ry; } }
+EMSCRIPTEN_KEEPALIVE int lr_jogadores() { return JOGADORES; }
 // tipo de controle na porta 1 (o PS1 usa o DualShock: digital até o jogo ligar o analógico)
 EMSCRIPTEN_KEEPALIVE void lr_dispositivo(unsigned d) { retro_set_controller_port_device(0, d); }
+EMSCRIPTEN_KEEPALIVE void lr_dispositivo_n(unsigned j, unsigned d) { retro_set_controller_port_device(j, d); }
 EMSCRIPTEN_KEEPALIVE uint32_t* lr_fb() { return quadro; }
 EMSCRIPTEN_KEEPALIVE int lr_w() { return larg; }
 EMSCRIPTEN_KEEPALIVE int lr_h() { return alt; }

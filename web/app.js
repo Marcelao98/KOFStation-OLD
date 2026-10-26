@@ -901,6 +901,7 @@ async function explicarFalhaControle(url) {
 }
 // conta pro celular qual jogo está aberto: ele troca o controle pro daquele console (botões, nomes e cores)
 function contarJogoAoControle() {
+  if (typeof avisarCelularJogador === 'function' && !CELULAR) avisarCelularJogador();   // celulares pela rede: o console do jogo novo
   if (!remoto.ligado || !remoto.ws) return;
   const sis = snes ? snes.sistema || 'snes' : '';
   try { remoto.ws.send('JOGO ' + sis + '\t' + (snes ? romNome.replace(/[\t\n]/g, ' ').slice(0, 80) : '')); } catch (e) { /* caiu: manda de novo ao religar */ }
@@ -911,8 +912,8 @@ function desconectarControle() { remoto.alvo = null; const w = remoto.ws; remoto
 function marcarNucleoSnes() { const b = $('[data-acao="nucleo-snes"]'); if (b) b.textContent = 'Núcleo do SNES: ' + (nucleoSnes() === 'kof' ? 'Kof' : 'Snes9x'); }
 setTimeout(marcarNucleoSnes, 0);
 function marcarControle() { const b = $('[data-acao="controle-celular"]'); if (b) b.textContent = remoto.ligado ? '📱 Celular conectado (desconectar)' : '📱 Celular como controle…'; }
-function estado() {
-  let b = teclado | toque | remoto.bits;
+function estado() {   // tudo junto (menus e telas: qualquer controle mexe); no jogo cada jogador tem o seu (lerJogadores)
+  let b = teclado | toque | remoto.bits | (typeof jog !== 'undefined' ? jogCelBits() : 0);
   const puro = analogico() === 'puro';
   for (const g of (navigator.getGamepads ? navigator.getGamepads() : [])) {
     if (!g) continue;
@@ -1553,22 +1554,24 @@ let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAt
 // eixos pro núcleo (-32767..32767): controle físico (com zona morta) ou a tela de toque; tudo parado = 0 (aí a ponte do N64
 // usa o direcional como analógico, como antes)
 const eixosQuadro = new Int16Array(4);
-function lerEixos() {
+// analógicos do jogador 1 (os controles dele; sem nenhum mexido, o analógico da tela de toque)
+function lerEixos(js) {
   const e = eixosQuadro; e.fill(0);
   if (!analogico()) return null;
   const pos = (v) => Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767);
-  for (const g of (navigator.getGamepads ? navigator.getGamepads() : [])) {
-    if (!g) continue;
-    for (let k = 0; k < 4 && k < g.axes.length; k++) if (!e[k]) e[k] = pos(g.axes[k]);
-  }
-  if (!e[0] && !e[1] && !e[2] && !e[3]) e.set(remoto.eixos);   // o celular como controle
+  const j1 = (js || lerJogadores()).e[0];
+  if (j1) e.set(j1);
   if (!e[0] && !e[1]) { e[0] = pos(eixosToque[0]); e[1] = pos(eixosToque[1]); }
   return e;
 }
 function rodarQuadro() {
-  snes.eixos = lerEixos();
-  let b = semCombo(estado());
-  if (snes.sistema !== 'ps1' && snes.sistema !== 'n64' && snes.sistema !== 'ps2') b &= ~0x000C;   // L2/R2: no SNES esses bits identificam o controle e têm de ficar zerados
+  const js = lerJogadores();
+  snes.eixos = lerEixos(js);
+  const semL2R2 = snes.sistema !== 'ps1' && snes.sistema !== 'n64' && snes.sistema !== 'ps2';   // L2/R2: no SNES esses bits identificam o controle e têm de ficar zerados
+  let b = semCombo(js.b[0]);
+  if (semL2R2) b &= ~0x000C;
+  for (let j = 1; j < 4 && j < snes.pad.length; j++) snes.pad[j] = semL2R2 ? js.b[j] & ~0x000C : js.b[j];   // jogadores 2 a 4
+  if (analogico()) snes.eixosN = js.e;
   snes.pad[0] = b; snes.runFrame();
   if (marcoBug) { marcoBug.entradas.push(b); if (marcoBug.entradas.length >= 600) novoMarco(); }
 }
@@ -3465,10 +3468,10 @@ async function mostrarBiblioteca(pedir, relerPasta) {
     if (antes) { const j = visiveis.indexOf(antes); if (j >= 0) marcarSel(j); }
   }
 }
-function fecharJanelas() { fecharTemas(false); for (const id of ['home', 'biblioteca', 'estados', 'guia', 'teclas', 'estatisticas', 'jukebox', 'bios-tela', 'aparelhos']) $('#' + id).hidden = true; if (typeof pararCamera === 'function') pararCamera(); capturando = null; if (rapidoAberto) fecharRapido(); }
+function fecharJanelas() { fecharTemas(false); for (const id of ['home', 'biblioteca', 'estados', 'guia', 'teclas', 'estatisticas', 'jukebox', 'bios-tela', 'aparelhos', 'jogadores']) $('#' + id).hidden = true; if (typeof pararCamera === 'function') pararCamera(); capturando = null; if (rapidoAberto) fecharRapido(); }
 // ---- controle (físico ou o celular) mexe em todas as telas: o direcional escolhe o botão mais perto naquela direção,
 // A aperta, B volta/fecha, Start vai pro Início (no Início, A/Start fazem a ação principal e X abre a biblioteca)
-const TELAS_PAD = ['home', 'estados', 'guia', 'teclas', 'aparelhos', 'bios-tela', 'bug', 'jukebox', 'temas', 'molduras', 'estatisticas'];
+const TELAS_PAD = ['home', 'estados', 'guia', 'teclas', 'aparelhos', 'jogadores', 'bios-tela', 'bug', 'jukebox', 'temas', 'molduras', 'estatisticas'];
 const FOCAVEIS = 'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"]), li[data-acao]';
 const pad = { el: null, dir: 0, prox: 0 };
 function telaDoPad() {
@@ -3574,6 +3577,7 @@ const ITENS_RAPIDO = [
   { t: '🐞 Reportar bug', so: () => !nativo(), f: () => { fecharRapido(); abrirBug(); } },
   { t: '🗂 Estados salvos', f: () => { fecharRapido(); acao('estados'); } },
   { t: '☕ Biblioteca', f: () => { fecharRapido(); acao('biblioteca'); } },
+  { t: '🎮 Jogadores (2 a 4)', so: () => !CELULAR, f: () => { fecharRapido(); acao('jogadores'); } },
   { t: '📈 Painel de desempenho', v: () => (desemp.visivel ? 'ligado' : 'desligado'), aj: () => alternarDesempenho(), f: () => { alternarDesempenho(); fecharRapido(); } },
   { t: '🎮 Modo', v: () => nomeModo(modo), aj: (d) => mudarModo(ciclar(MODOS, modo, d)), f: () => { fecharRapido(); acao('emu-opcoes'); } },
   { t: '🎨 Tema', v: () => TODOS_TEMAS.find(([k]) => k === temaSalvo)[1], aj: (d) => tema(ciclar(TODOS_TEMAS, temaSalvo, d)), f: () => { fecharRapido(); acao('temas'); } },
@@ -4213,6 +4217,8 @@ async function acao(a) {
   fecharMenus();
   if (a.startsWith('bios:')) return escolherBios(a.slice(5));
   if (acaoRede(a)) return;
+  if (a === 'jogadores') { abrirJogadores(); return; }
+  if (a === 'jogadores-fechar') { $('#jogadores').hidden = true; if (!snes) abrirHome(); return; }
   switch (a) {
     case 'abrir': $('#arquivo').click(); break;
     case 'traducao': {   // escolhe o .ips/.bps/.ups; com jogo aberto aplica nele, senão pede a ROM depois

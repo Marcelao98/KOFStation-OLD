@@ -197,9 +197,11 @@
   // op.pc = 🖥 Jogar no PC: o PC roda o jogo e manda imagem e som (WebRTC, jogarpc.js); o controle é o mesmo de cá
   function entrarModoControle(op) {
     const pcId = op && op.pc;
-    if (!window.KOFnesApk || !(pcId ? KOFnesApk.redeCmd : KOFnesApk.controleIniciar)) { avisar('isso precisa do app KOFstation (APK) no celular', 4000); return; }
-    const r = pcId ? { ip: '', porta: 0, senha: '' } : JSON.parse(KOFnesApk.controleIniciar() || '{}');
-    if (!pcId && (r.erro || !r.ip)) { avisar('não consegui abrir o controle: ' + (r.erro || 'o celular está sem Wi-Fi?'), 5000); return; }
+    // PC pareado na rede (📡 Aparelhos): o controle vai pela rede, sem IP nem senha, e cada celular vira um jogador
+    const pcRede = !pcId && window.KOFnesApk && KOFnesApk.redeCmd && typeof pcOnline === 'function' ? pcOnline() : null;
+    if (!window.KOFnesApk || !(pcId || pcRede ? KOFnesApk.redeCmd : KOFnesApk.controleIniciar)) { avisar('isso precisa do app KOFstation (APK) no celular', 4000); return; }
+    const r = pcId || pcRede ? { ip: '', porta: 0, senha: '' } : JSON.parse(KOFnesApk.controleIniciar() || '{}');
+    if (!pcId && !pcRede && (r.erro || !r.ip)) { avisar('não consegui abrir o controle: ' + (r.erro || 'o celular está sem Wi-Fi?'), 5000); return; }
     if (modoControle) sairModoControle();
     if (snes) pausado = true;
     fecharJanelas();
@@ -240,7 +242,8 @@
       d.querySelector('.mc-status').textContent = 'chamando o PC…';
     }
     document.body.appendChild(d);
-    modoControle = { sisAntes: document.body.dataset.sis, b: -1, e: -1, quando: 0, visto: 0, n: -1, jogo: null, info: false, pc: pcId || null };
+    modoControle = { sisAntes: document.body.dataset.sis, b: -1, e: -1, quando: 0, visto: 0, n: -1, jogo: null, info: false, pc: pcId || null, rede: pcRede ? pcRede.id : null };
+    if (pcRede) { d.classList.add('pela-rede'); d.querySelector('.mc-status').textContent = 'chamando ' + pcRede.nome + '…'; }
     if (pcId) { modoControle.filtro = ler('remotoFiltro') !== '0'; marcarFiltroRemoto(modoControle); }
     document.body.classList.add('modo-controle', 'cel-jogo');
     consoleDoControle('', '');
@@ -378,6 +381,10 @@
       if (agora - m.visto > 1000) { m.visto = agora; dc.send('p' + agora); }
       return;
     }
+    if (m.rede) {   // pela rede pareada: "botões,eixos" no canal pad (o PC diz qual jogador este celular é)
+      if (b !== m.b || e !== m.e || agora - m.quando > 250) { redeMandar({ t: 'enviar', para: m.rede, canal: 'pad', dados: b + ',' + e }); m.b = b; m.e = e; m.quando = agora; }
+      return;
+    }
     if (b !== m.b || e !== m.e || agora - m.quando > 250) { KOFnesApk.controleEnviar(b, e); m.b = b; m.e = e; m.quando = agora; }
     if (agora - m.visto > 300) {
       m.visto = agora;
@@ -394,11 +401,12 @@
   function sairModoControle() {
     const m = modoControle; if (!m) return;
     clearInterval(m.timer); modoControle = null; soltarTudo();
+    if (m.rede) redeMandar({ t: 'enviar', para: m.rede, canal: 'pad', dados: '0,0' });   // solta tudo no PC
     if (m.pc) {
       clearTimeout(m.prazo); mandarJogo(m.pc, { t: 'fim' });
       const i = rede.ouvintes.indexOf(m.ouvinte); if (i >= 0) rede.ouvintes.splice(i, 1);
       if (m.rtc) try { m.rtc.close(); } catch (x) { /* já fechada */ }
-    } else try { KOFnesApk.controleParar(); } catch (x) { /* sem ponte */ }
+    } else if (!m.rede) try { KOFnesApk.controleParar(); } catch (x) { /* sem ponte */ }
     const d = $('#modo-controle'); if (d) d.remove();
     document.body.classList.remove('modo-controle', 'cel-jogo', 'remoto-filtro'); if (!snes) document.body.classList.add('vazio'); document.body.classList.toggle('analogico', !!(snes && SIS[snes.sistema] && SIS[snes.sistema].analogico));
     const sisJogo = snes ? snes.sistema || 'snes' : '';   // o controle volta a ser o do jogo deste celular
@@ -408,6 +416,18 @@
     jogando = false; atualizarJogando();
   }
   window.entrarModoControle = entrarModoControle;
+  // celular como controle pela rede: o PC diz o número do jogador e o console do jogo aberto
+  rede.ouvintes.push((msg) => {
+    const m = modoControle;
+    if (msg.t !== 'msg' || msg.canal !== 'pad-ok' || !m || m.rede !== msg.de) return;
+    let p; try { p = JSON.parse(msg.dados); } catch (e) { return; }
+    const pc = rede.aparelhos.find((a) => a.id === msg.de);
+    if (!(m.n > 0)) guardar('controlePareado', '1');
+    m.n = 1; m.nomePc = (pc ? pc.nome : 'PC') + ' · Jogador ' + p.jogador; marcarModoControle();
+    const d = $('#modo-controle'); if (d) d.style.setProperty('--jog-cor', ['#e84545', '#3d8bfd', '#27c26c', '#f2b632'][p.jogador - 1] || '');
+    const k = (p.sis || '') + '\t' + (p.nome || '');
+    if (k !== m.jogo) { m.jogo = k; consoleDoControle(p.sis || '', p.nome || ''); }
+  });
   // resposta dos atalhos 💾 📂 no celular como controle (chega pela rede)
   rede.ouvintes.push((msg) => {
     if (msg.t !== 'msg' || msg.canal !== 'jogo') return;
