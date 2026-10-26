@@ -5,7 +5,7 @@
   Na main: N64 (PC wasm + celular nativo), PS1 nativo, analógico (N64/PS1), saves no banco + backup `.kofsave`, celular
   como controle do PC, busca por gênero/empresa, pasta de ROMs no APK, painel de desempenho (F3), **SNES do PC = Snes9x**
   (Kof como opção em Emulação). Detalhes de cada um nas notas abaixo.
-- **REDE ENTRE APARELHOS (branch `rede`, 26/10, NÃO publicada; etapa 1 de 3 feita, plano em `docs/rede-plano.md`,
+- **REDE ENTRE APARELHOS (PUBLICADA 202610261610; o Marcelo CONFIRMOU o pareamento PC+celular funcionando, 26/10; etapa 1 de 3 feita, plano em `docs/rede-plano.md`,
   protocolo em `rede/PROTOCOLO.md`):** `rede/kofrede.c` = núcleo sem entrada/saída e sem libc (CPace com X25519+Elligator pra
   parear pelo código de 6 números ou segredo do QR; 3DH pra conectar; XChaCha20-Poly1305; Monocypher em `rede/terceiros/`);
   `rede/kofservico.c` = serviço do PC (Linux/Windows; TCP 8650 aparelhos, UDP 8650 achar, WS 127.0.0.1:8644 página; dados em
