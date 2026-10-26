@@ -1611,6 +1611,8 @@ html.celular body.com-visual #palco { padding-right: 0; padding-bottom: 58vh; }
 #ap-msg { padding: 8px 12px; border-radius: 8px; background: var(--painel2); border: 1px solid var(--borda); }
 .ap-fases { padding: 8px 12px; border-left: 3px solid var(--destaque); background: var(--painel2); border-radius: 6px; margin: 8px 0; }
 .ap-fases p { margin: 4px 0; }
+/* o botão escolhido pelo controle (navegarPad no app.js) */
+.foco-pad { outline: 3px solid var(--destaque) !important; outline-offset: 2px; box-shadow: 0 0 0 7px color-mix(in srgb, var(--destaque) 28%, transparent) !important; }
 /* ============ KOFnes no celular (só entra no KOFnes-android.html) ============ */
 html.celular, html.celular body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 html.celular .so-pc, html.celular kbd { display: none !important; }
@@ -1997,7 +1999,18 @@ body[data-modo="raiz"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [dat
 #modo-controle .mc-menu { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   background: rgb(0 0 0 / .72); }
 #modo-controle .mc-menu[hidden] { display: none; }
-#modo-controle .mc-menu button { width: min(80%, 320px); padding: 12px; border-radius: 12px; background: var(--painel); border: 1px solid var(--borda); font-size: 16px; }
+/* atalhos do controle do PC: ⏪ (segurar) 💾 📂 🏠 ☰ */
+#modo-controle .mc-atalhos { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 2; display: flex; gap: 8px;
+  padding: 4px 8px; border-radius: 999px; background: color-mix(in srgb, var(--painel) 80%, transparent); border: 1px solid var(--borda); }
+#modo-controle .mc-atalhos button { width: 40px; height: 36px; border-radius: 18px; font-size: 18px; touch-action: none; user-select: none; }
+#modo-controle .mc-atalhos button:active, #modo-controle .mc-atalhos button.on { background: var(--sel); }
+#modo-controle.remoto .mc-ping { bottom: 54px; }
+#modo-controle .mc-menu { position: fixed; overflow-y: auto; justify-content: flex-start; padding: 24px 0; }
+#modo-controle .mc-menu-pc { display: contents; }
+#modo-controle .mc-item { display: flex; gap: 6px; width: min(90%, 360px); }
+#modo-controle .mc-item button { flex: 1; width: auto; padding: 10px; border-radius: 10px; background: var(--painel); border: 1px solid var(--borda); font-size: 15px; }
+#modo-controle .mc-item button.mc-aj { flex: none; width: 44px; }
+#modo-controle.remoto .mc-atalhos [data-at="home"] { display: none; }   /* jogando no celular, o Início do PC ninguém vê */
 
 </style>
 </head>
@@ -2364,9 +2377,9 @@ body[data-modo="raiz"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [dat
       <p>Pareie o celular com o PC uma vez e depois eles se acham sozinhos na mesma Wi-Fi. Nada passa pela internet: a
         conversa é cifrada e só aparelho pareado entra.</p>
       <div class="ap-fases">
-        <p><b>✅ Já funciona:</b> parear e ver quais aparelhos estão conectados agora.</p>
-        <p><b>🔜 Próximas versões:</b> saves e estados sincronizando sozinhos entre os aparelhos, e jogar no celular com o
-          PC rodando o jogo. Os aparelhos que você parear agora já ficam prontos pra isso.</p>
+        <p><b>✅ Já funciona:</b> parear, ver quem está conectado e <b>jogar no celular com o PC rodando o jogo</b>
+          (no celular: 🎮 Jogar no PC aqui, ou 🖥 Jogar no PC na ficha do jogo).</p>
+        <p><b>🔜 Próximas versões:</b> saves e estados sincronizando sozinhos entre os aparelhos.</p>
       </div>
       <label class="ap-nome">Nome deste aparelho <input id="ap-nome" maxlength="40"></label>
       <h3>Pareados</h3>
@@ -2527,6 +2540,13 @@ body[data-modo="raiz"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [dat
 <script>
 const KofNucleo = (() => {
 'use strict';
+function kofArrayGet(array, index) {
+    return array[index];
+}
+function kofArraySet(array, index, value, kind) {
+    if (kind === 0) { array[index] = value; return; }
+}
+
 function kofArrayGet(array, index) {
     return array[index];
 }
@@ -16725,7 +16745,7 @@ $('#arquivo-spc').addEventListener('change', (e) => { if (e.target.files.length)
 // estado (um marco) e anota os botões de cada quadro dali pra frente. O pacote
 // do bug leva o marco anterior + os botões até agora: rodando de novo, o
 // núcleo (determinístico) chega no mesmo lugar, quadro a quadro.
-const VERSAO = '202610261701 · d8e3a02', REPO = 'Marcelao98/KOFSnes';
+const VERSAO = '202610261741 · ff8434c', REPO = 'Marcelao98/KOFSnes';
 let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAtual = null;
 // eixos pro núcleo (-32767..32767): controle físico (com zona morta) ou a tela de toque; tudo parado = 0 (aí a ponte do N64
 // usa o direcional como analógico, como antes)
@@ -18643,6 +18663,71 @@ async function mostrarBiblioteca(pedir, relerPasta) {
   }
 }
 function fecharJanelas() { fecharTemas(false); for (const id of ['home', 'biblioteca', 'estados', 'guia', 'teclas', 'estatisticas', 'jukebox', 'bios-tela', 'aparelhos']) $('#' + id).hidden = true; if (typeof pararCamera === 'function') pararCamera(); capturando = null; if (rapidoAberto) fecharRapido(); }
+// ---- controle (físico ou o celular) mexe em todas as telas: o direcional escolhe o botão mais perto naquela direção,
+// A aperta, B volta/fecha, Start vai pro Início (no Início, A/Start fazem a ação principal e X abre a biblioteca)
+const TELAS_PAD = ['home', 'estados', 'guia', 'teclas', 'aparelhos', 'bios-tela', 'bug', 'jukebox', 'temas', 'molduras', 'estatisticas'];
+const FOCAVEIS = 'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"]), li[data-acao]';
+const pad = { el: null, dir: 0, prox: 0 };
+function telaDoPad() {
+  if (rapidoAberto || !$('#modo-tela').hidden || capturando || (typeof transm !== 'undefined' && transm.pc)) return null;
+  const abertas = [...document.querySelectorAll(TELAS_PAD.map((i) => '#' + i).join(','))].filter((e) => !e.hidden);
+  return abertas.pop() || null;   // a última no html fica por cima
+}
+const visivelPad = (e) => { if (e.disabled || e.closest('[hidden]')) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden'; };
+function escolherPad(e) {
+  if (pad.el) pad.el.classList.remove('foco-pad');
+  pad.el = e; e.classList.add('foco-pad');
+  try { e.focus({ preventScroll: true }); } catch (x) { /* não focável */ }
+  e.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+function soltarPad() { if (pad.el) pad.el.classList.remove('foco-pad'); pad.el = null; pad.dir = 0; }
+addEventListener('pointerdown', () => { if (pad.el && !CELULAR) soltarPad(); }, true);   // voltou pro mouse: some o destaque
+function moverPad(tela, dx, dy) {
+  const cands = [...tela.querySelectorAll(FOCAVEIS)].filter(visivelPad);
+  if (!cands.length) return;
+  const atual = pad.el && tela.contains(pad.el) && visivelPad(pad.el) ? pad.el : null;
+  if (!atual) { escolherPad(cands.find((e) => e.classList.contains('grande')) || cands[0]); return; }
+  const a = atual.getBoundingClientRect(), ax = a.left + a.width / 2, ay = a.top + a.height / 2;
+  let melhor = null, nota = Infinity;
+  for (const c of cands) {
+    if (c === atual || c.contains(atual) || atual.contains(c)) continue;
+    const r = c.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    const anda = dx ? (cx - ax) * dx : (cy - ay) * dy;   // quanto anda na direção pedida
+    if (anda <= 2) continue;
+    const lado = dx ? Math.abs(cy - ay) : Math.abs(cx - ax);
+    const n = anda + lado * 2.5;
+    if (n < nota) { nota = n; melhor = c; }
+  }
+  if (melhor) escolherPad(melhor);
+}
+function navegarPad(tela, b, novo) {
+  if (pad.el && !tela.contains(pad.el)) soltarPad();
+  const el = pad.el;
+  // direção: anda na hora e repete segurando
+  const dir = b & 0x0F00, agora = performance.now();
+  if (!dir) pad.dir = 0;
+  else if (dir !== pad.dir || agora >= pad.prox) {
+    pad.prox = agora + (dir !== pad.dir ? 380 : 110); pad.dir = dir;
+    const dx = dir & 0x0100 ? 1 : dir & 0x0200 ? -1 : 0, dy = dir & 0x0400 ? 1 : dir & 0x0800 ? -1 : 0;
+    if (el && dx && el.tagName === 'SELECT') { el.selectedIndex = (el.selectedIndex + dx + el.options.length) % el.options.length; el.dispatchEvent(new Event('change', { bubbles: true })); }
+    else if (el && dx && el.type === 'range') { if (dx > 0) el.stepUp(); else el.stepDown(); el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); }
+    else moverPad(tela, dx, dy);
+  }
+  const home = tela.id === 'home';
+  if (novo & 0x0080) {   // A
+    if (el) el.click();
+    else if (home) { const pr = $('#hm-destaque .grande'); if (pr) pr.click(); }
+    else moverPad(tela, 0, 1);
+  }
+  if (novo & 0x1000) {   // Start
+    if (home) { const pr = $('#hm-destaque .grande'); if (pr) pr.click(); } else acao('home');
+  }
+  if (novo & 0x0040 && home) acao('biblioteca');   // X no Início
+  if (novo & 0x8000) {   // B: fecha a janela (o × dela) ou volta
+    const x = tela.querySelector('.titulo-j .x');
+    if (x && visivelPad(x)) x.click(); else voltar();
+  }
+}
 // controle também navega na biblioteca
 let padAntes = 0;
 setInterval(() => {
@@ -18653,13 +18738,13 @@ setInterval(() => {
     else if (novo & 0x8000 && !$('#ab-guia').hidden) acao('ab-voltar');
     return;
   }
-  if (!$('#home').hidden) {               // no início: A/Start = ação principal, X = biblioteca
-    const b = estado(), novo = b & ~padAntes; padAntes = b;
-    if (novo & (0x0080 | 0x1000)) { const pr = $('#hm-destaque .grande'); if (pr) pr.click(); }
-    if (novo & 0x0040) acao('biblioteca');
+  if ($('#biblioteca').hidden) {          // as outras telas: o direcional anda pelos botões (navegarPad)
+    const tela = telaDoPad();
+    if (!tela) { padAntes = 0; soltarPad(); return; }
+    const b = estado() & ~teclado, novo = b & ~padAntes; padAntes = b;   // o teclado já tem as teclas dele nas telas
+    navegarPad(tela, b, novo);
     return;
   }
-  if ($('#biblioteca').hidden) { padAntes = 0; return; }
   const b = estado(), novo = b & ~padAntes; padAntes = b;
   const ir = (code) => listaTecla({ code, preventDefault() {}, target: null, key: '' });
   if (novo & 0x0400) ir('ArrowDown');
@@ -19722,7 +19807,11 @@ function esperarIce(pc) {
   });
 }
 rede.ouvintes.push((m) => {
-  if (m.t === 'msg' && m.canal === 'jogo') { let p; try { p = JSON.parse(m.dados); } catch (e) { return; } pedidoDoCelular(m.de, p); }
+  if (m.t === 'msg' && m.canal === 'jogo') {
+    let p; try { p = JSON.parse(m.dados); } catch (e) { return; }
+    if (p.t === 'acao' && !CELULAR) { acaoDoCelular(p.a, (o) => mandarJogo(m.de, o)); return; }   // atalhos do celular como controle
+    pedidoDoCelular(m.de, p);
+  }
   if (m.t === 'lista' && transm.de && !rede.aparelhos.some((a) => a.id === transm.de && a.online)) pararTransmissao('o celular saiu da rede');
 });
 async function pedidoDoCelular(de, p) {
@@ -19782,8 +19871,14 @@ async function comecarTransmissao(de) {
     if (typeof e.data === 'string') {
       if (e.data.startsWith('p')) { dc.send('P' + e.data.slice(1)); return; }   // ping: o celular mede o atraso
       let j; try { j = JSON.parse(e.data); } catch (x) { return; }
-      if (j.t === 'acao' && ['salvar-estado', 'carregar-ultimo'].includes(j.a)) {   // menu ☰ do celular
-        acao(j.a).then(() => { fecharJanelas(); pausado = false; if (dc.readyState === 'open') dc.send(JSON.stringify({ t: 'feito', a: j.a })); });
+      if (j.t === 'acao') acaoDoCelular(j.a, (o) => { if (dc.readyState === 'open') dc.send(JSON.stringify(o)); });
+      else if (j.t === 'menu') dc.send(JSON.stringify(menuParaCelular()));
+      else if (j.t === 'menu-item') {
+        const it = ITENS_RAPIDO[j.i];
+        if (it && itemRemoto(it)) {
+          try { if (j.d && it.aj) it.aj(j.d); else if (it.f) { it.f(); dc.send(JSON.stringify({ t: 'feito', a: it.t })); } } catch (x) { console.warn(x); }
+          setTimeout(() => { if (transm.pc) { fecharJanelas(); pausado = false; } if (dc.readyState === 'open') dc.send(JSON.stringify(menuParaCelular())); }, 50);
+        }
       }
       return;
     }
@@ -19806,6 +19901,17 @@ async function comecarTransmissao(de) {
   mandarJogo(de, { t: 'oferta', sdp: pc.localDescription.sdp });
   transmitirQuadro();
 }
+// atalhos do celular (☰ do Jogar no PC, ou a barrinha do celular como controle pela rede)
+const ACOES_CELULAR = ['salvar-estado', 'carregar-ultimo', 'home'];
+async function acaoDoCelular(a, responder) {
+  if (!ACOES_CELULAR.includes(a)) return;
+  await acao(a);
+  if (transm.pc && a !== 'home') { fecharJanelas(); pausado = false; }   // jogando no celular: o jogo segue
+  responder({ t: 'feito', a });
+}
+// o menu rápido do PC no celular: só o que muda o jogo sem abrir tela no PC (ajustes ◀▶, salvar, carregar, reiniciar)
+const itemRemoto = (it) => (!it.so || it.so()) && (it.aj || /^(💾|⟲|↺)/.test(it.t));
+const menuParaCelular = () => ({ t: 'menu', itens: ITENS_RAPIDO.map((it, i) => ({ i, t: it.t, v: it.v ? String(it.v()) : '', aj: !!it.aj, it })).filter((x) => itemRemoto(x.it)).map(({ it, ...x }) => x) });
 // console e nome do jogo pro celular trocar o controle (o mesmo que o celular como controle recebe)
 function contarAoCelular() {
   const dc = transm.dc; if (!dc || dc.readyState !== 'open') return;
@@ -19833,6 +19939,7 @@ function pararTransmissao(motivo) {
   remoto.bits = 0; remoto.eixos.fill(0);
   if (motivo) { avisar('🖥 transmissão encerrada: ' + motivo, 4000); if (de) mandarJogo(de, { t: 'erro', texto: motivo }); }
 }
+if (window.KOFnes) KOFnes.padTeste = (b) => { remoto.bits = b; };   // teste: aperta botões como se viessem do celular
 if (window.KOFnes) KOFnes.transmissao = () => ({ ligada: transmitindo(), estado: transm.pc && transm.pc.connectionState, dc: transm.dc && transm.dc.readyState, bits: remoto.bits });
 
 
@@ -20051,16 +20158,27 @@ if (window.KOFnes) KOFnes.transmissao = () => ({ ligada: transmitindo(), estado:
       : `Não conectou? No navegador do PC abra http://${r.ip}:${r.porta}`;
     d.querySelector('.mc-sair').addEventListener('click', sairModoControle);
     d.querySelector('.mc-info').addEventListener('click', () => { modoControle.info = !modoControle.info; marcarModoControle(); });
+    d.insertAdjacentHTML('beforeend', '<div class="mc-atalhos"><button data-at="rebob" aria-label="rebobinar (segure)">⏪</button><button data-at="salvar-estado" aria-label="salvar estado">💾</button>'
+      + '<button data-at="carregar-ultimo" aria-label="carregar o último estado">📂</button><button data-at="home" aria-label="Início do PC">🏠</button><button data-at="menu" aria-label="menu">☰</button></div>');
+    const at = d.querySelector('.mc-atalhos');
+    const rb = at.querySelector('[data-at="rebob"]');   // ⏪ segurando = Select+Y no PC (o rebobinar de lá)
+    const rbFim = () => { if (modoControle) modoControle.extra = 0; rb.classList.remove('on'); };
+    rb.addEventListener('pointerdown', (e) => { e.preventDefault(); if (modoControle) modoControle.extra = 0x6000; rb.classList.add('on'); });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) rb.addEventListener(ev, rbFim);
+    at.addEventListener('click', (e) => {
+      const b = e.target.closest('button'); if (!b || b === rb) return;
+      if (b.dataset.at === 'menu') { if (modoControle && modoControle.pc) menuRemoto(); else if (modoControle) modoControle.menu = performance.now(); }
+      else atalhoPc(b.dataset.at);
+    });
     if (pcId) {
       d.classList.add('remoto');
       d.insertAdjacentHTML('beforeend', '<video class="mc-video" playsinline autoplay></video><small class="mc-ping"></small>'
-        + '<div class="mc-menu" hidden><button data-r="salvar-estado">💾 Salvar estado no PC</button><button data-r="carregar-ultimo">📂 Carregar o último estado</button>'
-        + '<button data-r="sair">✕ Parar de jogar no PC</button><button data-r="voltar">▶ Voltar ao jogo</button></div>');
+        + '<div class="mc-menu" hidden><div class="mc-menu-pc"></div>'
+        + '<div class="mc-item"><button data-r="voltar">▶ Voltar ao jogo</button></div><div class="mc-item"><button data-r="sair">✕ Parar de jogar no PC</button></div></div>');
       d.querySelector('.mc-menu').addEventListener('click', (e) => {
         const r = e.target.closest('button') && e.target.closest('button').dataset.r; if (!r) return;
-        d.querySelector('.mc-menu').hidden = true;
+        d.querySelector('.mc-menu').hidden = true;   // os itens do PC (sem data-r) mandam pelo canal de dados
         if (r === 'sair') sairModoControle();
-        else if (r !== 'voltar' && modoControle && modoControle.dc && modoControle.dc.readyState === 'open') modoControle.dc.send(JSON.stringify({ t: 'acao', a: r }));
       });
       d.querySelector('.mc-status').textContent = 'chamando o PC…';
     }
@@ -20073,7 +20191,37 @@ if (window.KOFnes) KOFnes.transmissao = () => ({ ligada: transmitindo(), estado:
     requestAnimationFrame(() => ajustarEscala());
     if (pcId) conectarAoPc(modoControle, pcId, op.jogo || null);
   }
-  function menuRemoto() { const mm = $('#modo-controle .mc-menu'); if (mm) mm.hidden = !mm.hidden; }
+  // 💾 📂 🏠: no Jogar no PC pelo canal de dados; no celular como controle, pela rede (precisa estar pareado em 📡 Aparelhos)
+  function atalhoPc(a) {
+    const m = modoControle; if (!m) return;
+    if (m.pc) { if (m.dc && m.dc.readyState === 'open') m.dc.send(JSON.stringify({ t: 'acao', a })); return; }
+    const pcs = rede.aparelhos.filter((x) => x.online && x.tipo === 'pc'), pc = pcs.find((x) => x.nome === m.nomePc) || pcs[0];
+    if (!pc) { avisar('pareie este celular com o PC em 📡 Aparelhos pra usar 💾 📂 🏠', 5000); return; }
+    mandarJogo(pc.id, { t: "acao", a });   // mesmo canal "jogo": o PC responde "feito"
+  }
+  // ☰ no Jogar no PC: o menu rápido do PC aparece aqui (o PC manda os itens e os valores; o toque volta pra lá)
+  function menuRemoto() {
+    const mm = $('#modo-controle .mc-menu'); if (!mm) return;
+    if (!mm.hidden) { mm.hidden = true; return; }
+    mm.hidden = false;
+    const m = modoControle; if (m && m.dc && m.dc.readyState === 'open') m.dc.send(JSON.stringify({ t: 'menu' }));
+  }
+  function desenharMenuRemoto(itens) {
+    const lista = $('#modo-controle .mc-menu-pc'); if (!lista) return;
+    lista.textContent = '';
+    const manda = (o) => { const m = modoControle; if (m && m.dc && m.dc.readyState === 'open') m.dc.send(JSON.stringify(o)); };
+    for (const it of itens) {
+      const li = document.createElement('div'); li.className = 'mc-item';
+      const nm = document.createElement('button'); nm.textContent = it.t + (it.v ? ': ' + it.v : '');
+      if (it.aj) {
+        const menos = document.createElement('button'); menos.textContent = '◀'; menos.className = 'mc-aj'; menos.onclick = () => manda({ t: 'menu-item', i: it.i, d: -1 });
+        const mais = document.createElement('button'); mais.textContent = '▶'; mais.className = 'mc-aj'; mais.onclick = () => manda({ t: 'menu-item', i: it.i, d: 1 });
+        nm.onclick = () => manda({ t: 'menu-item', i: it.i, d: 1 });
+        li.append(menos, nm, mais);
+      } else { nm.onclick = () => { manda({ t: 'menu-item', i: it.i, d: 0 }); $('#modo-controle .mc-menu').hidden = true; }; li.append(nm); }
+      lista.appendChild(li);
+    }
+  }
   // pede o jogo ao PC e responde a oferta de vídeo dele; tudo pelo canal "jogo" da rede (cifrado)
   function conectarAoPc(m, pcId, jogo) {
     const pcNome = (rede.aparelhos.find((a) => a.id === pcId) || {}).nome || 'PC';
@@ -20096,7 +20244,8 @@ if (window.KOFnes) KOFnes.transmissao = () => ({ ligada: transmitindo(), estado:
           if (typeof ev.data !== 'string') return;
           if (ev.data[0] === 'P') { const ms = Math.round(performance.now() - +ev.data.slice(1)); const el = $('#modo-controle .mc-ping'); if (el) el.textContent = '📶 ' + ms + ' ms'; return; }
           let j; try { j = JSON.parse(ev.data); } catch (x) { return; }
-          if (j.t === 'feito') { avisar(j.a === 'salvar-estado' ? '💾 estado salvo no PC' : '📂 último estado carregado', 2500); return; }
+          if (j.t === 'menu') { desenharMenuRemoto(j.itens || []); return; }
+          if (j.t === 'feito') { avisar(j.a === 'salvar-estado' ? '💾 estado salvo no PC' : j.a === 'carregar-ultimo' ? '📂 último estado carregado' : j.a === 'home' ? '🏠 Início do PC' : '✅ ' + j.a, 2500); return; }
           if (j.t === 'jogo') { const k = j.sis + '\t' + j.nome; if (k !== m.jogo) { m.jogo = k; consoleDoControle(j.sis, j.nome); } }
         };
         dc.onclose = () => { if (modoControle === m) { avisar('🖥 a conexão com o PC caiu', 5000); sairModoControle(); } };
@@ -20136,7 +20285,7 @@ if (window.KOFnes) KOFnes.transmissao = () => ({ ligada: transmitindo(), estado:
   }
   function enviarControle() {
     const m = modoControle; if (!m) return;
-    const b = estado() | (performance.now() - (m.menu || 0) < 150 ? 0x3000 : 0), e16 = [eixosToque[0], eixosToque[1], 0, 0].map((v) => (Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767)));
+    const b = estado() | (m.extra || 0) | (performance.now() - (m.menu || 0) < 150 ? 0x3000 : 0), e16 = [eixosToque[0], eixosToque[1], 0, 0].map((v) => (Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767)));
     const e = KofLibretro.empacotar(e16), agora = performance.now();
     if (m.pc) {   // 🖥 Jogar no PC: os 6 bytes vão pelo canal de dados do WebRTC (sem fila: botão velho não serve)
       const dc = m.dc; if (!dc || dc.readyState !== 'open') return;
@@ -20174,6 +20323,12 @@ if (window.KOFnes) KOFnes.transmissao = () => ({ ligada: transmitindo(), estado:
     jogando = false; atualizarJogando();
   }
   window.entrarModoControle = entrarModoControle;
+  // resposta dos atalhos 💾 📂 no celular como controle (chega pela rede)
+  rede.ouvintes.push((msg) => {
+    if (msg.t !== 'msg' || msg.canal !== 'jogo' || !modoControle || modoControle.pc) return;
+    let p; try { p = JSON.parse(msg.dados); } catch (e) { return; }
+    if (p.t === 'feito') avisar(p.a === 'salvar-estado' ? '💾 estado salvo no PC' : p.a === 'carregar-ultimo' ? '📂 último estado carregado' : '🏠 Início do PC', 2500);
+  });
 
   // ----- voltar do Android: no jogo abre o menu rápido; nas telas, volta -----
   history.pushState({ kofnes: 1 }, '');
