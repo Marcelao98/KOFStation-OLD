@@ -36,6 +36,14 @@ A história contada fica no [HISTORICO.md](../HISTORICO.md) e a engenharia em [a
 4. **Versão comercial** (ideia): trocar os núcleos não comerciais (Snes9x, Genesis Plus GX, FBNeo) por Geolith, ares, Gearsystem/BlastEm ou o núcleo Kof.
 5. **Kof aos poucos:** reescrever consoles em Kof um por vez (Game Boy → NES → Master System...), usando o núcleo libretro como gabarito.
 
+## Consoles novos (ordem combinada em 26/10)
+
+1. **PSP** (PPSSPP): PC pelo kofnativo, celular nativo, sem BIOS.
+2. **Nintendo DS** (melonDS): navegador e celular, tela de toque.
+3. **Portáteis leves** (Neo Geo Pocket, WonderSwan, Lynx, Virtual Boy): núcleos pequenos no navegador.
+4. Depois: GameCube/Wii (Dolphin pelo kofnativo), PC Engine, Sega CD, Dreamcast.
+5. **Bem depois: PS3 e Switch.** Não existe núcleo libretro deles, exigem um PC forte e precisam de firmware e chaves do console. O do Switch ainda tem risco jurídico: a Nintendo processou os autores do Yuzu em 2024. Por enquanto, só ideia.
+
 ## Bugs conhecidos
 
 - Mega Man X: defeito gráfico na parte de baixo da tela (núcleo Kof).
