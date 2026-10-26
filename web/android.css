@@ -373,3 +373,15 @@ html.celular body:is([data-sis="gb"], [data-sis="gba"]) #ctl.skin-classico :is([
 body.modo-controle #ctl [data-b="turbo"], body.modo-controle #ctl [data-b="rew"] { display: none; }   /* sem jogo aqui: turbo e rebobinar não servem; o ☰ abre o menu do PC */
 /* modo de jogo: Raiz não rebobina; Hardcore não rebobina nem acelera */
 body[data-modo="raiz"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [data-b="turbo"] { visibility: hidden; }
+
+/* 🖥 Jogar no PC: a imagem que o PC transmite no lugar da telinha */
+#modo-controle .mc-video { display: none; }
+#modo-controle.remoto { padding: 0; }
+#modo-controle.remoto .mc-tela, #modo-controle.remoto .mc-parear, #modo-controle.remoto .mc-info { display: none; }
+#modo-controle.remoto .mc-video { display: block; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; image-rendering: pixelated; }
+#modo-controle.remoto .mc-barra { z-index: 2; opacity: .85; }
+#modo-controle .mc-ping { position: absolute; right: 10px; bottom: 6px; z-index: 2; font-size: 11px; color: #fff; text-shadow: 0 0 4px #000; }
+#modo-controle .mc-menu { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: rgb(0 0 0 / .72); }
+#modo-controle .mc-menu[hidden] { display: none; }
+#modo-controle .mc-menu button { width: min(80%, 320px); padding: 12px; border-radius: 12px; background: var(--painel); border: 1px solid var(--borda); font-size: 16px; }

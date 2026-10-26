@@ -100,7 +100,7 @@ function tamanhoTela(l, a) {
 }
 // novo = chegou um quadro novo (troca de textura: a outra vira o "quadro anterior"); sem isso, só redesenha
 function pintar(novo) {
-  if (!gl) { ctx.putImageData(img, 0, 0); return; }
+  if (!gl) { ctx.putImageData(img, 0, 0); if (novo && typeof transm !== 'undefined' && transm.pc) transmitirQuadro(); return; }
   if (novo) glVez ^= 1;
   gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, glTex[glVez ^ 1]);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, glTex[glVez]);
@@ -108,6 +108,7 @@ function pintar(novo) {
   const agora = performance.now(), liga = visual.v.ligarTv > 0.5 ? Math.min(1, (agora - ligaIni) / 650) : 1;
   gl.uniform4f(glU.u, (agora / 1000) % 1000, divisao, liga, pausado && snes && !rapidoAberto && telaAtual() === 'jogo' ? 1 : 0);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  if (novo && typeof transm !== 'undefined' && transm.pc) transmitirQuadro();   // 🖥 jogando pelo celular (jogarpc.js)
   if (novo && glConferir > 0 && !glRuins.has(glChave)) conferirTela();
 }
 // alguns drivers de celular "compilam" o shader grande mas desenham preto: nos primeiros quadros com imagem, lê uns pixels
@@ -2400,6 +2401,7 @@ let modoPerguntado = { id: null, quando: 0 };
 function perguntarModo() {
   aplicarModo();
   if (ler('modoPerguntar') === '0') return;
+  if (window.__kofRemoto) return;   // aberto pelo celular (🖥 Jogar no PC): ninguém está olhando a tela do PC
   if (navigator.webdriver && !window.__kofModo) return;   // testes automáticos: só o teste dos modos quer ver a escolha
   if (modoPerguntado.id === jogoId && Date.now() - modoPerguntado.quando < 10000) return;   // o mesmo jogo reaberto logo em seguida (troca de núcleo, estado)
   modoPerguntado = { id: jogoId, quando: Date.now() };
@@ -3372,7 +3374,7 @@ setInterval(() => {
 // ---------------- pausa ao sair da janela ----------------
 // só despausa na volta se quem pausou foi a saída (pausa manual continua)
 let pausaAuto = ler('pausaAuto') !== '0', pausadoPorSair = false;
-function sair() { if (pausaAuto && snes && !pausado) { pausado = true; pausadoPorSair = true; } }
+function sair() { if (typeof transm !== 'undefined' && transm.pc) return; if (pausaAuto && snes && !pausado) { pausado = true; pausadoPorSair = true; } }
 // (não pode chamar "voltar": esse nome é o do histórico de telas, e ele ganhava deste — por isso
 // tirar print ou trocar de janela jogava a pessoa pro jogo)
 function retomarAoVoltar() { if (pausadoPorSair) { pausadoPorSair = false; if (!rapidoAberto) { pausado = false; sobra = 0; } } }

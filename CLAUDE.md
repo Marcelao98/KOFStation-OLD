@@ -17,6 +17,18 @@
   `celular.cjs` (Rede.java ↔ kofservico; precisa do org.json do Maven), `testes/navegador/aparelhos.cjs` (as duas páginas).
   Próximo: o Marcelo testar (precisa publicar + APK novo), depois etapa 2 (Saves/Config em arquivo + sync) e 3 (jogar no
   celular com o PC processando, WebRTC). A API local por canais é o módulo reaproveitável (outros apps / Rust / servidor depois).
+- **🖥 JOGAR NO PC (branch `jogar-no-pc`, 26/10, NÃO publicada; etapa 3 da rede):** `web/jogarpc.js` (PC, entra no app.js depois
+  do rede.js): o celular pede pelo canal `jogo` da rede (`pedir {jogo: crc/arquivo/nome/sistema}` → o PC acha na biblioteca
+  pelo CRC/nome e abre sem perguntar o modo, `window.__kofRemoto`), `oferta`/`resposta` (SDP inteiro, sem trickle; `.local`
+  trocado pelo IP que a rede conhece, `trocarLocal`), `fim`, `erro`. Vídeo = `img` cru ampliado em pixels inteiros num canvas
+  2D (`captureStream(0)` + `requestFrame` no `pintar`), H.264 preferido, 12 Mbps, maintain-framerate; som = `no` →
+  MediaStreamDestination (o PC fica mudo enquanto transmite); canal de dados `botoes` sem fila: 6 bytes → `remoto.bits/eixos`,
+  ping `p<t>`/`P<t>`, `{t:'acao', a: salvar-estado|carregar-ultimo}`, `{t:'jogo', sis, nome}` pro controle trocar. Pausa ao sair
+  da janela desligada enquanto transmite. Celular (android.js): `entrarModoControle({pc, jogo})` = o modo controle com
+  `<video>` no lugar da telinha (`#modo-controle.remoto`), ☰ abre menu do celular (salvar/carregar no PC, sair); entradas: botão
+  "🎮 Jogar no PC" no PC online da tela Aparelhos e "🖥 Jogar no PC" na ficha da biblioteca (`acao jogar-pc`). Sem mudança no
+  Java (CASCA continua 14). Teste: `testes/navegador/jogar-no-pc.cjs` (ROM de Mega Drive vermelha gerada; confere cor, som,
+  botão, ping, menu, sair). Falta: filtro/moldura do celular por cima do vídeo, tela deitada, qualidade no menu, PS2.
 - **Aberto / a fazer, nesta ordem:**
   0. **ATUALIZAÇÃO 25/10 (última mensagem do chat): o Marcelo disse "deu certo, muito foda"** logo depois de receber as
      instruções do controle: tudo indica que o **celular como controle conectou**. Confirmar com ele no começo do chat novo

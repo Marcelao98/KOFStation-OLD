@@ -30,7 +30,8 @@ function redeEvento(m) {
     if (el) el.textContent = !rede.aparelhos.length ? 'parear o celular com o PC'
       : on.length ? '🟢 conectado: ' + on.map((a) => a.nome).join(', ') : `${rede.aparelhos.length} pareado(s), nenhum na rede agora`;
   }
-  for (const f of rede.ouvintes) try { f(m); } catch (e) { console.warn(e); }
+  if (m.t === 'lista') { const b = $('[data-acao="jogar-pc"]'); if (b) b.hidden = !(CELULAR && pcOnline()); }
+  for (const f of rede.ouvintes.slice()) try { f(m); } catch (e) { console.warn(e); }
   if (!$('#aparelhos').hidden) desenharAparelhos();
 }
 window.__rede = redeEvento;
@@ -66,7 +67,13 @@ function desenharAparelhos() {
     s.append(b, sm);
     const rm = document.createElement('button'); rm.className = 'grande sec'; rm.textContent = 'Remover';
     rm.onclick = () => { if (confirm(`Remover ${a.nome}? Pra voltar, precisa parear de novo.`)) redeMandar({ t: 'remover', id: a.id }); };
-    li.append(s, rm); ul.appendChild(li);
+    li.append(s);
+    if (CELULAR && a.online && a.tipo === 'pc') {   // 🖥 Jogar no PC: o jogo que estiver aberto lá (ou escolha na ficha)
+      const j = document.createElement('button'); j.className = 'grande'; j.textContent = '🎮 Jogar no PC';
+      j.onclick = () => { fecharAparelhos(); window.entrarModoControle({ pc: a.id }); };
+      li.append(j);
+    }
+    li.append(rm); ul.appendChild(li);
   }
   $('#ap-vazio').hidden = rede.aparelhos.length > 0;
   // PCs achados na rede (pra parear pelo código, sem câmera)
@@ -167,8 +174,17 @@ function pararCamera() {
   const c = $('#ap-camera'); if (c) c.hidden = true;
 }
 $('#ap-nome').addEventListener('change', (e) => { const n = e.target.value.trim(); if (n) redeMandar({ t: 'nome', nome: n }); });
+const pcOnline = () => rede.aparelhos.find((a) => a.online && a.tipo === 'pc');
 function acaoRede(a) {
   switch (a) {
+    case 'jogar-pc': {   // ficha do jogo no celular: o PC abre o mesmo jogo (pela ROM) e transmite
+      const pc = pcOnline(), r = visiveis[selecionada];
+      if (!pc) { avisar('🖥 nenhum PC pareado na rede agora', 4000); return true; }
+      if (!r || !r.jogo) { avisar('🖥 escolha um jogo da biblioteca', 4000); return true; }
+      const j = r.jogo;
+      window.entrarModoControle({ pc: pc.id, jogo: { crc: j.crc || '', arquivo: j.arquivo || '', nome: j.nome || '', sistema: j.sistema || 'snes' } });
+      return true;
+    }
     case 'aparelhos': abrirAparelhos(); return true;
     case 'aparelhos-fechar': fecharAparelhos(); return true;
     case 'ap-parear': apMsg(''); redeMandar({ t: 'parear' }); return true;

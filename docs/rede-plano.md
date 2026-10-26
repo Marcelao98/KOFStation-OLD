@@ -128,5 +128,5 @@ precisar de IP e senha.
 |---|---|---|---|
 | 1 ✅ (branch `rede`, 26/10) | kofservico + achar na rede + pareamento QR/código + tela Aparelhos (APK novo: câmera, CASCA 14) | dois navegadores + kofservico + o lado do celular em Java/JNI no Linux (como o teste do controle) | parear o celular com o PC |
 | 2 | Saves/Config em arquivo + sincronização | duas pastas Kof Games de teste, conflitos, apagar, arquivo grande | jogar no PC, continuar o save no celular |
-| 3 | Jogar no celular pelo PC (vídeo, som, botões, qualidade, reconectar) | dois navegadores com WebRTC na mesma máquina, atraso medido pelo ping | jogar no celular com o PC processando |
+| 3 ✅ (branch `jogar-no-pc`, 26/10) | Jogar no celular pelo PC (vídeo, som, botões, qualidade, reconectar) | dois navegadores com WebRTC na mesma máquina, atraso medido pelo ping | jogar no celular com o PC processando |
 | 4 | depois: TV box/outro PC como aparelho, controle no canal novo, jogar fora de casa (precisa de servidor na internet: outra conversa) | | |
