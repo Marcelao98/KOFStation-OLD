@@ -10,7 +10,7 @@
 # Os núcleos (Game Boy, NES, Sega...) moram em nucleos/<núcleo>-<hash>.js; o versao.txt lista cada um
 # ("nucleo=<arquivo>:<tamanho>") e o que falta é baixado antes de trocar o html. Um "fonte.txt" do lado
 # do script (ou KOFNES_URL) troca o endereço de onde baixa (pra testar uma branch).
-LANCADOR=9
+LANCADOR=10
 BASE="${KOFNES_URL:-https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/publicado}"
 
 eu="$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")"
@@ -111,7 +111,7 @@ atualizar() {
     for linha in $(sed -n 's/^nativo_linux=\([A-Za-z0-9._-]*:[0-9][0-9]*\).*/\1/p' "$dir/versao.txt.novo"); do
         n="${linha%%:*}"; t="${linha##*:}"
         [ "$(tamanho "$dir/nativo/$n")" = "$t" ] && continue
-        echo "Baixando o PCSX2 (PS2) pela primeira vez: $n..."
+        echo "Baixando $n (PS2 nativo / rede entre aparelhos)..."
         if baixar "nativo/$n" "$dir/nativo/$n.novo" 600 && [ "$(tamanho "$dir/nativo/$n.novo")" = "$t" ]; then
             mv -f "$dir/nativo/$n.novo" "$dir/nativo/$n" && anotar "nativo $n baixado ($t bytes)"
         else
@@ -226,6 +226,19 @@ if [ -n "$kof" ] && [ -n "$nuc" ] && [ "$(uname -m)" = x86_64 ]; then
     fi
 fi
 
+# rede entre aparelhos (📡 Aparelhos, rede/kofservico.c): fica de pé enquanto o KOFstation estiver aberto
+redpid=""
+ks="$(ls "$dir"/nativo/kofservico-* 2>/dev/null | grep -v '\.exe$' | head -n 1)"
+if [ -n "$ks" ] && [ "$(uname -m)" = x86_64 ]; then
+    chmod +x "$ks" 2>/dev/null
+    velhos="$(ps -eo pid,comm 2>/dev/null | awk '$2 ~ /^kofservico/ {print $1}')"
+    if [ -n "$velhos" ]; then kill $velhos 2>/dev/null; sleep 1; anotar "kofservico antigo fechado ($velhos)"; fi
+    rd="$dados/KOFnes/rede"; mkdir -p "$rd"
+    [ -f "$rd/kofservico.log" ] && mv -f "$rd/kofservico.log" "$rd/kofservico.log.1"
+    "$ks" --pasta "$rd" >"$rd/kofservico.log" 2>&1 &
+    redpid=$!; anotar "rede entre aparelhos aberta ($(basename "$ks"))"
+fi
+
 # a rede local liberada é pro celular como controle (a página do arquivo falando com ws://192.168...); só vale nesta janela.
 # SharedArrayBuffer: o PS2 (Play!) usa threads do WebAssembly, que numa página file:// só existem com essa opção.
 # Sem "segundo plano lento": com a janela do PCSX2 na frente, a página continua repassando o celular como controle
@@ -239,5 +252,6 @@ if [ -n "$flat" ]; then
 else
     "$nav" --user-data-dir="$perfil" "$@"
 fi
+[ -n "$redpid" ] && kill "$redpid" 2>/dev/null
 if [ -n "$natpid" ]; then rm -f "$nd/.ligado"; kill "$(cat "$nd/.pid" 2>/dev/null)" 2>/dev/null; kill "$natpid" 2>/dev/null; fi
 exit 0

@@ -35,7 +35,7 @@
 #include <time.h>
 #include <tlhelp32.h>
 
-#define LANCADOR 12
+#define LANCADOR 13
 #define GITHUB L"raw.githubusercontent.com"
 #define MAX_NUCLEOS 32
 #ifndef WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY
@@ -458,16 +458,18 @@ static int acharNativo(const wchar_t *dir, const wchar_t *padrao, wchar_t *saida
     swprintf(saida, MAX_PATH, L"%ls\\nativo\\%ls", dir, d.cFileName); FindClose(h); return 1;
 }
 // kofnativo de uma sessão anterior que ficou aberto seguraria a porta 8643 (e a página falaria com ele)
-static void fecharKofnativosVelhos(void) {
+// (o kofservico da rede também: seguraria as portas 8644/8650)
+static void fecharVelhos(const wchar_t *prefixo) {
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0); if (snap == INVALID_HANDLE_VALUE) return;
     PROCESSENTRY32W e; e.dwSize = sizeof e;
     for (BOOL ok = Process32FirstW(snap, &e); ok; ok = Process32NextW(snap, &e))
-        if (_wcsnicmp(e.szExeFile, L"kofnativo", 9) == 0) {
+        if (_wcsnicmp(e.szExeFile, prefixo, wcslen(prefixo)) == 0) {
             HANDLE p = OpenProcess(PROCESS_TERMINATE, FALSE, e.th32ProcessID);
-            if (p) { TerminateProcess(p, 0); CloseHandle(p); anotar("kofnativo antigo fechado (%lu)", e.th32ProcessID); }
+            if (p) { TerminateProcess(p, 0); CloseHandle(p); anotar("%ls antigo fechado (%lu)", prefixo, e.th32ProcessID); }
         }
     CloseHandle(snap);
 }
+static void fecharKofnativosVelhos(void) { fecharVelhos(L"kofnativo"); }
 static HANDLE trabalhoNativo;   // job: se o lançador cair, o kofnativo cai junto
 static HANDLE abrirNativo(const wchar_t *exe, const wchar_t *dll, const wchar_t *dados) {
     wchar_t log[MAX_PATH], log1[MAX_PATH], linha[MAX_PATH * 3];
@@ -492,6 +494,33 @@ static HANDLE abrirNativo(const wchar_t *exe, const wchar_t *dll, const wchar_t 
     AssignProcessToJobObject(trabalhoNativo, pi.hProcess);
     CloseHandle(pi.hThread);
     anotar("PCSX2 nativo aberto");
+    return pi.hProcess;
+}
+
+// rede entre aparelhos (📡 Aparelhos): o kofservico fica de pé enquanto a janela do KOFstation estiver aberta
+static HANDLE abrirRede(const wchar_t *exe, const wchar_t *dados) {
+    wchar_t log[MAX_PATH], log1[MAX_PATH], linha[MAX_PATH * 3];
+    CreateDirectoryW(dados, NULL);
+    swprintf(log, MAX_PATH, L"%ls\\kofservico.log", dados); swprintf(log1, MAX_PATH, L"%ls\\kofservico.log.1", dados);
+    MoveFileExW(log, log1, MOVEFILE_REPLACE_EXISTING);
+    SECURITY_ATTRIBUTES sa = { sizeof sa, NULL, TRUE };
+    HANDLE arq = CreateFileW(log, GENERIC_WRITE, FILE_SHARE_READ, &sa, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    STARTUPINFOW si; ZeroMemory(&si, sizeof si); si.cb = sizeof si;
+    if (arq != INVALID_HANDLE_VALUE) { si.dwFlags = STARTF_USESTDHANDLES; si.hStdOutput = si.hStdError = arq; si.hStdInput = NULL; }
+    swprintf(linha, MAX_PATH * 3, L"\"%ls\" --pasta \"%ls\"", exe, dados);
+    PROCESS_INFORMATION pi;
+    BOOL ok = CreateProcessW(exe, linha, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, dados, &si, &pi);
+    if (arq != INVALID_HANDLE_VALUE) CloseHandle(arq);
+    if (!ok) { anotar("não consegui abrir o kofservico (erro %lu)", GetLastError()); return NULL; }
+    if (!trabalhoNativo) {
+        trabalhoNativo = CreateJobObjectW(NULL, NULL);
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION li; ZeroMemory(&li, sizeof li);
+        li.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        SetInformationJobObject(trabalhoNativo, JobObjectExtendedLimitInformation, &li, sizeof li);
+    }
+    AssignProcessToJobObject(trabalhoNativo, pi.hProcess);
+    CloseHandle(pi.hThread);
+    anotar("rede entre aparelhos aberta");
     return pi.hProcess;
 }
 
@@ -588,6 +617,14 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
         fecharKofnativosVelhos();
         nat = abrirNativo(natExe, natDll, natDados);
     }
+    wchar_t redExe[MAX_PATH], redDados[MAX_PATH];
+    HANDLE red = NULL;
+    if (acharNativo(dir, L"kofservico-*.exe", redExe)) {
+        if (!GetEnvironmentVariableW(L"LOCALAPPDATA", redDados, MAX_PATH)) wcscpy(redDados, dir);
+        wcscat(redDados, L"\\KOFnes"); CreateDirectoryW(redDados, NULL); wcscat(redDados, L"\\rede");
+        fecharVelhos(L"kofservico");
+        red = abrirRede(redExe, redDados);
+    }
     HANDLE navProc = NULL;
     int achou = acharNavegador(L"msedge.exe", nav, MAX_PATH);
     if (!achou) {
@@ -648,7 +685,8 @@ int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, PWSTR cmd, int show) {
             nat = abrirNativo(natExe, natDll, natDados); if (!nat) break;
         }
         if (nat) { TerminateProcess(nat, 0); CloseHandle(nat); }
-    }
+    } else if (red && navProc) WaitForSingleObject(navProc, INFINITE);
+    if (red) { TerminateProcess(red, 0); CloseHandle(red); }
     if (navProc) CloseHandle(navProc);
     if (registro) fclose(registro);
     return 0;

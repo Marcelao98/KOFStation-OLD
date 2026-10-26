@@ -22,8 +22,8 @@ O kofservico é **separado do kofnativo (PCSX2)** de propósito: se o PS2 travar
 ### Bibliotecas (todas pequenas, de código aberto e sem nada a instalar)
 - **Monocypher** (C, um arquivo, BSD-2 / domínio público): X25519 (troca de chaves), XChaCha20-Poly1305 (cifra) e
   BLAKE2b (hash dos arquivos).
-- **mdns.h** (C, um arquivo, domínio público, Linux e Windows): o PC aparece na rede como `_kofstation._tcp`,
-  igual a impressora e Chromecast. O celular procura pelo **NsdManager**, que já vem no Android.
+- **Achar na rede:** pergunta por broadcast UDP na porta 8650 (`KOFR?kofstation`), como o Steam Link. Ficou no lugar do
+  mDNS, que no Linux e no Windows briga pela porta 5353 com o Avahi e com o serviço do próprio Windows.
 - **qrcode-generator** (JS, MIT): o PC desenha o QR.
 - **jsQR** (JS, Apache-2): o celular lê o QR pela câmera (getUserMedia na WebView).
 - **WebRTC** (já vem no Chrome, Edge e na WebView): vídeo, som e o canal dos botões.
@@ -42,7 +42,7 @@ Os dois guardam a chave pública do outro: daí em diante se reconhecem sozinhos
   canal cifrado com XChaCha20-Poly1305. É o mesmo desenho do Noise/WireGuard: ninguém na rede lê nem finge ser um
   dos aparelhos.
 - **Só rede de casa:** o kofservico recusa conexão de endereço que não seja de rede local (192.168, 10, 172.16-31).
-- **Rede:** porta **8650/TCP** (se estiver ocupada, a próxima livre; o anúncio diz qual) e **5353/UDP** (mDNS). O
+- **Rede:** porta **8650/TCP** (se estiver ocupada, a próxima livre; o anúncio diz qual) e **8650/UDP** (achar). O
   kofnativo continua só em 127.0.0.1:8643. No Windows o firewall pergunta uma vez.
 - **Reserva:** se o mDNS estiver bloqueado na rede, dá pra digitar o IP.
 
@@ -115,8 +115,9 @@ voltar, qualidade, salvar estado no PC, sair.
 | Sincronização | automática (sim/não) e o que vai (Saves, Estados, Estatísticas, Configurações, BIOS, Jogos por console) |
 | Transmissão | qualidade (auto/alta/média/baixa), ampliação (2x/3x), som no PC durante a transmissão |
 
-Arquivos: `Config/local/aparelho.json` (id, nome, chaves; a privada nunca sai do aparelho),
-`Config/local/pareados.json`, `Config/local/sync/<aparelho>.json` (a base de cada par) e `Config/rede.json`.
+Arquivos: a identidade e os pareados ficam **fora da pasta Kof Games**: no PC em `~/.local/share/KOFnes/rede/` ou
+`%LOCALAPPDATA%\KOFnes\rede\` (`identidade.bin`, `pareados.txt`, `config.txt`), e no celular nas preferências do app.
+Assim, copiar a pasta Kof Games pra outro PC não copia a identidade. A base do sync de cada par fica junto (etapa 2).
 
 O **celular como controle** de hoje continua funcionando como está. Depois ele passa pro canal novo e deixa de
 precisar de IP e senha.
@@ -125,7 +126,7 @@ precisar de IP e senha.
 
 | Etapa | Entrega | Teste aqui | O Marcelo testa |
 |---|---|---|---|
-| 1 | kofservico + mDNS + pareamento QR/código + tela Aparelhos (APK novo: câmera) | dois navegadores + kofservico + o lado do celular em Java/JNI no Linux (como o teste do controle) | parear o celular com o PC |
+| 1 ✅ (branch `rede`, 26/10) | kofservico + achar na rede + pareamento QR/código + tela Aparelhos (APK novo: câmera, CASCA 14) | dois navegadores + kofservico + o lado do celular em Java/JNI no Linux (como o teste do controle) | parear o celular com o PC |
 | 2 | Saves/Config em arquivo + sincronização | duas pastas Kof Games de teste, conflitos, apagar, arquivo grande | jogar no PC, continuar o save no celular |
 | 3 | Jogar no celular pelo PC (vídeo, som, botões, qualidade, reconectar) | dois navegadores com WebRTC na mesma máquina, atraso medido pelo ping | jogar no celular com o PC processando |
 | 4 | depois: TV box/outro PC como aparelho, controle no canal novo, jogar fora de casa (precisa de servidor na internet: outra conversa) | | |

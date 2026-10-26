@@ -8,6 +8,15 @@ AQUI="$(cd "$(dirname "$0")" && pwd)"
 RAIZ="$(dirname "$AQUI")"
 "${COMPILAR:-$AQUI/compilar.sh}"   # COMPILAR=web/compilar-sem-kof.sh: sem o compilador Kof (núcleos iguais aos publicados)
 mkdir -p "$RAIZ/publicado"
+# os nativos já publicados ficam guardados: sem a saída compilada aqui (container novo), a publicação mantém os de antes
+ANTIGAS="$(grep '^nativo_' "$RAIZ/publicado/versao.txt" 2>/dev/null || true)"
+GUARDA="$(mktemp -d)"; trap 'rm -rf "$GUARDA"' EXIT
+cp -a "$RAIZ/publicado/nativo/." "$GUARDA/" 2>/dev/null || true
+manter() {   # manter <nativo_linux|nativo_windows> <prefixo do arquivo>: repõe o que estava publicado
+  printf '%s\n' "$ANTIGAS" | grep "^$1=$2-" | while IFS= read -r l; do
+    f="${l#*=}"; f="${f%%:*}"; [ -f "$GUARDA/$f" ] && cp "$GUARDA/$f" "$RAIZ/publicado/nativo/" && printf '%s\n' "$l" >> "$RAIZ/publicado/versao.txt"
+  done
+}
 cp "$RAIZ/dist/web/KOFnes.html" "$RAIZ/dist/web/KOFstation.exe" "$RAIZ/dist/web/kofnes.sh" "$RAIZ/dist/web/versao.txt" "$RAIZ/publicado/"
 # o lançador 6+ baixa KOFstation.*; os lançadores antigos (KOFnes.exe 5) e o kofnes.sh ainda baixam KOFnes.*: vão os dois nomes
 cp "$RAIZ/dist/web/KOFnes.html" "$RAIZ/publicado/KOFstation.html"
@@ -25,6 +34,7 @@ if [ -f "$RAIZ/pc-nativo/saida/kofnativo" ] && [ -f "$RAIZ/pc-nativo/saida/pcsx2
   n="pcsx2_libretro-$(sha256sum "$RAIZ/publicado/nativo/nucleo.gz" | cut -c1-8).so.gz"
   mv "$RAIZ/publicado/nativo/nucleo.gz" "$RAIZ/publicado/nativo/$n"
   for f in "$k" "$n"; do printf 'nativo_linux=%s:%s\n' "$f" "$(stat -c %s "$RAIZ/publicado/nativo/$f")" >> "$RAIZ/publicado/versao.txt"; done
+else manter nativo_linux kofnativo; manter nativo_linux pcsx2_libretro
 fi
 # PS2 nativo do Windows (pc-nativo/construir-windows.sh): kofnativo.exe e pcsx2_libretro.dll sem comprimir (o Windows não
 # tem gzip à mão), com o hash no nome; o KOFstation.exe (lançador 12) baixa pelas linhas nativo_windows= pra nativo\
@@ -34,6 +44,15 @@ if [ -f "$RAIZ/pc-nativo/saida/kofnativo.exe" ] && [ -f "$RAIZ/pc-nativo/saida/p
   cp "$RAIZ/pc-nativo/saida/kofnativo.exe" "$RAIZ/publicado/nativo/$k"
   cp "$RAIZ/pc-nativo/saida/pcsx2_libretro.dll" "$RAIZ/publicado/nativo/$n"
   for f in "$k" "$n"; do printf 'nativo_windows=%s:%s\n' "$f" "$(stat -c %s "$RAIZ/publicado/nativo/$f")" >> "$RAIZ/publicado/versao.txt"; done
+else manter nativo_windows kofnativo; manter nativo_windows pcsx2_libretro
+fi
+# rede entre aparelhos (rede/construir.sh): o kofservico do Linux e do Windows, com o hash no nome; os lançadores (kofnes.sh
+# LANCADOR=10, KOFstation.exe 13) baixam junto com os outros nativos e abrem com o KOFstation
+if [ -f "$RAIZ/rede/saida/kofservico" ] && [ -f "$RAIZ/rede/saida/kofservico.exe" ]; then
+  k="kofservico-$(sha256sum "$RAIZ/rede/saida/kofservico" | cut -c1-8)"; w="kofservico-$(sha256sum "$RAIZ/rede/saida/kofservico.exe" | cut -c1-8).exe"
+  cp "$RAIZ/rede/saida/kofservico" "$RAIZ/publicado/nativo/$k"; cp "$RAIZ/rede/saida/kofservico.exe" "$RAIZ/publicado/nativo/$w"
+  printf 'nativo_linux=%s:%s\nnativo_windows=%s:%s\n' "$k" "$(stat -c %s "$RAIZ/publicado/nativo/$k")" "$w" "$(stat -c %s "$RAIZ/publicado/nativo/$w")" >> "$RAIZ/publicado/versao.txt"
+else manter nativo_linux kofservico; manter nativo_windows kofservico
 fi
 # celular (APK): a página do celular e todos os núcleos que ela usa (o Snes9x só existe lá); o app lê publicado/android/
 H="$RAIZ/dist/web/KOFnes-android.html"

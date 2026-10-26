@@ -5,6 +5,18 @@
   Na main: N64 (PC wasm + celular nativo), PS1 nativo, analógico (N64/PS1), saves no banco + backup `.kofsave`, celular
   como controle do PC, busca por gênero/empresa, pasta de ROMs no APK, painel de desempenho (F3), **SNES do PC = Snes9x**
   (Kof como opção em Emulação). Detalhes de cada um nas notas abaixo.
+- **REDE ENTRE APARELHOS (branch `rede`, 26/10, NÃO publicada; etapa 1 de 3 feita, plano em `docs/rede-plano.md`,
+  protocolo em `rede/PROTOCOLO.md`):** `rede/kofrede.c` = núcleo sem entrada/saída e sem libc (CPace com X25519+Elligator pra
+  parear pelo código de 6 números ou segredo do QR; 3DH pra conectar; XChaCha20-Poly1305; Monocypher em `rede/terceiros/`);
+  `rede/kofservico.c` = serviço do PC (Linux/Windows; TCP 8650 aparelhos, UDP 8650 achar, WS 127.0.0.1:8644 página; dados em
+  `~/.local/share/KOFnes/rede` ou `%LOCALAPPDATA%\KOFnes\rede`, fora da Kof Games); celular = `Rede.java` (mesmo JSON) +
+  `rede/jni.c` (`libkofrede.so`, `RedeNucleo.java`), ponte `KOFnesApk.redeCmd` / `window.__rede`, câmera (CASCA 14);
+  página = `web/rede.js` (tela `#aparelhos`, QR com `web/terceiros/qrcode.js`, leitura com jsQR em `nucleos/qr-<hash>.js`);
+  lançadores abrem o kofservico (kofnes.sh LANCADOR=10, exe 13); `publicar.sh` mantém os nativos já publicados se a saída
+  compilada não existir. `rede/construir.sh` compila tudo. Testes: `rede/teste/nucleo.c`, `servicos.cjs` (dois kofservico),
+  `celular.cjs` (Rede.java ↔ kofservico; precisa do org.json do Maven), `testes/navegador/aparelhos.cjs` (as duas páginas).
+  Próximo: o Marcelo testar (precisa publicar + APK novo), depois etapa 2 (Saves/Config em arquivo + sync) e 3 (jogar no
+  celular com o PC processando, WebRTC). A API local por canais é o módulo reaproveitável (outros apps / Rust / servidor depois).
 - **Aberto / a fazer, nesta ordem:**
   0. **ATUALIZAÇÃO 25/10 (última mensagem do chat): o Marcelo disse "deu certo, muito foda"** logo depois de receber as
      instruções do controle: tudo indica que o **celular como controle conectou**. Confirmar com ele no começo do chat novo
