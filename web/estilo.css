@@ -1597,3 +1597,5 @@ html.celular body.com-visual #palco { padding-right: 0; padding-bottom: 58vh; }
 #ap-camera { display: grid; gap: 8px; margin: 10px 0; }
 #ap-video { width: 100%; max-height: 50vh; border-radius: 10px; background: #000; object-fit: cover; }
 #ap-msg { padding: 8px 12px; border-radius: 8px; background: var(--painel2); border: 1px solid var(--borda); }
+.ap-fases { padding: 8px 12px; border-left: 3px solid var(--destaque); background: var(--painel2); border-radius: 6px; margin: 8px 0; }
+.ap-fases p { margin: 4px 0; }

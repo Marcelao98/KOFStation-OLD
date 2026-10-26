@@ -130,7 +130,7 @@
         <button data-acao="estatisticas"><i>📊</i><b>Estatísticas</b><small>quanto você jogou, e o quê</small></button>
         <button data-acao="temas"><i>🎨</i><b>Temas</b><small><span class="n-temas">28</span> jeitos de deixar com a sua cara</small></button>
         <button data-acao="guia"><i>📖</i><b>Guia</b><small>tudo que o KOFstation sabe fazer</small></button>
-        <button data-acao="aparelhos"><i>📡</i><b>Aparelhos</b><small>parear o celular com o PC</small></button>
+        <button data-acao="aparelhos"><i>📡</i><b>Aparelhos</b><small id="hm-aparelhos">parear o celular com o PC</small></button>
         <button data-acao="bios-tela"><i>🔑</i><b>BIOS</b><small id="hm-bios">guarde a BIOS dos consoles (PS2, Neo Geo...)</small></button>
       </div>
     </div>
@@ -370,6 +370,11 @@
     <div id="ap-com">
       <p>Pareie o celular com o PC uma vez e depois eles se acham sozinhos na mesma Wi-Fi. Nada passa pela internet: a
         conversa é cifrada e só aparelho pareado entra.</p>
+      <div class="ap-fases">
+        <p><b>✅ Já funciona:</b> parear e ver quais aparelhos estão conectados agora.</p>
+        <p><b>🔜 Próximas versões:</b> saves e estados sincronizando sozinhos entre os aparelhos, e jogar no celular com o
+          PC rodando o jogo. Os aparelhos que você parear agora já ficam prontos pra isso.</p>
+      </div>
       <label class="ap-nome">Nome deste aparelho <input id="ap-nome" maxlength="40"></label>
       <h3>Pareados</h3>
       <ul id="ap-lista" class="ap-lista"></ul>

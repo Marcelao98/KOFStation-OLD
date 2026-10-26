@@ -25,6 +25,11 @@ function redeEvento(m) {
   else if (m.t === 'parear-fim') { rede.janela = null; if (m.motivo) apMsg('⏱ Pareamento encerrado: ' + m.motivo); }
   else if (m.t === 'pareado') { rede.janela = null; pararCamera(); apMsg('✅ Pareado com ' + m.aparelho.nome); avisar('📡 Pareado com ' + m.aparelho.nome, 4000); }
   else if (m.t === 'par-erro') { apMsg('⚠ ' + m.texto); }
+  if (m.t === 'lista') {   // card do Início: quantos pareados e conectados
+    const el = $('#hm-aparelhos'), on = rede.aparelhos.filter((a) => a.online);
+    if (el) el.textContent = !rede.aparelhos.length ? 'parear o celular com o PC'
+      : on.length ? '🟢 conectado: ' + on.map((a) => a.nome).join(', ') : `${rede.aparelhos.length} pareado(s), nenhum na rede agora`;
+  }
   for (const f of rede.ouvintes) try { f(m); } catch (e) { console.warn(e); }
   if (!$('#aparelhos').hidden) desenharAparelhos();
 }
