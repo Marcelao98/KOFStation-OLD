@@ -44,7 +44,7 @@
   PC: menu rápido ganhou **📱 Levar pro celular** (`levarProCelular`: manda `{t:'levar'}` pro 1º celular online; o celular
   entra sozinho no `entrarModoControle({pc})`) e **📺 Voltar pra TV** (`pararTransmissao`); no celular o ☰ tem "📺 Voltar pra
   TV". Teste: `jogar-no-pc.cjs` (deitado, botão por cima, levar, voltar).
-- **🎛 IMAGEM PRO (26/10, publicado na main):** visual.js ganhou 10 ajustes no FIM da lista (`NOVOS`: ntsc, ntscTipo, ampliar,
+- **🎛 IMAGEM PRO (26/10, publicado na main; o Marcelo TESTOU: filtros novos, menu rápido e modos funcionando inclusive no PS2 em modo página):** visual.js ganhou 10 ajustes no FIM da lista (`NOVOS`: ntsc, ntscTipo, ampliar,
   nitidez, traco, bloom, bloomRaio, reflexo, sombra, refletiva; `NP` = 16 vec4) e 12 predefinições (trinitron, pvmpro, tubobarato,
   ntsc, svideo, pixelhd, tv4k, desenho, dmg, pocket, gbasemluz, gamegear; as antigas iguais), `CATEGORIAS`, `GRUPOS`, `custo(v)`.
   **Passadas** (`PASSOS` + `passos(v, L, A)`): `ntsc` (sinal composto de verdade, 4 subamostras/pixel, ciclo da cor = 2 pixels,
