@@ -229,16 +229,19 @@
       d.classList.add('remoto');
       d.insertAdjacentHTML('beforeend', '<video class="mc-video" playsinline autoplay></video><small class="mc-ping"></small>'
         + '<div class="mc-menu" hidden><div class="mc-menu-pc"></div>'
-        + '<div class="mc-item"><button data-r="voltar">▶ Voltar ao jogo</button></div><div class="mc-item"><button data-r="sair">📺 Voltar pra TV (o jogo continua no PC)</button></div></div>');
+        + '<div class="mc-item"><button data-r="filtro">🎛 Filtro e moldura do celular</button></div><div class="mc-item"><button data-r="visual">🖼 Escolher o filtro do celular…</button></div><div class="mc-item"><button data-r="voltar">▶ Voltar ao jogo</button></div><div class="mc-item"><button data-r="sair">📺 Voltar pra TV (o jogo continua no PC)</button></div></div>');
       d.querySelector('.mc-menu').addEventListener('click', (e) => {
         const r = e.target.closest('button') && e.target.closest('button').dataset.r; if (!r) return;
         fecharMenuRemoto();   // os itens do PC (sem data-r) mandam pelo canal de dados
         if (r === 'sair') sairModoControle();
+        else if (r === 'filtro' && modoControle) { modoControle.filtro = !modoControle.filtro; guardar('remotoFiltro', modoControle.filtro ? '1' : '0'); marcarFiltroRemoto(modoControle); }
+        else if (r === 'visual') abrirVisual();
       });
       d.querySelector('.mc-status').textContent = 'chamando o PC…';
     }
     document.body.appendChild(d);
     modoControle = { sisAntes: document.body.dataset.sis, b: -1, e: -1, quando: 0, visto: 0, n: -1, jogo: null, info: false, pc: pcId || null };
+    if (pcId) { modoControle.filtro = ler('remotoFiltro') !== '0'; marcarFiltroRemoto(modoControle); }
     document.body.classList.add('modo-controle', 'cel-jogo');
     consoleDoControle('', '');
     marcarModoControle();
@@ -255,6 +258,32 @@
     mandarJogo(pc.id, { t: "acao", a });   // mesmo canal "jogo": o PC responde "feito"
   }
   // ☰ no Jogar no PC: o menu rápido do PC aparece aqui (o PC manda os itens e os valores; o toque volta pra lá)
+  // 🎛 filtro do celular por cima do Jogar no PC: cada quadro do vídeo volta pro tamanho do jogo (o PC manda) e passa pelo
+  // mesmo desenho dos jogos daqui (filtro, moldura, proporção do celular). Desligado = o vídeo direto, sem nada
+  function puxarVideo(m, v) {
+    if (m.puxando) return; m.puxando = true;
+    const cv = document.createElement('canvas'), g = cv.getContext('2d', { willReadFrequently: true });
+    const vez = () => (v.requestVideoFrameCallback ? v.requestVideoFrameCallback(quadro) : requestAnimationFrame(quadro));
+    const quadro = () => {
+      if (modoControle !== m) return;
+      if (m.filtro && m.tam && v.videoWidth) {
+        const [l, a] = m.tam;
+        if (cv.width !== l || cv.height !== a) { cv.width = l; cv.height = a; }
+        g.imageSmoothingEnabled = false; g.drawImage(v, 0, 0, l, a);
+        if (telaL !== l || telaA !== a) { tamanhoTela(l, a); ajustarEscala(); }
+        bytesTela.set(g.getImageData(0, 0, l, a).data); pintar(true);
+      }
+      vez();
+    };
+    vez();
+  }
+  function marcarFiltroRemoto(m) {
+    const d = $('#modo-controle'); if (!d || !m.pc) return;
+    d.classList.toggle('filtrado', !!m.filtro); document.body.classList.toggle('remoto-filtro', !!m.filtro);
+    if (m.filtro) document.body.classList.remove('vazio'); else if (!snes) document.body.classList.add('vazio');
+    const b = d.querySelector('[data-r="filtro"]'); if (b) b.textContent = '🎛 Filtro e moldura do celular: ' + (m.filtro ? 'ligado' : 'desligado');
+    requestAnimationFrame(() => ajustarEscala());
+  }
   function menuRemoto() {
     const mm = $('#modo-controle .mc-menu'); if (!mm) return;
     if (!mm.hidden) { fecharMenuRemoto(); return; }
@@ -291,7 +320,7 @@
         try { e.receiver.playoutDelayHint = 0; } catch (x) { /* navegador antigo */ }
         try { e.receiver.jitterBufferTarget = 0; } catch (x) { /* navegador antigo */ }
         const v = $('#modo-controle .mc-video');
-        if (v && v.srcObject !== e.streams[0]) { v.srcObject = e.streams[0]; v.play().catch(() => {}); }
+        if (v && v.srcObject !== e.streams[0]) { v.srcObject = e.streams[0]; v.play().catch(() => {}); puxarVideo(m, v); }
       };
       pc.ondatachannel = (e) => {
         const dc = e.channel; dc.binaryType = 'arraybuffer'; m.dc = dc;
@@ -302,7 +331,7 @@
           let j; try { j = JSON.parse(ev.data); } catch (x) { return; }
           if (j.t === 'menu') { desenharMenuRemoto(j.itens || []); return; }
           if (j.t === 'feito') { avisar(j.a === 'salvar-estado' ? '💾 estado salvo no PC' : j.a === 'carregar-ultimo' ? '📂 último estado carregado' : j.a === 'home' ? '🏠 Início do PC' : '✅ ' + j.a, 2500); return; }
-          if (j.t === 'jogo') { const k = j.sis + '\t' + j.nome; if (k !== m.jogo) { m.jogo = k; consoleDoControle(j.sis, j.nome); } }
+          if (j.t === 'jogo') { if (j.l) m.tam = [j.l, j.a]; const k = j.sis + '\t' + j.nome; if (k !== m.jogo) { m.jogo = k; consoleDoControle(j.sis, j.nome); } }
         };
         dc.onclose = () => { if (modoControle === m) { avisar('🖥 a conexão com o PC caiu', 5000); sairModoControle(); } };
       };
@@ -371,7 +400,7 @@
       if (m.rtc) try { m.rtc.close(); } catch (x) { /* já fechada */ }
     } else try { KOFnesApk.controleParar(); } catch (x) { /* sem ponte */ }
     const d = $('#modo-controle'); if (d) d.remove();
-    document.body.classList.remove('modo-controle', 'cel-jogo'); document.body.classList.toggle('analogico', !!(snes && SIS[snes.sistema] && SIS[snes.sistema].analogico));
+    document.body.classList.remove('modo-controle', 'cel-jogo', 'remoto-filtro'); if (!snes) document.body.classList.add('vazio'); document.body.classList.toggle('analogico', !!(snes && SIS[snes.sistema] && SIS[snes.sistema].analogico));
     const sisJogo = snes ? snes.sistema || 'snes' : '';   // o controle volta a ser o do jogo deste celular
     document.body.classList.toggle('so-ab', !!(sisJogo && SIS[sisJogo] && SIS[sisJogo].botoes && !SIS[sisJogo].botoes.includes('X')));
     rotularControle(sisJogo);

@@ -493,15 +493,29 @@
   </section>
 
   <section id="visual" hidden>
-    <div class="titulo-j"><span>🎛 Imagem <small id="vis-nome" class="dica"></small></span><button class="x" data-acao="fechar-visual">×</button></div>
-    <div id="vis-pre"></div>
-    <label class="vis-linha"><input type="checkbox" id="vis-comparar"> Comparar antes | depois <small class="dica">(arraste na imagem)</small></label>
-    <div id="vis-ajustes"></div>
+    <div class="titulo-j"><span>🎛 Imagem <small id="vis-nome" class="dica"></small></span>
+      <span class="vis-modos"><button data-vis-modo="simples">Simples</button><button data-vis-modo="avancado">Avançado</button></span>
+      <button class="x" data-acao="fechar-visual">×</button></div>
+    <div class="vis-barra"><span id="vis-custo"></span><span id="vis-fps"></span>
+      <select id="vis-comparar" title="comparar com a imagem crua"><option value="0">Comparar: não</option><option value="1">Antes | depois (arraste)</option><option value="2">Piscar antes e depois</option></select></div>
+    <div id="vis-simples">
+      <div id="vis-cats" class="vis-chips"></div>
+      <div id="vis-pre"></div>
+      <div id="vis-rapidos"></div>
+    </div>
+    <div id="vis-avancado" hidden>
+      <input id="vis-busca" type="search" placeholder="🔎 procurar ajuste (brilho, linha, NTSC...)">
+      <div id="vis-grupos" class="vis-chips"></div>
+      <div id="vis-ajustes"></div>
+    </div>
     <div class="vis-botoes">
-      <button class="grande sec" data-acao="vis-salvar">💾 Salvar como meu jeito…</button>
+      <button class="grande sec" data-acao="vis-salvar">⭐ Salvar como meu jeito…</button>
       <button class="grande sec" data-acao="vis-zerar">↺ Voltar ao original</button>
+      <button class="grande sec" data-acao="vis-exportar">📤 Exportar estilo</button>
+      <button class="grande sec" data-acao="vis-importar">📥 Importar estilo</button>
     </div>
     <label class="vis-linha"><input type="checkbox" id="vis-porsis"> Lembrar um jeito pra cada console</label>
+    <label class="vis-linha"><input type="checkbox" id="vis-porjogo"> Lembrar um jeito só pra este jogo</label>
     <p class="dica so-pc">o jogo continua rodando: mexa e veja na hora · F4 abre e fecha</p>
   </section>
 

@@ -1499,12 +1499,43 @@ html:not(.celular) .so-cel { display: none !important; }   /* texto só do celul
 
 /* ---------------- painel de imagem (gaveta à direita; o jogo continua visível e rodando) ---------------- */
 #visual {
-  position: absolute; top: 0; right: 0; bottom: 0; width: min(390px, 92vw); z-index: 5; overflow-y: auto;
+  position: absolute; top: 0; right: 0; bottom: 0; width: min(440px, 94vw); z-index: 5; overflow-y: auto;
   background: var(--painel2); border-left: 1px solid var(--borda); box-shadow: var(--brilho); padding: 14px 16px; text-align: left;
 }
-body.com-visual #palco { padding-right: min(390px, 92vw); }
+body.com-visual #palco { padding-right: min(440px, 94vw); }
 #visual .titulo-j { display: flex; justify-content: space-between; align-items: center; font-weight: 700; margin-bottom: 10px; }
-#vis-pre { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 6px; margin-bottom: 10px; }
+#visual .titulo-j { gap: 8px; }
+.vis-modos { display: inline-flex; margin-left: auto; border: 1px solid var(--borda); border-radius: 999px; overflow: hidden; }
+.vis-modos button { padding: 4px 12px; background: none; border: 0; font-size: 12px; color: var(--fraco); }
+.vis-modos button.ativo { background: var(--destaque); color: var(--fundo, #000); font-weight: 700; }
+.vis-barra { display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--fraco); margin: -2px 0 10px; flex-wrap: wrap; }
+.vis-barra #vis-fps { font-variant-numeric: tabular-nums; }
+.vis-barra select { margin-left: auto; padding: 3px 6px; background: var(--painel); color: var(--texto); border: 1px solid var(--borda); border-radius: var(--raio); font-size: 12px; }
+.vis-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 8px; scrollbar-width: thin; }
+.vis-chips button { flex: none; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--borda); background: var(--painel); font-size: 12px; white-space: nowrap; }
+.vis-chips button.ativo { border-color: var(--destaque); background: color-mix(in srgb, var(--destaque) 22%, var(--painel)); font-weight: 700; }
+.vis-chips button i { font-style: normal; display: inline-block; min-width: 16px; padding: 0 4px; margin-left: 3px; border-radius: 8px; background: var(--destaque); color: var(--fundo, #000); font-size: 10px; text-align: center; }
+#vis-pre { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; margin-bottom: 12px; }
+#vis-pre .vis-card { display: flex; flex-direction: column; gap: 3px; padding: 5px; border-radius: 10px; border: 1px solid var(--borda); background: var(--painel); text-align: left; min-height: 0; }
+#vis-pre .vis-card canvas { width: 100%; height: auto; border-radius: 6px; background: #000; image-rendering: auto; }
+#vis-pre .vis-card b { font-size: 12px; line-height: 1.2; }
+#vis-pre .vis-card small { font-size: 10.5px; line-height: 1.25; color: var(--fraco); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#vis-pre .vis-card.ativo { border-color: var(--destaque); box-shadow: 0 0 0 2px var(--destaque); }
+#vis-pre .vis-card:hover { background: var(--sel); }
+#vis-rapidos { border-top: 1px solid var(--borda); padding-top: 8px; margin-bottom: 8px; }
+#vis-busca { width: 100%; padding: 7px 10px; margin-bottom: 8px; background: var(--painel); color: var(--texto); border: 1px solid var(--borda); border-radius: var(--raio); }
+.vis-gcab { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--fraco); margin: 2px 0 6px; }
+.vis-gcab button { padding: 3px 9px; font-size: 12px; border-radius: var(--raio); border: 1px solid var(--borda); background: var(--painel); }
+#vis-ajustes .vis-aj, #vis-rapidos .vis-aj { display: grid; grid-template-columns: 1fr auto auto; gap: 2px 8px; align-items: center; padding: 6px 8px; border-radius: 8px; font-size: 13px; }
+#vis-rapidos .vis-aj { grid-template-columns: 1fr auto; }
+#vis-ajustes .vis-aj.mudou { background: color-mix(in srgb, var(--destaque) 12%, transparent); }
+#vis-ajustes .vis-aj label, #vis-rapidos .vis-aj label { grid-column: 1; color: var(--texto); }
+.vis-aj .vis-val { font-variant-numeric: tabular-nums; color: var(--fraco); font-size: 12px; text-align: right; }
+.vis-aj .vis-zera { padding: 0 6px; border: 0; background: none; color: var(--fraco); visibility: hidden; }
+.vis-aj.mudou .vis-zera { visibility: visible; }
+.vis-aj input[type=range], .vis-aj select { grid-column: 1 / -1; }
+.vis-botoes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 8px 0; }
+.vis-botoes .grande { margin: 0; font-size: 13px; padding: 8px; }
 #vis-pre button {
   padding: 8px 6px; border-radius: var(--raio); border: 1px solid var(--borda); background: var(--painel);
   font-size: 12px; text-align: center; line-height: 1.2; min-height: 42px;
@@ -1513,15 +1544,11 @@ body.com-visual #palco { padding-right: min(390px, 92vw); }
 #vis-pre button.meu { border-style: dashed; }
 #vis-pre button:hover { background: var(--sel); }
 .vis-linha { display: flex; gap: 8px; align-items: center; margin: 8px 0; font-size: 13px; }
-#vis-ajustes details { border: 1px solid var(--borda); border-radius: var(--raio); margin: 6px 0; background: var(--painel); }
-#vis-ajustes summary { padding: 8px 10px; cursor: pointer; font-weight: 700; }
-#vis-ajustes summary small { font-weight: 400; color: var(--fraco); margin-left: 6px; }
 .vis-aj { display: grid; grid-template-columns: 1fr 44px; gap: 2px 8px; padding: 4px 10px 8px; align-items: center; font-size: 13px; }
 .vis-aj label { grid-column: 1 / -1; color: var(--fraco); }
 .vis-aj input[type=range] { width: 100%; accent-color: var(--destaque); }
 .vis-aj output { text-align: right; font-variant-numeric: tabular-nums; }
 .vis-aj select { grid-column: 1 / -1; padding: 5px; background: var(--painel2); color: var(--texto); border: 1px solid var(--borda); border-radius: var(--raio); }
-.vis-botoes .grande { width: 100%; }
 html.celular #visual { top: auto; height: 58%; width: 100%; border-left: 0; border-top: 1px solid var(--borda); }
 html.celular body.com-visual #palco { padding-right: 0; padding-bottom: 58vh; }
 

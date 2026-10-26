@@ -138,7 +138,7 @@ const menuParaCelular = () => ({ t: 'menu', itens: ITENS_RAPIDO.map((it, i) => (
 // console e nome do jogo pro celular trocar o controle (o mesmo que o celular como controle recebe)
 function contarAoCelular() {
   const dc = transm.dc; if (!dc || dc.readyState !== 'open') return;
-  const info = JSON.stringify({ t: 'jogo', sis: snes ? snes.sistema || 'snes' : '', nome: snes ? romNome : '' });
+  const info = JSON.stringify({ t: 'jogo', sis: snes ? snes.sistema || 'snes' : '', nome: snes ? romNome : '', l: telaL, a: telaA });   // tamanho: o celular põe o filtro dele
   if (info !== transm.info) { transm.info = info; dc.send(info); }
 }
 // a cada quadro novo (pintar): a imagem crua, ampliada sem borrar

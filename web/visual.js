@@ -56,7 +56,20 @@ const KofVisual = (() => {
     ['filmadora', 'Efeitos', 'Filmadora (PLAY e data na tela)', 0, 1, 1, 0, ['Desligada', 'Ligada']],
     ['ligarTv', 'Efeitos', 'TV ligando ao abrir o jogo', 0, 1, 1, 0, ['Não', 'Sim']],
     ['teste', 'Efeitos', 'Barras de teste quando pausa', 0, 1, 1, 0, ['Não', 'Sim']],
+    // passadas extras (o app desenha em etapas): sinal NTSC de verdade, pixel art ampliado e o brilho que vaza
+    ['ntsc', 'Sinal', 'NTSC de verdade (o sinal da TV)', 0, 1, 0.05, 0],
+    ['ntscTipo', 'Sinal', 'Cabo do NTSC', 0, 2, 1, 1, ['S-Vídeo (limpo)', 'Composto (cabo amarelo)', 'Antena (RF)']],
+    ['ampliar', 'Pixels', 'Ampliar pixel art (bordas lisas)', 0, 2, 1, 0, ['Desligado', 'Scale2x', 'Scale4x (mais liso)']],
+    ['nitidez', 'Pixels', 'Nitidez (estilo FSR)', 0, 1, 0.05, 0],
+    ['traco', 'Pixels', 'Traço reforçado (desenho)', 0, 1, 0.05, 0],
+    ['bloom', 'TV', 'Brilho que vaza de verdade (bloom)', 0, 1, 0.05, 0],
+    ['bloomRaio', 'TV', 'Tamanho do brilho', 0.5, 3, 0.25, 1],
+    ['reflexo', 'TV', 'Reflexo na borda do vidro', 0, 1, 0.05, 0],
+    ['sombra', 'Portátil', 'Sombra dos pixels no fundo do LCD', 0, 1, 0.05, 0],
+    ['refletiva', 'Portátil', 'Tela sem luz (GBA antigo)', 0, 1, 0.05, 0],
   ];
+  // os ajustes que só existem com as passadas extras ou que vieram depois do PS2 nativo (o kofnativo lê 13 vec4)
+  const NOVOS = ['ntsc', 'ntscTipo', 'ampliar', 'nitidez', 'traco', 'bloom', 'bloomRaio', 'reflexo', 'sombra', 'refletiva'];
   const PADRAO = Object.fromEntries(AJUSTES.map((a) => [a[0], a[6]]));
   // predefinições: só o que muda do padrão
   const PREDEF = [
@@ -90,7 +103,40 @@ const KofVisual = (() => {
     ['atari', 'Pixelão', 'pixel enorme, estilo Atari', { pixelao: 0.45, saturacao: 1.3, contraste: 1.1 }],
     ['glitch', 'Glitch', 'imagem quebrando de vez em quando', { glitch: 0.8, chiado: 0.15 }],
     ['foradoar', 'Fora do ar', 'chuvisco por cima do jogo', { foraDoAr: 0.45, rolagem: 0.15, interferencia: 0.6 }],
+    ['trinitron', 'Trinitron', 'a TV boa da época: grade fina, brilho que vaza de leve e reflexo no vidro', { linhas: 0.55, grossas: 0.5, mascara: 0.55, mascaraTam: 1, curva: 0.25, cantos: 0.4, vinheta: 0.25, bloom: 0.45, reflexo: 0.5, saturacao: 1.1, ntsc: 0.6, ntscTipo: 0 }],
+    ['pvmpro', 'Monitor PVM', 'linhas bem marcadas, imagem reta, cor de estúdio', { linhas: 1, grossas: 0.7, mascara: 0.35, bloom: 0.3, contraste: 1.08, saturacao: 1.1 }],
+    ['tubobarato', 'TV de tubo barata', 'antena, cor vazando, tubo curvo e brilho espalhando', { ntsc: 0.8, ntscTipo: 2, linhas: 0.45, mascara: 0.4, mascaraTipo: 1, mascaraTam: 2, curva: 0.55, cantos: 0.7, vinheta: 0.45, bloom: 0.3, bloomRaio: 1.5, reflexo: 0.6, contraste: 1.05 }],
+    ['ntsc', 'NTSC (cabo amarelo)', 'o sinal de vídeo de verdade: pontilhado vira transparência, como na TV', { ntsc: 1, ntscTipo: 1 }],
+    ['svideo', 'S-Vídeo', 'o cabo bom: cor limpa, sem arco-íris', { ntsc: 1, ntscTipo: 0 }],
+    ['pixelhd', 'Pixel art HD', 'bordas lisas sem borrar (Scale4x)', { ampliar: 2, nitidez: 0.25 }],
+    ['tv4k', 'TV 4K', 'ampliado macio e afiado de volta (estilo FSR)', { pixel: 2, nitidez: 0.8 }],
+    ['desenho', 'Traço de desenho', 'contorno reforçado, cara de animação', { ampliar: 2, traco: 0.7, saturacao: 1.15 }],
+    ['dmg', 'Game Boy original', 'tela verde, grade, rastro e sombra dos pixels', { pixel: 0, lcd: 0.85, rastro: 0.6, verde: 1, sombra: 0.7, brilho: 0.03 }],
+    ['pocket', 'Game Boy Pocket', 'tela prateada, preto e branco', { pixel: 0, lcd: 0.8, rastro: 0.4, pb: 1, sombra: 0.6, contraste: 0.9, brilho: 0.05, temperatura: -0.2 }],
+    ['gbasemluz', 'GBA sem luz', 'a tela escura do primeiro GBA', { pixel: 0, lcd: 0.7, refletiva: 1, sombra: 0.4, rastro: 0.25 }],
+    ['gamegear', 'Game Gear', 'tela com luz, um pouco borrada e azulada', { pixel: 2, lcd: 0.4, rastro: 0.5, portatil: 0.6, temperatura: -0.3, bloom: 0.25 }],
   ];
+  // categorias do painel simples (cartões)
+  const CATEGORIAS = [
+    ['Clássicos', ['original', 'nitido', 'suave', 'pixelhd', 'tv4k', 'hd']],
+    ['TV de tubo', ['tv', 'trinitron', 'pvmpro', 'fliperama', 'pvm', 'tubobarato', 'vo']],
+    ['Sinal', ['ntsc', 'svideo', 'locadora', 'filmadora', 'foradoar', 'glitch']],
+    ['Portátil', ['dmg', 'pocket', 'gameboy', 'gbc', 'gbasemluz', 'gamegear']],
+    ['Arte', ['desenho', 'pintura', 'cartoon', 'gibi', 'synthwave', 'sonho']],
+    ['Foto', ['cafe', 'polaroid95', 'cinemamudo', 'lomo', 'duotone', 'hollywood']],
+    ['Retrô', ['terminal', 'ambar', 'mac', 'cgapc', 'atari']],
+  ];
+  const GRUPOS = { Pixels: ['🔲', 'como cada pixel é desenhado'], TV: ['📺', 'linhas, fósforo, curva, brilho'], Sinal: ['📡', 'cabo, NTSC, fita e chiado'],
+    'Portátil': ['🎮', 'telas de LCD'], Cor: ['🎨', 'brilho, contraste, daltonismo'], Foto: ['📷', 'filtros de foto'], 'Retrô': ['💾', 'computadores e paletas antigas'],
+    Efeitos: ['✨', 'animações por cima da imagem'] };
+  // quanto pesa (pra mostrar leve / médio / pesado): o que lê muitos vizinhos ou liga passada extra pesa mais
+  function custo(v) {
+    let c = { 0: 0, 1: 0.1, 2: 0.3, 3: 1.5, 4: 2.5, 5: 3 }[v.pixel] || 0;
+    c += (v.ntsc > 0 ? 1.5 : 0) + (+v.ampliar || 0) * 0.6 + (v.bloom > 0 ? 0.8 : 0) + (v.nitidez > 0 ? 0.4 : 0) + (v.desfoque > 0 ? 1.5 : 0)
+      + (v.glow > 0 ? 0.6 : 0) + (v.composto > 0 ? 0.6 : 0) + (v.traco > 0 ? 0.3 : 0);
+    for (const a of AJUSTES) if (!a[7] && +v[a[0]] !== a[6] && !['brilho', 'contraste', 'saturacao', 'gama', 'temperatura'].includes(a[0])) c += 0.1;
+    return c < 1.5 ? 'leve' : c < 3.5 ? 'médio' : 'pesado';
+  }
   const valores = (id) => { const p = PREDEF.find((x) => x[0] === id); return { ...PADRAO, ...(p ? p[3] : {}) }; };
   // filtros do menu antigo -> predefinição nova (quem já tinha escolhido continua com o parecido)
   const ANTIGO = { crt: 'tv', lcd: 'gbc' };
@@ -101,7 +147,7 @@ precision highp float;
 #else
 precision mediump float;
 #endif
-uniform sampler2D t, tp; uniform vec4 tela, u, p[13];
+uniform sampler2D t, tp, tb; uniform vec4 tela, u, p[/*{{NP}}*/];
 varying vec2 uv;
 #define tam tela.xy
 #define saida tela.zw
@@ -160,6 +206,7 @@ vec3 kuwahara(vec2 c) {
   return r;
 }
 vec3 amostra(vec2 c) {
+  if (PRE > .5) return tx(c);   // já veio pronta das passadas extras (NTSC ou ampliada): só lê, suave
   if (PIXEL < .5) return perto(c);
   if (PIXEL < 1.5) return nitidoSuave(c);
   if (PIXEL < 2.5) return suave(c);
@@ -234,7 +281,13 @@ void main() {
   }
   if (CURVA > 0.) {
     vec2 q = c * 2. - 1.; vec2 o = abs(q.yx) * CURVA * vec2(.34, .45); q += q * o * o; c = q * .5 + .5;
-    if (c.x < 0. || c.x > 1. || c.y < 0. || c.y > 1.) { gl_FragColor = vec4(0., 0., 0., 1.); return; }
+    if (c.x < 0. || c.x > 1. || c.y < 0. || c.y > 1.) {
+      if (REFLEXO > 0.) {   // fora do tubo: o vidro da borda reflete a imagem, sumindo rápido
+        vec2 dentro = clamp(c, 0., 1.), fora = abs(c - dentro);
+        gl_FragColor = vec4(tx(clamp(dentro * 2. - c, 0., 1.)) * REFLEXO * .4 * exp(-(fora.x + fora.y) * 45.), 1.); return;
+      }
+      gl_FragColor = vec4(0., 0., 0., 1.); return;
+    }
   }
   // a cor do pixel
   vec3 col;
@@ -242,6 +295,11 @@ void main() {
     vec2 o = vec2((CONVERG * 1.8 + VHS * 2. + abs(gl0) * 60.) / tam.x, 0.);
     col = vec3(amostra(c + o).r, amostra(c).g, amostra(c - o).b);
   } else col = amostra(c);
+  if (NITIDEZ > 0.) {   // estilo FSR/CAS: tira a média dos vizinhos e realça a diferença (afia o que ficou macio)
+    vec2 d = .7 / tam; vec3 m = (tx(c + vec2(d.x, 0.)) + tx(c - vec2(d.x, 0.)) + tx(c + vec2(0., d.y)) + tx(c - vec2(0., d.y))) * .25;
+    col = clamp(col + (col - m) * NITIDEZ * 2.2, 0., 1.);
+  }
+  if (TRACO > 0.) col *= 1. - TRACO * .75 * smoothstep(.08, .45, borda(c));
   if (COMPOSTO > 0.) col = mix(col, composto(c, col), COMPOSTO);
   if (VHS > 0.) { col = mix(col, vec3(luz(col)), .25 * VHS); col += (sorte(c * tam + tempo) - .5) * .12 * VHS * smoothstep(.06, 0., abs(c.y - fract(tempo * .09))) * 4.; }
   if (RASTRO > 0.) col = mix(col, texture2D(tp, c).rgb, RASTRO * .55);
@@ -252,6 +310,7 @@ void main() {
     col = mix(col, pow(clamp(l, 0., 1.), vec3(1. / 2.)) * .94 + .03, PORTATIL);
   }
   if (VERDE > 0.) col = mix(col, mix(vec3(.06, .22, .06), vec3(.61, .74, .06), smoothstep(0., 1., luz(col))), VERDE);
+  if (REFLETIVA > 0.) { vec3 r = pow(col, vec3(1.6)) * .82 + vec3(.035, .04, .03); col = mix(col, mix(vec3(luz(r)), r, .85), REFLETIVA); }
   col = (col - .5) * CONTRASTE + .5 + BRILHO;
   col = mix(vec3(luz(col)), col, SATURACAO);
   col = pow(clamp(col, 0., 1.), vec3(1. / GAMA));
@@ -344,6 +403,8 @@ void main() {
     float med = (exp2(duro * .0156 * largura * largura) + exp2(duro * .1406 * largura * largura) + exp2(duro * .3906 * largura * largura) + exp2(duro * .7656 * largura * largura)) * .25;
     lin *= mix(1., w / med, min(1., LINHAS * 1.4));
   }
+  if (BLOOMTEX > .5) lin += texture2D(tb, c).rgb * BLOOM;   // o brilho que vaza (passada extra, já em luz linear)
+  if (SOMBRA > 0.) { float sb = 1. - luz(tx(c - .4 / tam)); lin *= 1. - SOMBRA * .45 * sb * sb; }   // pixel escuro faz sombra no fundo do LCD
   if (LCD > 0.) { vec2 f = fract(c * tam); float g = smoothstep(0., .14, f.x) * smoothstep(0., .14, f.y) * smoothstep(1., .9, f.x) * smoothstep(1., .9, f.y); lin *= mix(1., .15 + .85 * g, LCD) * (1. + LCD * .35); }
   if (MASCARA > 0.) {
     // máscara de fósforo como no crt-lottes: um fósforo claro e dois escuros por grupo, com média 1 (não escurece)
@@ -369,13 +430,20 @@ void main() {
 }`;
   // os valores na ordem dos ajustes (vec4 p[13]); cada ajuste vira um #define com o nome em maiúsculas
   const ORDEM = AJUSTES.map((a) => a[0]);
+  const NP = Math.ceil(ORDEM.length / 4);   // vec4 p[NP]
   // shader sob medida: ajuste desligado (no valor padrão) e escolhas (tipo de pixel, de máscara...) viram constantes, e o
   // compilador do driver apaga o código deles; só o que está ligado lê o valor do controle (mexer no controle não recompila)
   const ESCOLHA = new Set(AJUSTES.filter((a) => a[7]).map((a) => a[0]));
   const num = (x) => (Number.isInteger(+x) ? (+x).toFixed(1) : String(+x));
   const chave = (v) => ORDEM.map((k) => (ESCOLHA.has(k) ? 'e' + (+v[k]) : +v[k] === PADRAO[k] ? '-' : '+')).join('');
-  const montar = (v) => FRAG0.replace('/*{{DEFINES}}*/', ORDEM.map((k, i) => `#define ${k.toUpperCase()} `
-    + (ESCOLHA.has(k) ? num(v[k]) : +v[k] === PADRAO[k] ? num(PADRAO[k]) : `p[${i >> 2}].${'xyzw'[i & 3]}`)).join('\n'));
+  // passos: o app desenha em etapas (sem isso, ex. o PS2 nativo, os ajustes novos ficam no padrão e o vetor tem 13 vec4)
+  const semNovos = (v) => ({ ...v, ...Object.fromEntries(NOVOS.map((k) => [k, PADRAO[k]])) });
+  const montar = (v0, opc) => {
+    const passos = !!(opc && opc.passos), v = passos ? v0 : semNovos(v0);
+    const pre = passos && (+v.ntsc > 0 || +v.ampliar > 0) ? 1 : 0, bt = passos && +v.bloom > 0 ? 1 : 0;
+    return FRAG0.replace('/*{{NP}}*/', passos ? NP : 13).replace('/*{{DEFINES}}*/', `#define PRE ${num(pre)}\n#define BLOOMTEX ${num(bt)}\n` + ORDEM.map((k, i) => `#define ${k.toUpperCase()} `
+      + (ESCOLHA.has(k) ? num(v[k]) : +v[k] === PADRAO[k] ? num(PADRAO[k]) : `p[${i >> 2}].${'xyzw'[i & 3]}`)).join('\n'));
+  };
   // Poda: o compilador do PC apaga sozinho o código desligado, mas placa de vídeo de celular às vezes não aceita (ou desenha
   // preto) o shader inteiro. Então o código que não vai rodar sai antes: if com condição constante falsa some, o verdadeiro
   // fica só com o corpo (e um "return" verdadeiro corta o resto do bloco), e função que ninguém chama sai também.
@@ -433,10 +501,91 @@ void main() {
     }
     return src.replace(/\n\s*\n+/g, '\n');
   }
-  const fonte = (v) => podar(montar(v));
+  const fonte = (v, opc) => podar(montar(v, opc));
   const FRAG = montar(PADRAO);
-  const vetor = (v) => { const a = new Float32Array(52); ORDEM.forEach((k, i) => { a[i] = v[k] !== undefined ? +v[k] : PADRAO[k]; }); return a; };
-  const animado = (v) => ['vhs', 'chiado', 'tremor', 'composto', 'filme', 'vazamento', 'neon', 'foraDoAr', 'rolagem', 'interferencia', 'glitch', 'onda'].some((k) => v[k] > 0);
-  return { AJUSTES, PADRAO, PREDEF, ANTIGO, FRAG, fonte, chave, valores, vetor, animado };
+  const vetor = (v, n) => { const a = new Float32Array((n || 13) * 4); ORDEM.forEach((k, i) => { if (i < a.length) a[i] = v[k] !== undefined ? +v[k] : PADRAO[k]; }); return a; };
+
+  // ---------------- passadas extras (desenhadas em texturas antes do shader final) ----------------
+  // Todas leem a textura t (tela.xy = tamanho dela) e escrevem tela.zw; q = valores do passo. A imagem fica com a linha de
+  // cima na coordenada 0, igual à textura do jogo.
+  const CAB = `#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+uniform sampler2D t; uniform vec4 tela, u, q; varying vec2 uv;
+`;
+  const PASSOS = {
+    // Scale2x (a regra do EPX): cada pixel vira 4; um canto pega a cor do vizinho quando os dois vizinhos daquele canto são
+    // iguais e o outro par não. Duas vezes = Scale4x. Cores quase iguais contam como iguais (sombreado suave do jogo)
+    scale2x: CAB + `vec3 at(vec2 p) { return texture2D(t, (p + .5) / tela.xy).rgb; }
+bool ig(vec3 a, vec3 b) { vec3 d = abs(a - b); return d.r + d.g + d.b < .06; }
+void main() {
+  vec2 q2 = uv * tela.xy, p = floor(q2), f = fract(q2);
+  vec3 E = at(p), B = at(p + vec2(0., -1.)), D = at(p + vec2(-1., 0.)), F = at(p + vec2(1., 0.)), H = at(p + vec2(0., 1.)), r = E;
+  if (!ig(B, H) && !ig(D, F)) {
+    if (f.x < .5 && f.y < .5) { if (ig(D, B)) r = D; }
+    else if (f.y < .5) { if (ig(B, F)) r = F; }
+    else if (f.x < .5) { if (ig(D, H)) r = D; }
+    else if (ig(H, F)) r = F;
+  }
+  gl_FragColor = vec4(r, 1.);
+}`,
+    // NTSC: monta o sinal de vídeo de verdade (brilho + cor modulada numa onda que dá uma volta a cada 2 pixels do console)
+    // e decodifica como a TV: o filtro do brilho tira a onda e mistura 2 pixels vizinhos (o pontilhado vira transparência);
+    // a cor sai mais borrada. No composto, o brilho que muda rápido vaza na cor (arco-íris) e a fase anda a cada quadro.
+    // q = força, cabo (0 S-Vídeo, 1 composto, 2 antena), fase andando, subamostras por pixel
+    ntsc: CAB + `#define PI 3.14159265
+vec3 yiq(vec3 c) { return mat3(.299, .596, .211, .587, -.274, -.523, .114, -.322, .312) * c; }
+vec3 rgb(vec3 y) { return mat3(1., 1., 1., .956, -.272, -1.106, .621, -.647, 1.703) * y; }
+float sorte(vec2 a) { return fract(sin(dot(a, vec2(12.9898, 78.233))) * 43758.5453); }
+void main() {
+  float S = q.w, C = 2. * S, k0 = floor(uv.x * tela.z), lin = floor(uv.y * tela.y), v = (lin + .5) / tela.y;
+  float fase = lin * PI + q.z * PI * mod(floor(u.x * 60.), 2.), w = 2. * PI / C;
+  vec3 orig = texture2D(t, vec2((floor(k0 / S) + .5) / tela.x, v)).rgb;
+  float Y = 0., I = 0., Q = 0., sy = 0., sc = 0.;
+  for (int j = -8; j <= 8; j++) {
+    float fj = float(j), k = k0 + fj, ph = k * w + fase;
+    vec3 a = yiq(texture2D(t, vec2((floor(k / S) + .5) / tela.x, v)).rgb);
+    float cor = a.y * cos(ph) + a.z * sin(ph), sinal = a.x + cor;
+    if (q.y > 1.5) sinal += yiq(texture2D(t, vec2((floor((k - 3. * S) / S) + .5) / tela.x, v)).rgb).x * .12;   // antena: fantasma
+    float wy = abs(fj) < C * .5 ? 1. : abs(fj) == C * .5 ? .5 : 0.;   // um ciclo inteiro: a onda da cor some do brilho
+    float wc = .5 + .5 * cos(PI * fj / 9.);
+    Y += wy * (q.y < .5 ? a.x : sinal); sy += wy;
+    float sc0 = q.y < .5 ? cor : sinal;   // S-Vídeo: a cor vem num fio separado (não pega o brilho)
+    I += wc * sc0 * cos(ph); Q += wc * sc0 * sin(ph); sc += wc;
+  }
+  Y /= sy; I = I * 2. / sc; Q = Q * 2. / sc;
+  if (q.y < .5) Y = mix(Y, yiq(orig).x, .6);   // S-Vídeo: brilho quase sem borrar
+  if (q.y > 1.5) { Y += (sorte(vec2(k0, lin) + fract(u.x * 7.) * 91.) - .5) * .07; I *= .85; Q *= .85; }
+  gl_FragColor = vec4(mix(orig, clamp(rgb(vec3(Y, I, Q)), 0., 1.), q.x), 1.);
+}`,
+    // brilho que vaza: reduz pra metade em luz linear (o claro pesa mais) e desfoca em dois passes (deitado e em pé)
+    bloomReduz: CAB + `void main() {
+  vec2 d = .5 / tela.zw; vec3 a = vec3(0.);
+  a += pow(texture2D(t, uv + vec2(-d.x, -d.y)).rgb, vec3(2.2)) + pow(texture2D(t, uv + vec2(d.x, -d.y)).rgb, vec3(2.2));
+  a += pow(texture2D(t, uv + vec2(-d.x, d.y)).rgb, vec3(2.2)) + pow(texture2D(t, uv + vec2(d.x, d.y)).rgb, vec3(2.2));
+  a *= .25;
+  gl_FragColor = vec4(a * (.35 + .65 * smoothstep(.05, .6, dot(a, vec3(.299, .587, .114)))), 1.);
+}`,
+    bloomBorra: CAB + `void main() {
+  vec2 d = q.yz * q.x / tela.xy; vec3 a = texture2D(t, uv).rgb * .227;
+  a += (texture2D(t, uv + d * 1.385).rgb + texture2D(t, uv - d * 1.385).rgb) * .316;
+  a += (texture2D(t, uv + d * 3.231).rgb + texture2D(t, uv - d * 3.231).rgb) * .07;
+  gl_FragColor = vec4(a, 1.);
+}`,
+  };
+  // a lista de passadas pra esses ajustes e esse tamanho de imagem (L x A). ntsc e ampliar não vão juntos (o NTSC borra)
+  function passos(v, L, A) {
+    const l = [];
+    if (+v.ntsc > 0) {
+      const S = L * 4 <= 2048 ? 4 : 2;
+      l.push({ id: 'ntsc', w: L * S, h: A, q: [+v.ntsc, +v.ntscTipo, +v.ntscTipo > 0.5 ? 1 : 0, S] });
+    } else for (let i = 0, w = L, h = A; i < +v.ampliar && w * 2 <= 4096; i++) { w *= 2; h *= 2; l.push({ id: 'scale2x', w, h, q: [0, 0, 0, 0] }); }
+    if (+v.bloom > 0) l.push({ id: 'bloom', w: Math.ceil(L / 2), h: Math.ceil(A / 2), q: [+v.bloomRaio || 1, 0, 0, 0] });
+    return l;
+  }
+  const animado = (v) => (+v.ntsc > 0 && +v.ntscTipo > 0.5) || ['vhs', 'chiado', 'tremor', 'composto', 'filme', 'vazamento', 'neon', 'foraDoAr', 'rolagem', 'interferencia', 'glitch', 'onda'].some((k) => v[k] > 0);
+  return { AJUSTES, PADRAO, PREDEF, ANTIGO, FRAG, NP, CATEGORIAS, GRUPOS, PASSOS, fonte, chave, valores, vetor, animado, passos, custo };
 })();
 if (typeof module !== 'undefined') module.exports = KofVisual;

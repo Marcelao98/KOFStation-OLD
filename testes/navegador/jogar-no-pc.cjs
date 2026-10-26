@@ -74,6 +74,11 @@ function romVermelha() {
   ok(v && v.audio === 1, 'com trilha de som');
   const cor = await cel.evaluate(() => { const v = document.querySelector('#modo-controle .mc-video'); const c = document.createElement('canvas'); c.width = 64; c.height = 64; const g = c.getContext('2d'); g.drawImage(v, 0, 0, 64, 64); return Array.from(g.getImageData(32, 32, 1, 1).data); });
   ok(cor[0] > 180 && cor[1] < 70 && cor[2] < 70, 'a imagem é a do jogo (fundo vermelho): ' + cor);
+  // filtro do celular ligado (padrão): o quadro do vídeo passa pelo desenho do celular (a tela do jogo daqui, vermelha)
+  await cel.waitForTimeout(500);
+  const tc = await cel.evaluate(() => { const t = document.querySelector('#tela'), r = t.getBoundingClientRect(); return { vis: getComputedStyle(t).visibility, l: r.width, filtrado: document.querySelector('#modo-controle').classList.contains('filtrado'), tam: [KOFnes.nucleo() ? 0 : 1] }; });
+  ok(tc.vis === 'visible' && tc.l > 100 && tc.filtrado, 'filtro do celular: a tela do jogo do celular aparece por cima ' + JSON.stringify(tc));
+  if (prints) await cel.screenshot({ path: path.join(prints, 'jogar-no-pc-filtrado.png') });
   const ctl = await cel.evaluate(() => ({ sis: document.body.dataset.sis, ligado: document.querySelector('#modo-controle').classList.contains('ligado'), status: document.querySelector('.mc-status').textContent }));
   ok(ctl.sis === 'md' && ctl.ligado && ctl.status === 'PC da sala', 'controle virou o do Mega Drive e mostra o PC ' + JSON.stringify(ctl));
   const tr = await pg.evaluate(() => KOFnes.transmissao());

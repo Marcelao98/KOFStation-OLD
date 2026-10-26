@@ -405,3 +405,8 @@ body[data-modo="raiz"] #ctl [data-b="rew"], body[data-modo="hardcore"] #ctl [dat
   body.modo-controle:has(#modo-controle.remoto) #ctl .bt, body.modo-controle:has(#modo-controle.remoto) #ctl [data-b] { opacity: .78; }
 }
 #modo-controle.menu-aberto { z-index: 40; }
+/* 🎛 filtro do celular no Jogar no PC: o vídeo some (continua tocando, pro som e pra ler os quadros) e aparece a tela do jogo */
+#modo-controle.remoto.filtrado { background: transparent; pointer-events: none; }
+#modo-controle.remoto.filtrado .mc-barra, #modo-controle.remoto.filtrado .mc-atalhos, #modo-controle.remoto.filtrado .mc-menu { pointer-events: auto; }
+#modo-controle.remoto.filtrado .mc-video { opacity: 0; pointer-events: none; }
+body.modo-controle.remoto-filtro #tela, body.modo-controle.remoto-filtro #moldura { visibility: visible; }

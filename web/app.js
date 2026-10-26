@@ -54,30 +54,133 @@ function glFalhou(motivo) {
   avisar('🖼 esse filtro não roda nesse aparelho: usando a imagem simples' + (motivo ? ' (' + motivo.slice(0, 80) + ')' : ''), 6000);
   glPrograma(visual.v);
 }
-function glPrograma(v) {
-  glChave = KofVisual.chave(v);
-  const simples = glRuins.has(glChave), k = simples ? 'simples' : glChave;
-  if (!simples && !glBons.has(glChave)) glConferir = 3;   // shader novo: confere nos primeiros quadros
-  if (!glProgs[k]) {
-    let erro = '';
-    const sombra = (tipo, fonte) => { const s = gl.createShader(tipo); gl.shaderSource(s, fonte); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS) && !gl.isContextLost()) erro = erro || gl.getShaderInfoLog(s) || 'não compilou'; return s; };
-    if (!glVert) glVert = sombra(gl.VERTEX_SHADER, `attribute vec2 p; varying vec2 uv;
+// prévia de um estilo (cartões do painel): desenha o quadro atual com esses ajustes numa textura pequena e lê os pixels
+function glPrevia(v, w, h) {
+  if (!gl || !glU.prog) return null;
+  const u = glProgramaDe(v, false); if (u.erro) return null;
+  const ps = glRodarPassos(v, glTex[glVez]);
+  const a = glAlvo('previa', w, h); if (!a.ok) return null;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, a.fb); gl.viewport(0, 0, w, h);
+  gl.useProgram(u.prog);
+  gl.uniform4f(u.tela, telaL, telaA, w, h); gl.uniform4f(u.u, (performance.now() / 1000) % 1000, 0, 1, 0);
+  gl.uniform4fv(u.p, KofVisual.vetor(v, glPassosOk ? KofVisual.NP : 13));
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, ps.brilho || glTex[glVez]);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, glTex[glVez ^ 1]);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, ps.tex);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  const px = new Uint8Array(w * h * 4); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  // volta tudo como estava pro desenho na tela
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, tela.width, tela.height); gl.useProgram(glU.prog);
+  gl.uniform4f(glU.tela, telaL, telaA, tela.width, tela.height); gl.uniform4fv(glU.p, KofVisual.vetor(visual.v, glPassosOk ? KofVisual.NP : 13));
+  return { px, w, h };
+}
+// ---- o desenho em etapas: passadas extras (NTSC, pixel art ampliado, brilho que vaza) em texturas, depois o shader final.
+// Sem passada ligada, é um desenho só, como sempre foi. Se o aparelho não aguentar (shader ou textura de desenho), as
+// passadas desligam e os ajustes delas somem (glPassosOk = false)
+let glPassosOk = true;
+const glPasso = { progs: {}, alvos: {}, vert: null };
+function glCompilar(vert, frag) {
+  let erro = '';
+  const sombra = (tipo, fonte) => { const s = gl.createShader(tipo); gl.shaderSource(s, fonte); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS) && !gl.isContextLost()) erro = erro || gl.getShaderInfoLog(s) || 'não compilou'; return s; };
+  if (!glVert) glVert = sombra(gl.VERTEX_SHADER, `attribute vec2 p; varying vec2 uv;
     void main() { uv = vec2(p.x * .5 + .5, .5 - p.y * .5); gl_Position = vec4(p, 0., 1.); }`);
-    const prog = gl.createProgram();
-    gl.attachShader(prog, glVert); gl.attachShader(prog, sombra(gl.FRAGMENT_SHADER, simples ? FRAG_SIMPLES : KofVisual.fonte(v)));
-    gl.bindAttribLocation(prog, 0, 'p'); gl.linkProgram(prog);
-    if (!erro && !gl.getProgramParameter(prog, gl.LINK_STATUS) && !gl.isContextLost()) erro = gl.getProgramInfoLog(prog) || 'não ligou';
-    if (erro && !simples) { glFalhou(erro.trim()); return; }
+  // as passadas desenham em textura com a linha de cima no 0 (igual à textura do jogo): o uv não vira de cabeça pra baixo
+  if (vert === 'passo' && !glPasso.vert) glPasso.vert = sombra(gl.VERTEX_SHADER, `attribute vec2 p; varying vec2 uv;
+    void main() { uv = p * .5 + .5; gl_Position = vec4(p, 0., 1.); }`);
+  const prog = gl.createProgram();
+  gl.attachShader(prog, vert === 'passo' ? glPasso.vert : glVert); gl.attachShader(prog, sombra(gl.FRAGMENT_SHADER, frag));
+  gl.bindAttribLocation(prog, 0, 'p'); gl.linkProgram(prog);
+  if (!erro && !gl.getProgramParameter(prog, gl.LINK_STATUS) && !gl.isContextLost()) erro = gl.getProgramInfoLog(prog) || 'não ligou';
+  return { prog, erro: erro.trim() };
+}
+// o programa final pra esses ajustes (compila na 1ª vez; null = não compilou)
+function glProgramaDe(v, simples) {
+  const k = simples ? 'simples' : (glPassosOk ? 'P' : '') + KofVisual.chave(v);
+  if (!glProgs[k]) {
+    const { prog, erro } = glCompilar('final', simples ? FRAG_SIMPLES : KofVisual.fonte(v, { passos: glPassosOk }));
+    if (erro && !simples) return { erro };
     const u = { prog };
-    for (const n of ['t', 'tp', 'tela', 'u', 'p']) u[n] = gl.getUniformLocation(prog, n);
+    for (const n of ['t', 'tp', 'tb', 'tela', 'u', 'p']) u[n] = gl.getUniformLocation(prog, n);
+    gl.useProgram(prog); gl.uniform1i(u.t, 0); gl.uniform1i(u.tp, 1); gl.uniform1i(u.tb, 2);
+    if (glU.prog) gl.useProgram(glU.prog);
     glProgs[k] = u;
   }
-  const u = glProgs[k];
+  return glProgs[k];
+}
+function glPrograma(v) {
+  glChave = (glPassosOk ? 'P' : '') + KofVisual.chave(v);
+  const simples = glRuins.has(glChave);
+  if (!simples && !glBons.has(glChave)) glConferir = 3;   // shader novo: confere nos primeiros quadros
+  const u = glProgramaDe(v, simples);
+  if (u.erro) { glFalhou(u.erro); return; }
   if (glU.prog !== u.prog) {
     gl.useProgram(u.prog); glU = u;
-    gl.uniform1i(glU.t, 0); gl.uniform1i(glU.tp, 1);
     gl.uniform4f(glU.tela, telaL, telaA, tela.width, tela.height);
   }
+}
+// textura + framebuffer de uma passada (refeita quando muda de tamanho)
+function glAlvo(nome, w, h) {
+  let a = glPasso.alvos[nome];
+  if (a && a.w === w && a.h === h) return a;
+  if (!a) { a = { tex: gl.createTexture(), fb: gl.createFramebuffer() }; glPasso.alvos[nome] = a; }
+  a.w = w; a.h = h;
+  gl.bindTexture(gl.TEXTURE_2D, a.tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, a.fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, a.tex, 0);
+  a.ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return a;
+}
+function glProgPasso(id) {
+  if (!glPasso.progs[id]) {
+    const { prog, erro } = glCompilar('passo', KofVisual.PASSOS[id]);
+    const u = { prog, erro };
+    for (const n of ['t', 'tela', 'u', 'q']) u[n] = gl.getUniformLocation(prog, n);
+    glPasso.progs[id] = u;
+  }
+  return glPasso.progs[id];
+}
+function glDesenharPasso(id, entrada, wi, hi, alvo, q) {
+  const pr = glProgPasso(id);
+  if (pr.erro || !alvo.ok) throw new Error(pr.erro || 'textura de desenho não funciona aqui');
+  gl.bindFramebuffer(gl.FRAMEBUFFER, alvo.fb); gl.viewport(0, 0, alvo.w, alvo.h);
+  gl.useProgram(pr.prog);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, entrada);
+  gl.uniform1i(pr.t, 0); gl.uniform4f(pr.tela, wi, hi, alvo.w, alvo.h);
+  gl.uniform4f(pr.u, (performance.now() / 1000) % 1000, 0, 0, 0); gl.uniform4fv(pr.q, q);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+// roda as passadas desses ajustes a partir da textura do jogo; devolve a textura pronta e a do brilho (ou null)
+function glRodarPassos(v, entrada) {
+  const lista = glPassosOk ? KofVisual.passos(v, telaL, telaA) : [];
+  if (!lista.length) return { tex: entrada, brilho: null };
+  let tex = entrada, w = telaL, h = telaA, brilho = null;
+  try {
+    lista.forEach((p, i) => {
+      if (p.id === 'bloom') {
+        const a = glAlvo('brilhoA', p.w, p.h), b = glAlvo('brilhoB', p.w, p.h);
+        glDesenharPasso('bloomReduz', tex, w, h, a, [0, 0, 0, 0]);
+        glDesenharPasso('bloomBorra', a.tex, p.w, p.h, b, [p.q[0], 1, 0, 0]);
+        glDesenharPasso('bloomBorra', b.tex, p.w, p.h, a, [p.q[0], 0, 1, 0]);
+        brilho = a.tex; return;
+      }
+      const a = glAlvo('passo' + i, p.w, p.h);
+      glDesenharPasso(p.id, tex, w, h, a, p.q);
+      tex = a.tex; w = p.w; h = p.h;
+    });
+  } catch (e) {   // aparelho sem passada extra: desliga e segue com o desenho de um passo só
+    console.warn('passadas extras desligadas:', e.message);
+    glPassosOk = false; glU = {};
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    avisar('🖼 esse aparelho não aguenta os filtros em etapas (NTSC, pixel art HD, brilho): ficam desligados', 6000);
+    glPrograma(visual.v); gl.uniform4fv(glU.p, KofVisual.vetor(visual.v, 13));
+    return { tex: entrada, brilho: null };
+  }
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { tex, brilho };
 }
 if (gl) {
   const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
@@ -102,12 +205,19 @@ function tamanhoTela(l, a) {
 function pintar(novo) {
   if (!gl) { ctx.putImageData(img, 0, 0); if (novo && typeof transm !== 'undefined' && transm.pc) transmitirQuadro(); return; }
   if (novo) glVez ^= 1;
-  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, glTex[glVez ^ 1]);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, glTex[glVez]);
   if (novo !== false) gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, telaL, telaA, gl.RGBA, gl.UNSIGNED_BYTE, bytesTela);
+  const ps = glRodarPassos(visual.v, glTex[glVez]);
+  if (ps.tex !== glTex[glVez] || ps.brilho) {   // as passadas mexeram no estado: volta pro desenho final na tela
+    gl.viewport(0, 0, tela.width, tela.height); gl.useProgram(glU.prog);
+  }
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, ps.brilho || glTex[glVez]);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, glTex[glVez ^ 1]);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, ps.tex);
   const agora = performance.now(), liga = visual.v.ligarTv > 0.5 ? Math.min(1, (agora - ligaIni) / 650) : 1;
   gl.uniform4f(glU.u, (agora / 1000) % 1000, divisao, liga, pausado && snes && !rapidoAberto && telaAtual() === 'jogo' ? 1 : 0);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  if (novo) visQuadros++;
   if (novo && typeof transm !== 'undefined' && transm.pc) transmitirQuadro();   // 🖥 jogando pelo celular (jogarpc.js)
   if (novo && glConferir > 0 && !glRuins.has(glChave)) conferirTela();
 }
@@ -143,7 +253,7 @@ function aplicarVisual(v, pre) {
   document.querySelectorAll('[data-filtro]').forEach((b) => b.classList.toggle('ativo', b.dataset.filtro === filtro));
   if (!gl) return;
   glPrograma(visual.v);
-  gl.uniform4fv(glU.p, KofVisual.vetor(visual.v));
+  gl.uniform4fv(glU.p, KofVisual.vetor(visual.v, glPassosOk ? KofVisual.NP : 13));
   marcarFilmadora();
   pintar(false);
 }
@@ -182,41 +292,108 @@ function cartelaTeste() {   // sem jogo aberto: uma cena em pixel art feita aqui
   X.forEach((l, j) => [...l].forEach((ch, i) => { if (P[ch]) for (let a = 0; a < 3; a++) for (let b2 = 0; b2 < 3; b2++) px[(70 + j * 3 + a) * 256 + 40 + i * 3 + b2] = P[ch]; }));
   pintar(true); pintar(true);
 }
+// painel em dois jeitos: Simples (cartões com a prévia do jogo em cada estilo + intensidade, nitidez e brilho) e Avançado
+// (todos os ajustes por grupo, busca, valor de cada um, ↺ por ajuste e por grupo, os que você mudou)
+let visModo = ler('visModo') === 'avancado' ? 'avancado' : 'simples', visCat = 'Todos', visGrupo = 'Pixels', visBusca = '';
+let visBase = null, visK = 1, visQuadros = 0, visPiscar = 0;
+const visPrevias = { fila: [], vez: 0, cache: {} };
+const AJ = Object.fromEntries(KofVisual.AJUSTES.map((a) => [a[0], a]));
+const mostraAj = (a, x) => (a[7] ? a[7][+x] : a[4] <= 1.01 && a[3] >= 0 ? Math.round(x * 100) + '%' : (+x).toFixed(a[5] < 1 ? 2 : 0));
+const mudouAj = (id) => +visual.v[id] !== AJ[id][6];
 function montarVisual() {
-  const pre = $('#vis-pre'); pre.textContent = '';
-  for (const [k, n, d] of KofVisual.PREDEF) {
-    const b = document.createElement('button'); b.textContent = n; b.title = d; b.dataset.visPre = k;
-    b.classList.toggle('ativo', visual.pre === k); pre.appendChild(b);
-  }
-  visMeus().forEach((m, i) => {
-    const b = document.createElement('button'); b.textContent = '⭐ ' + m.nome; b.title = 'clique pra usar · botão direito pra apagar'; b.dataset.visMeu = i;
-    b.className = 'meu' + (visual.pre === 'meu:' + m.nome ? ' ativo' : ''); pre.appendChild(b);
-  });
   $('#vis-nome').textContent = visual.pre === 'meu' ? '· do seu jeito' : visual.pre.startsWith('meu:') ? '· ⭐ ' + visual.pre.slice(4) : '· ' + ((FILTROS.find(([k]) => k === visual.pre) || [0, ''])[1]);
-  const aj = $('#vis-ajustes'), abertos = new Set([...aj.querySelectorAll('details[open]')].map((d) => d.dataset.g));
-  if (!aj.childElementCount) abertos.add('Pixels').add('TV');
-  aj.textContent = '';
+  document.querySelectorAll('[data-vis-modo]').forEach((b) => b.classList.toggle('ativo', b.dataset.visModo === visModo));
+  $('#vis-simples').hidden = visModo !== 'simples'; $('#vis-avancado').hidden = visModo !== 'avancado';
+  marcarCustoVisual();
+  if (visModo === 'simples') montarSimples(); else montarAvancado();
+  $('#vis-porsis').checked = ler('visualPorSis') === '1';
+  const pj = $('#vis-porjogo'); pj.closest('label').hidden = !snes; pj.checked = !!(snes && ler('visual.jogo.' + jogoId));
+}
+function marcarCustoVisual() {
+  const c = KofVisual.custo(visual.v), n = glPassosOk ? KofVisual.passos(visual.v, telaL, telaA).length : 0;
+  $('#vis-custo').textContent = { leve: '🟢 leve', médio: '🟡 médio', pesado: '🔴 pesado' }[c] + (n ? ` · ${n + 1} etapas` : '');
+  $('#vis-custo').title = 'quanto esse jeito pesa na placa de vídeo (no celular, prefira leve ou médio)';
+}
+function montarSimples() {
+  const cats = ['Todos', ...KofVisual.CATEGORIAS.map(([c]) => c), '⭐ Meus'];
+  $('#vis-cats').innerHTML = cats.map((c) => `<button data-vis-cat="${c}" class="${c === visCat ? 'ativo' : ''}">${c}</button>`).join('');
+  const pre = $('#vis-pre'); pre.textContent = '';
+  const ids = visCat === 'Todos' ? KofVisual.PREDEF.map(([k]) => k) : visCat === '⭐ Meus' ? [] : (KofVisual.CATEGORIAS.find(([c]) => c === visCat) || [0, []])[1];
+  const ah = Math.round(144 * telaA / telaL);
+  const cartao = (dados, nome, desc, ativo, chaveCache, v) => {
+    const b = document.createElement('button'); b.className = 'vis-card' + (ativo ? ' ativo' : ''); Object.assign(b.dataset, dados); b.title = desc;
+    const cv = document.createElement('canvas'); cv.width = 144; cv.height = ah;
+    b.append(cv); b.insertAdjacentHTML('beforeend', `<b></b><small></small>`);
+    b.querySelector('b').textContent = nome; b.querySelector('small').textContent = desc;
+    pre.appendChild(b);
+    visPrevias.fila.push({ cv, v, k: chaveCache });
+  };
+  visPrevias.fila = []; visPrevias.vez++;
+  for (const k of ids) { const p = KofVisual.PREDEF.find(([x]) => x === k); if (p) cartao({ visPre: k }, p[1], p[2], visual.pre === k, k, KofVisual.valores(k)); }
+  if (visCat === 'Todos' || visCat === '⭐ Meus') visMeus().forEach((m, i) => cartao({ visMeu: i }, '⭐ ' + m.nome, 'clique pra usar · botão direito pra apagar', visual.pre === 'meu:' + m.nome, 'meu:' + m.nome, { ...KofVisual.PADRAO, ...m.v }));
+  if (visCat === '⭐ Meus' && !visMeus().length) pre.innerHTML = '<p class="dica">Nenhum ainda: ajuste do seu jeito e toque em ⭐ Salvar como meu jeito.</p>';
+  // os três de sempre
+  const r = $('#vis-rapidos');
+  const linha = (id, nome, min, max, passo, val, txt) => `<div class="vis-aj"><label>${nome}</label><span class="vis-val">${txt}</span><input type="range" data-vis-rapido="${id}" min="${min}" max="${max}" step="${passo}" value="${val}"></div>`;
+  r.innerHTML = linha('k', 'Intensidade do estilo', 0, 1.5, 0.05, visK, Math.round(visK * 100) + '%')
+    + linha('nitidez', 'Nitidez', 0, 1, 0.05, visual.v.nitidez, Math.round(visual.v.nitidez * 100) + '%')
+    + linha('brilho', 'Brilho', -0.3, 0.3, 0.02, visual.v.brilho, (+visual.v.brilho).toFixed(2));
+  requestAnimationFrame(desenharPrevias);
+}
+// prévia de cada cartão: o quadro atual desenhado com aquele estilo (uma por quadro de tela, pra não travar)
+function desenharPrevias() {
+  const vez = visPrevias.vez;
+  const passo = () => {
+    if (vez !== visPrevias.vez || $('#visual').hidden) return;
+    const it = visPrevias.fila.shift(); if (!it) return;
+    const c = visPrevias.cache[it.k] || (visPrevias.cache[it.k] = glPrevia(it.v, 144, it.cv.height));
+    if (c) {
+      const g = it.cv.getContext('2d'), im = g.createImageData(c.w, c.h);
+      for (let y = 0; y < c.h; y++) im.data.set(c.px.subarray((c.h - 1 - y) * c.w * 4, (c.h - y) * c.w * 4), y * c.w * 4);   // o WebGL lê de baixo pra cima
+      g.putImageData(im, 0, 0);
+    }
+    requestAnimationFrame(passo);
+  };
+  passo();
+}
+function montarAvancado() {
   const grupos = {};
   for (const a of KofVisual.AJUSTES) (grupos[a[1]] = grupos[a[1]] || []).push(a);
-  const DICA = { Pixels: 'como cada pixel é desenhado', TV: 'linhas, fósforo, curva', Sinal: 'cabo, fita e chiado', Portátil: 'telas de LCD', Cor: 'brilho, contraste, daltonismo' };
-  for (const [g, lista] of Object.entries(grupos)) {
-    const det = document.createElement('details'); det.dataset.g = g; det.open = abertos.has(g);
-    det.innerHTML = `<summary>${g}<small>${DICA[g] || ''}</small></summary>`;
-    for (const [id, , nome, min, max, passo, , opcoes] of lista) {
-      const v = visual.v[id], l = document.createElement('div'); l.className = 'vis-aj';
-      if (opcoes) {
-        l.innerHTML = `<label>${nome}</label><select data-vis="${id}">${opcoes.map((o, i) => `<option value="${i}"${+v === i ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
-      } else {
-        const mostra = (x) => (max <= 1.01 && min >= 0 ? Math.round(x * 100) + '%' : (+x).toFixed(passo < 1 ? 2 : 0));
-        l.innerHTML = `<label>${nome}</label><input type="range" data-vis="${id}" min="${min}" max="${max}" step="${passo}" value="${v}"><output>${mostra(v)}</output>`;
-        l.querySelector('input').addEventListener('input', (e) => { l.querySelector('output').textContent = mostra(e.target.value); });
-      }
-      det.appendChild(l);
-    }
-    aj.appendChild(det);
+  const nMud = (l) => l.filter((a) => mudouAj(a[0])).length;
+  const todosMud = nMud(KofVisual.AJUSTES);
+  $('#vis-grupos').innerHTML = Object.entries(grupos).map(([g, l]) => { const m = nMud(l), ic = (KofVisual.GRUPOS[g] || ['•'])[0];
+    return `<button data-vis-grupo="${g}" class="${g === visGrupo && !visBusca ? 'ativo' : ''}">${ic} ${g}${m ? ` <i>${m}</i>` : ''}</button>`; }).join('')
+    + `<button data-vis-grupo="*" class="${visGrupo === '*' && !visBusca ? 'ativo' : ''}">✏️ Mudados${todosMud ? ` <i>${todosMud}</i>` : ''}</button>`;
+  const sem = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const lista = visBusca ? KofVisual.AJUSTES.filter((a) => sem(a[2] + ' ' + a[1] + ' ' + (a[7] || []).join(' ')).includes(sem(visBusca)))
+    : visGrupo === '*' ? KofVisual.AJUSTES.filter((a) => mudouAj(a[0])) : grupos[visGrupo] || [];
+  const aj = $('#vis-ajustes'); aj.textContent = '';
+  const cab = document.createElement('div'); cab.className = 'vis-gcab';
+  cab.innerHTML = visBusca ? `<span>${lista.length} ajuste(s) com “${visBusca.replace(/[<&]/g, '')}”</span>` : `<span>${(KofVisual.GRUPOS[visGrupo] || ['', visGrupo === '*' ? 'tudo que está fora do padrão' : ''])[1]}</span>`;
+  if (lista.some((a) => mudouAj(a[0]))) cab.insertAdjacentHTML('beforeend', '<button data-vis-zera-grupo="1">↺ zerar estes</button>');
+  aj.appendChild(cab);
+  if (!lista.length) aj.insertAdjacentHTML('beforeend', '<p class="dica">Nada aqui.</p>');
+  for (const a of lista) {
+    const [id, , nome, min, max, passo, , opcoes] = a, v = visual.v[id];
+    const l = document.createElement('div'); l.className = 'vis-aj' + (mudouAj(id) ? ' mudou' : '');
+    l.innerHTML = `<label></label><span class="vis-val">${opcoes ? '' : mostraAj(a, v)}</span><button class="vis-zera" data-vis-zera="${id}" title="voltar ao padrão">↺</button>`
+      + (opcoes ? `<select data-vis="${id}">${opcoes.map((o, i) => `<option value="${i}"${+v === i ? ' selected' : ''}>${o}</option>`).join('')}</select>`
+        : `<input type="range" data-vis="${id}" min="${min}" max="${max}" step="${passo}" value="${v}">`);
+    l.querySelector('label').textContent = nome;
+    if (['ntsc', 'ampliar', 'bloom'].includes(id) && !glPassosOk) l.title = 'esse aparelho não aguenta as passadas extras: esse ajuste não aparece';
+    aj.appendChild(l);
   }
-  $('#vis-porsis').checked = ler('visualPorSis') === '1';
 }
+// intensidade: aproxima ou afasta tudo do padrão (100% = o estilo como veio); nitidez e brilho têm barra própria
+function escalarVisual(base, k) {
+  const v = { ...base };
+  for (const a of KofVisual.AJUSTES) {
+    if (a[7] || a[0] === 'brilho' || a[0] === 'nitidez') continue;
+    v[a[0]] = Math.min(a[4], Math.max(a[3], a[6] + (base[a[0]] - a[6]) * k));
+  }
+  return v;
+}
+function guardarPorJogo() { if (snes && ler('visual.jogo.' + jogoId)) guardar('visual.jogo.' + jogoId, JSON.stringify(visual)); }
 function abrirVisual() {
   if (!$('#visual').hidden) return;
   fecharMenus(); if (rapidoAberto) fecharRapido();
@@ -224,27 +401,50 @@ function abrirVisual() {
   for (const id of TELAS) $('#' + id).hidden = true;
   visVazio = !snes;
   if (visVazio) { document.body.classList.remove('vazio'); cartelaTeste(); }
-  montarVisual(); $('#visual').hidden = false; document.body.classList.add('com-visual'); ajustarEscala();
+  visPrevias.cache = {};   // prévia nova com o quadro de agora
+  $('#visual').hidden = false; document.body.classList.add('com-visual'); ajustarEscala(); montarVisual();
 }
 function fecharVisual() {
   if ($('#visual').hidden) return;
   $('#visual').hidden = true; document.body.classList.remove('com-visual');
-  divisao = 0; $('#vis-comparar').checked = false; if (gl) pintar(false);
+  divisao = 0; $('#vis-comparar').value = '0'; clearInterval(visPiscar); visPiscar = 0; visPrevias.vez++; if (gl) pintar(false);
   if (visVazio && !snes) document.body.classList.add('vazio');
   ajustarEscala();
   if (visVoltar) $('#' + visVoltar).hidden = false; else if (!snes) abrirHome();
   visVoltar = null;
 }
-function guardarPorSis() { if (snes && ler('visualPorSis') === '1') guardar('visual.' + (snes.sistema || 'snes'), JSON.stringify(visual)); }
+function guardarPorSis() { if (snes && ler('visualPorSis') === '1') guardar('visual.' + (snes.sistema || 'snes'), JSON.stringify(visual)); guardarPorJogo(); }
+function mexeuVisual(v) {
+  aplicarVisual(v, visual.pre.startsWith('meu') || visual.pre === 'meu' ? 'meu' : visual.pre); guardarPorSis(); marcarCustoVisual();
+}
 $('#visual').addEventListener('input', (e) => {
-  const id = e.target.dataset.vis; if (!id) return;
-  aplicarVisual({ ...visual.v, [id]: +e.target.value }, 'meu'); guardarPorSis();
-  $('#vis-pre').querySelectorAll('button').forEach((b) => b.classList.remove('ativo')); $('#vis-nome').textContent = '· do seu jeito';
+  const t = e.target;
+  if (t.id === 'vis-busca') { visBusca = t.value.trim(); montarAvancado(); return; }
+  if (t.dataset.visRapido) {
+    const id = t.dataset.visRapido, x = +t.value, out = t.parentNode.querySelector('.vis-val');
+    if (id === 'k') { visBase = visBase || { ...visual.v }; visK = x; out.textContent = Math.round(x * 100) + '%'; mexeuVisual({ ...escalarVisual(visBase, x), nitidez: visual.v.nitidez, brilho: visual.v.brilho }); }
+    else { out.textContent = id === 'brilho' ? x.toFixed(2) : Math.round(x * 100) + '%'; mexeuVisual({ ...visual.v, [id]: x }); }
+    return;
+  }
+  const id = t.dataset.vis; if (!id) return;
+  aplicarVisual({ ...visual.v, [id]: +t.value }, 'meu'); guardarPorSis(); visBase = null; visK = 1;
+  const l = t.closest('.vis-aj'); l.classList.toggle('mudou', mudouAj(id)); l.querySelector('.vis-val').textContent = AJ[id][7] ? '' : mostraAj(AJ[id], t.value);
+  $('#vis-nome').textContent = '· do seu jeito'; marcarCustoVisual();
 });
+$('#visual').addEventListener('change', (e) => { if (e.target.dataset.vis && visModo === 'avancado') montarAvancado(); });   // atualiza as contagens dos grupos
 $('#visual').addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.visPre) { aplicarFiltro(b.dataset.visPre); guardarPorSis(); montarVisual(); }
-  else if (b.dataset.visMeu) { const m = visMeus()[+b.dataset.visMeu]; if (m) { aplicarVisual(m.v, 'meu:' + m.nome); guardarPorSis(); montarVisual(); } }
+  const d = b.dataset;
+  if (d.visModo) { visModo = d.visModo; guardar('visModo', visModo); montarVisual(); }
+  else if (d.visCat) { visCat = d.visCat; montarSimples(); }
+  else if (d.visGrupo) { visGrupo = d.visGrupo; visBusca = ''; $('#vis-busca').value = ''; montarAvancado(); }
+  else if (d.visPre) { aplicarFiltro(d.visPre); visBase = null; visK = 1; guardarPorSis(); montarVisual(); }
+  else if (d.visMeu) { const m = visMeus()[+d.visMeu]; if (m) { aplicarVisual(m.v, 'meu:' + m.nome); visBase = null; visK = 1; guardarPorSis(); montarVisual(); } }
+  else if (d.visZera) { aplicarVisual({ ...visual.v, [d.visZera]: AJ[d.visZera][6] }, 'meu'); guardarPorSis(); montarVisual(); }
+  else if (d.visZeraGrupo) {
+    const ids = [...$('#vis-ajustes').querySelectorAll('[data-vis-zera]')].map((x) => x.dataset.visZera);
+    aplicarVisual({ ...visual.v, ...Object.fromEntries(ids.map((id) => [id, AJ[id][6]])) }, 'meu'); guardarPorSis(); montarVisual();
+  }
 });
 $('#vis-pre').addEventListener('contextmenu', (e) => {
   const b = e.target.closest('[data-vis-meu]'); if (!b) return;
@@ -252,10 +452,42 @@ $('#vis-pre').addEventListener('contextmenu', (e) => {
   const l = visMeus(), m = l[+b.dataset.visMeu];
   if (m && confirm('Apagar "' + m.nome + '"?')) { l.splice(+b.dataset.visMeu, 1); guardar('visualMeus', JSON.stringify(l)); montarVisual(); }
 });
-$('#vis-comparar').addEventListener('change', (e) => { divisao = e.target.checked ? 0.5 : 0; if (gl) pintar(false); });
-$('#mold-anim').addEventListener('change', (e) => { moldAnim = e.target.checked; guardar('moldAnim', moldAnim ? '1' : '0'); ajustarEscala(); });
-$('#mold-porsis').addEventListener('change', (e) => { guardar('moldPorSis', e.target.checked ? '1' : '0'); if (snes && e.target.checked) guardar('moldura.' + (snes.sistema || 'snes'), moldura); });
+$('#vis-comparar').addEventListener('change', (e) => {
+  clearInterval(visPiscar); visPiscar = 0;
+  const m = +e.target.value;
+  divisao = m === 1 ? 0.5 : 0;
+  if (m === 2) visPiscar = setInterval(() => { divisao = divisao ? 0 : 1.01; if (gl) pintar(false); }, 700);
+  if (gl) pintar(false);
+});
 $('#vis-porsis').addEventListener('change', (e) => { guardar('visualPorSis', e.target.checked ? '1' : '0'); guardarPorSis(); });
+$('#vis-porjogo').addEventListener('change', (e) => {
+  if (!snes) return;
+  if (e.target.checked) { guardar('visual.jogo.' + jogoId, JSON.stringify(visual)); avisar('🎛 este jogo vai abrir sempre com esse jeito', 2500); }
+  else { try { localStorage.removeItem('kofnes.visual.jogo.' + jogoId); } catch (x) { /* sem armazenamento */ } }
+});
+setInterval(() => { if (!$('#visual').hidden) $('#vis-fps').textContent = snes && !pausado ? visQuadros + ' quadros/s' : ''; visQuadros = 0; }, 1000);
+// 📤 📥 estilo num arquivo .kofvisual (trocar com os amigos)
+function exportarVisual() {
+  const nome = visual.pre.startsWith('meu:') ? visual.pre.slice(4) : visual.pre === 'meu' ? 'meu-jeito' : visual.pre;
+  const dados = new TextEncoder().encode(JSON.stringify({ kofvisual: 1, nome, v: visual.v }, null, 1));
+  const arq = nome.replace(/[^\w-]+/g, '-') + '.kofvisual';
+  if (CELULAR && window.KOFnesApk && KOFnesApk.salvar) KOFnesApk.salvar(arq, 'application/json', btoa(String.fromCharCode(...dados)));
+  else baixarArquivo(arq, dados);
+}
+function importarVisual() {
+  const e = document.createElement('input'); e.type = 'file'; e.accept = '.kofvisual,.json';
+  e.onchange = async () => {
+    try {
+      const o = JSON.parse(await e.files[0].text());
+      if (!o || !o.v) throw new Error('não é um estilo do KOFstation');
+      const nome = String(o.nome || 'importado').slice(0, 24), l = visMeus().filter((m) => m.nome !== nome);
+      l.push({ nome, v: o.v }); guardar('visualMeus', JSON.stringify(l));
+      aplicarVisual(o.v, 'meu:' + nome); guardarPorSis(); visModo = 'simples'; visCat = '⭐ Meus'; montarVisual();
+      avisar('📥 estilo "' + nome + '" importado', 3000);
+    } catch (x) { avisar('📥 não deu pra ler esse arquivo: ' + x.message, 5000); }
+  };
+  e.click();
+}
 tela.addEventListener('pointermove', (e) => {   // comparar: a divisória segue o mouse/dedo
   if (!divisao || $('#visual').hidden || !(e.buttons & 1)) return;
   const r = tela.getBoundingClientRect(); divisao = Math.min(0.98, Math.max(0.02, (e.clientX - r.left) / r.width));
@@ -263,6 +495,7 @@ tela.addEventListener('pointermove', (e) => {   // comparar: a divisória segue 
 });
 // por console: ao abrir um jogo, volta o jeito guardado daquele console
 function visualDoSistema(sis) {
+  try { const j = JSON.parse(ler('visual.jogo.' + jogoId)); if (j && j.v) { aplicarVisual(j.v, j.pre); return; } } catch (e) { /* esse jogo não tem jeito próprio */ }
   if (ler('visualPorSis') !== '1') return;
   try { const v = JSON.parse(ler('visual.' + sis)); if (v && v.v) aplicarVisual(v.v, v.pre); } catch (e) { /* nada guardado pra esse console */ }
 }
@@ -4065,7 +4298,9 @@ async function acao(a) {
     case 'fechar-molduras': fecharMolduras(); break;
     case 'mold-propria': escolherMolduraPropria(); break;
     case 'fechar-visual': fecharVisual(); break;
-    case 'vis-zerar': aplicarFiltro('original'); guardarPorSis(); montarVisual(); break;
+    case 'vis-zerar': aplicarFiltro('original'); visBase = null; visK = 1; guardarPorSis(); montarVisual(); break;
+    case 'vis-exportar': exportarVisual(); break;
+    case 'vis-importar': importarVisual(); break;
     case 'vis-salvar': {
       const nome = (prompt('Nome do seu jeito (ex.: "Minha TV"):', '') || '').trim().slice(0, 24);
       if (!nome) break;
@@ -4151,7 +4386,7 @@ ajustarEscala();
 if (!temPasta) document.querySelectorAll('[data-acao="pasta"], [data-acao="reler-pasta"]').forEach((b) => { b.hidden = true; });
 if (sofa) mostrarBiblioteca(false); else abrirHome();
 primeiraVez();
-window.KOFnes = { desempenho: () => desemp.ultimo, controle: { conectar: conectarControle, desconectar: desconectarControle, estado: () => ({ ligado: remoto.ligado, bits: remoto.bits, eixos: Array.from(remoto.eixos) }) }, guarda: { assentarRascunhos, assentarSave, lerSave, exportarSaves, importarSaves, calcularEspaco, limitarEstados, carregarEstat, estat: () => estat, aparelho: APARELHO, bdTodos, bdGuardar, bdPegar }, imagemTeste: (rgba, l, a) => { imagemTeste = true; document.body.classList.remove('vazio'); tamanhoTela(l, a); px.set(new Uint32Array(Uint8Array.from(rgba).buffer)); pintar(true); pintar(true); ajustarEscala(); }, mudarMoldura, abrirArquivo, estado: () => ({ snes: !!snes, pausado, romNome, jogoId }), nucleo: () => snes, botoes: () => estado(), mapa: () => mapa, filtro: () => filtro, aplicarFiltro, notaDoCanal, notas: () => notas, atrasoNotas: () => (juke.apu ? juke.amostras / juke.apu.taxa - notasVisto : 0), mudarSinc, filtrosRuins: () => glRuins.size, auto: () => autoSalvar, webgl: !!gl,
+window.KOFnes = { desempenho: () => desemp.ultimo, controle: { conectar: conectarControle, desconectar: desconectarControle, estado: () => ({ ligado: remoto.ligado, bits: remoto.bits, eixos: Array.from(remoto.eixos) }) }, guarda: { assentarRascunhos, assentarSave, lerSave, exportarSaves, importarSaves, calcularEspaco, limitarEstados, carregarEstat, estat: () => estat, aparelho: APARELHO, bdTodos, bdGuardar, bdPegar }, imagemTeste: (rgba, l, a) => { imagemTeste = true; document.body.classList.remove('vazio'); tamanhoTela(l, a); px.set(new Uint32Array(Uint8Array.from(rgba).buffer)); pintar(true); pintar(true); ajustarEscala(); }, mudarMoldura, abrirArquivo, estado: () => ({ snes: !!snes, pausado, romNome, jogoId }), nucleo: () => snes, botoes: () => estado(), mapa: () => mapa, filtro: () => filtro, aplicarFiltro, aplicarVisual, notaDoCanal, notas: () => notas, atrasoNotas: () => (juke.apu ? juke.amostras / juke.apu.taxa - notasVisto : 0), mudarSinc, filtrosRuins: () => glRuins.size, auto: () => autoSalvar, webgl: !!gl,
   // pros testes: lista falsa de n jogos (mede a biblioteca) e uma quebra de mentira no núcleo
   testeLista: (n, nomes) => { fecharJanelas(); itens = Array.from({ length: n }, (_, i) => { const nome = nomes ? nomes[i % nomes.length] + (i >= nomes.length ? ' #' + i : '') : 'Jogo de teste ' + i; return { nome, ext: 'SFC', chave: normal(nome), variante: VARIANTE.test(nome) }; }); $('#biblioteca').hidden = false; const t0 = performance.now(); montarLista(); const t1 = performance.now(); for (let k = 0; k < 30; k++) listaTecla({ code: 'ArrowDown', preventDefault() {}, target: null, key: '' }); return { montar: Math.round(t1 - t0), trintaSetas: Math.round(performance.now() - t1) }; },
   forcarErro: () => { const r = snes.runFrame; snes.runFrame = () => { snes.runFrame = r; throw new Error('quebra de teste'); }; },

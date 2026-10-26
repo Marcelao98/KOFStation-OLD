@@ -44,6 +44,20 @@
   PC: menu rápido ganhou **📱 Levar pro celular** (`levarProCelular`: manda `{t:'levar'}` pro 1º celular online; o celular
   entra sozinho no `entrarModoControle({pc})`) e **📺 Voltar pra TV** (`pararTransmissao`); no celular o ☰ tem "📺 Voltar pra
   TV". Teste: `jogar-no-pc.cjs` (deitado, botão por cima, levar, voltar).
+- **🎛 IMAGEM PRO (26/10, publicado na main):** visual.js ganhou 10 ajustes no FIM da lista (`NOVOS`: ntsc, ntscTipo, ampliar,
+  nitidez, traco, bloom, bloomRaio, reflexo, sombra, refletiva; `NP` = 16 vec4) e 12 predefinições (trinitron, pvmpro, tubobarato,
+  ntsc, svideo, pixelhd, tv4k, desenho, dmg, pocket, gbasemluz, gamegear; as antigas iguais), `CATEGORIAS`, `GRUPOS`, `custo(v)`.
+  **Passadas** (`PASSOS` + `passos(v, L, A)`): `ntsc` (sinal composto de verdade, 4 subamostras/pixel, ciclo da cor = 2 pixels,
+  S-Vídeo/Composto/Antena), `scale2x` (EPX; 2x = Scale4x; não junta com NTSC), `bloomReduz`+`bloomBorra` (metade do tamanho,
+  luz linear). Shader final: `PRE` (lê a textura pronta) e `BLOOMTEX` (textura `tb`, unidade 2). `fonte(v, {passos:true})` só no
+  app; sem isso (PS2 nativo) os NOVOS ficam no padrão e o vetor tem 13 vec4 (`vetor(v, 13)`). app.js: `glCompilar`,
+  `glProgramaDe`, `glAlvo` (textura+framebuffer), `glRodarPassos` (no `pintar`; falhou = `glPassosOk=false` + aviso),
+  `glPrevia` (prévia num framebuffer + readPixels). Painel novo: Simples (categorias, cartões com prévia do quadro atual, uma
+  por quadro de tela; Intensidade = `escalarVisual`, Nitidez, Brilho) e Avançado (abas por grupo com contagem, ✏️ Mudados,
+  busca, ↺ por ajuste e por grupo), custo leve/médio/pesado + quadros/s, comparar (antes|depois, piscar), ⭐ meus, 📤/📥
+  `.kofvisual`, por console e **por jogo** (`visual.jogo.<jogoId>`, vence o do console). Jogar no PC: o celular passa o vídeo
+  pelo desenho dele (`puxarVideo`: o PC manda `l/a` no `{t:'jogo'}`, o quadro volta ao tamanho do jogo, `pintar(true)`);
+  ☰ tem "Filtro e moldura do celular" (`kofnes.remotoFiltro`) e "Escolher o filtro do celular".
 - **Aberto / a fazer, nesta ordem:**
   0. **ATUALIZAÇÃO 25/10 (última mensagem do chat): o Marcelo disse "deu certo, muito foda"** logo depois de receber as
      instruções do controle: tudo indica que o **celular como controle conectou**. Confirmar com ele no começo do chat novo
