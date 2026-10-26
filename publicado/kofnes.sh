@@ -10,7 +10,7 @@
 # Os núcleos (Game Boy, NES, Sega...) moram em nucleos/<núcleo>-<hash>.js; o versao.txt lista cada um
 # ("nucleo=<arquivo>:<tamanho>") e o que falta é baixado antes de trocar o html. Um "fonte.txt" do lado
 # do script (ou KOFNES_URL) troca o endereço de onde baixa (pra testar uma branch).
-LANCADOR=6
+LANCADOR=7
 BASE="${KOFNES_URL:-https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/publicado}"
 
 eu="$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")"
@@ -203,7 +203,13 @@ if [ -n "$kof" ] && [ -n "$nuc" ] && [ "$(uname -m)" = x86_64 ]; then
     if [ ! -f "$so" ]; then rm -f "$nd"/pcsx2_libretro-*.so; gzip -dc "$nuc" >"$so.tmp" && mv -f "$so.tmp" "$so" || rm -f "$so.tmp"; fi
     chmod +x "$kof" 2>/dev/null
     if [ -f "$so" ]; then
-        "$kof" "$so" "$nd" >"$nd/kofnativo.log" 2>&1 &
+        # se o kofnativo cair (jogo que quebra o PCSX2), abre de novo enquanto o KOFstation estiver aberto; o log anterior fica no .1
+        [ -f "$nd/kofnativo.log" ] && mv -f "$nd/kofnativo.log" "$nd/kofnativo.log.1"
+        touch "$nd/.ligado"
+        ( while [ -f "$nd/.ligado" ]; do
+              "$kof" "$so" "$nd" >>"$nd/kofnativo.log" 2>&1 &
+              echo $! >"$nd/.pid"; wait $!; echo "[lançador] kofnativo saiu ($?)" >>"$nd/kofnativo.log"; sleep 1
+          done ) &
         natpid=$!; anotar "PCSX2 nativo aberto ($(basename "$kof"))"
     fi
 fi
@@ -221,5 +227,5 @@ if [ -n "$flat" ]; then
 else
     "$nav" --user-data-dir="$perfil" "$@"
 fi
-[ -n "$natpid" ] && kill "$natpid" 2>/dev/null
+if [ -n "$natpid" ]; then rm -f "$nd/.ligado"; kill "$(cat "$nd/.pid" 2>/dev/null)" 2>/dev/null; kill "$natpid" 2>/dev/null; fi
 exit 0
