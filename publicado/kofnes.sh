@@ -10,7 +10,7 @@
 # Os núcleos (Game Boy, NES, Sega...) moram em nucleos/<núcleo>-<hash>.js; o versao.txt lista cada um
 # ("nucleo=<arquivo>:<tamanho>") e o que falta é baixado antes de trocar o html. Um "fonte.txt" do lado
 # do script (ou KOFNES_URL) troca o endereço de onde baixa (pra testar uma branch).
-LANCADOR=7
+LANCADOR=8
 BASE="${KOFNES_URL:-https://raw.githubusercontent.com/Marcelao98/KOFSnes/main/publicado}"
 
 eu="$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")"
@@ -203,6 +203,9 @@ if [ -n "$kof" ] && [ -n "$nuc" ] && [ "$(uname -m)" = x86_64 ]; then
     if [ ! -f "$so" ]; then rm -f "$nd"/pcsx2_libretro-*.so; gzip -dc "$nuc" >"$so.tmp" && mv -f "$so.tmp" "$so" || rm -f "$so.tmp"; fi
     chmod +x "$kof" 2>/dev/null
     if [ -f "$so" ]; then
+        # um kofnativo de uma sessão anterior (órfão) seguraria a porta 8643 e a página falaria com ele: fecha antes
+        velhos="$(ps -eo pid,comm 2>/dev/null | awk '$2 ~ /^kofnativo/ {print $1}')"
+        if [ -n "$velhos" ]; then kill $velhos 2>/dev/null; sleep 1; kill -9 $velhos 2>/dev/null; anotar "kofnativo antigo fechado ($velhos)"; fi
         # se o kofnativo cair (jogo que quebra o PCSX2), abre de novo enquanto o KOFstation estiver aberto; o log anterior fica no .1
         [ -f "$nd/kofnativo.log" ] && mv -f "$nd/kofnativo.log" "$nd/kofnativo.log.1"
         touch "$nd/.ligado"

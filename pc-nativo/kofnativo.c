@@ -25,6 +25,7 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -142,7 +143,7 @@ static int64_t vfs_onde(struct retro_vfs_file_handle *h) { return h->pos; }
 static int64_t vfs_ir(struct retro_vfs_file_handle *h, int64_t o, int de) {
     int64_t p = de == RETRO_VFS_SEEK_POSITION_START ? o : de == RETRO_VFS_SEEK_POSITION_CURRENT ? h->pos + o : discoTam + o;
     if (p < 0) return -1;
-    h->pos = p; return p;
+    h->pos = p; return 0;   // como o RetroArch: 0 = deu certo (o LRPS2 confere seek != 0; devolver a posição só funcionava no começo do disco)
 }
 static int64_t vfs_ler(struct retro_vfs_file_handle *h, void *dst, uint64_t n) {
     uint8_t *o = dst; int64_t lidos = 0;
@@ -438,7 +439,7 @@ static void usarPrograma(GLuint pr) {
 }
 
 // ---------------------------------------------------------------- principal
-static SDL_Window *janela; static int visivel, rodando, jogoAberto;
+static SDL_Window *janela; static int visivel, jogoAberto; static volatile sig_atomic_t rodando;
 static void mostrar(int sim) {
     visivel = sim;
     if (sim) { SDL_ShowWindow(janela); SDL_RaiseWindow(janela); SDL_PauseAudioDevice(som, 0); }
@@ -488,12 +489,14 @@ static void espalharSaves(const uint8_t *d, size_t n) {
     }
 }
 
+static void sair(int s) { (void)s; if (!rodando) _exit(0); rodando = 0; }   // o 2º sinal (ou antes de ligar) fecha na hora
+
 static void abrirJogo(void) {
     if (jogoAberto) { nucleo.unload_game(); jogoAberto = 0; }
     pthread_mutex_lock(&discoTrava); for (int i = 0; i < NCACHE; i++) { free(cache[i].d); cache[i].d = NULL; } pthread_mutex_unlock(&discoTrava);
     char caminho[600]; snprintf(caminho, sizeof caminho, "kof://disco/%s", discoNome);
     struct retro_game_info g = {caminho, NULL, 0, NULL};
-    if (!nucleo.load_game(&g)) { dizer("erro o núcleo não abriu o jogo (falta a BIOS do PS2? o disco é de PS2?)"); return; }
+    if (!nucleo.load_game(&g)) { mostrar(0); dizer("erro o núcleo não abriu o jogo (falta a BIOS do PS2? o disco é de PS2?)"); return; }
     jogoAberto = 1;
     nucleo.get_av_info(&av);
     if (temHw) { SDL_GL_MakeCurrent(janela, SDL_GL_GetCurrentContext()); criarFbo(av.geometry.max_width, av.geometry.max_height); if (hw.context_reset) hw.context_reset(); }
@@ -600,6 +603,9 @@ int main(int argc, char **argv) {
     PEGA(set_video_refresh, "set_video_refresh") PEGA(set_audio_sample, "set_audio_sample")
     PEGA(set_audio_sample_batch, "set_audio_sample_batch") PEGA(set_input_poll, "set_input_poll") PEGA(set_input_state, "set_input_state")
 
+    // SIGTERM/SIGINT/SIGHUP = sair de verdade (o SDL transformava em SDL_QUIT, que aqui só pausa: o processo ficava órfão segurando a porta)
+    SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
+    signal(SIGTERM, sair); signal(SIGINT, sair); signal(SIGHUP, sair);
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER) < 0) { fprintf(stderr, "SDL: %s\n", SDL_GetError()); return 1; }
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3); SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
