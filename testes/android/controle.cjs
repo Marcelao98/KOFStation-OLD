@@ -89,6 +89,13 @@ const [,, pasta] = process.argv, RAIZ = path.resolve(__dirname, '../..');
   c = await ctlCel();
   conferir(c.sis === 'nes' && c.console === 'NES' && c.soAb && !c.X, 'PC abriu NES: o celular virou controle de NES (só A e B) ' + JSON.stringify(c));
   await cel.screenshot({ path: path.join(tmp, 'controle-nes.png') });
+  // ---- ☰ do celular = Select+Start: abre (e fecha) o menu rápido do PC
+  const menuVisivel = () => cel.evaluate(() => getComputedStyle(document.querySelector('#ctl [data-b="menu"]')).display !== 'none');
+  conferir(await menuVisivel(), 'o ☰ aparece no celular como controle');
+  await apertar('#ctl [data-b="menu"]'); await pc.waitForTimeout(600);
+  const abriu = await pc.evaluate(() => !document.querySelector('#rapido').hidden);
+  await apertar('#ctl [data-b="menu"]'); await pc.waitForTimeout(600);
+  conferir(abriu && await pc.evaluate(() => document.querySelector('#rapido').hidden), '☰ do celular abre e fecha o menu rápido do PC');
   // ---- ⓘ mostra o endereço de novo (pra parear outro PC) e esconde
   await cel.evaluate(() => document.querySelector('.mc-info').click());
   const info = await cel.evaluate(() => document.querySelector('#modo-controle').classList.contains('pareando'));

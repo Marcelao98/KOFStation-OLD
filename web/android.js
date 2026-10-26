@@ -92,6 +92,7 @@
     if (b === 'dpad') f.dir = dir8(c, x, y);
     if (b === 'rew') voltandoTecla = true;
     if (b === 'turbo') turbo = true;
+    if (b === 'menu' && modoControle) { dedos.delete(id); c.classList.remove('on'); modoControle.menu = performance.now(); return; }   // celular como controle: ☰ = Select+Start, o menu rápido do PC
     if (b === 'menu') { dedos.delete(id); c.classList.remove('on'); if (snes && !rapidoAberto) abrirRapido(); else if (rapidoAberto) fecharRapido(); return; }
     recalcular();
   }
@@ -222,7 +223,7 @@
     const base = CONSOLE_PARECIDO[sis] || sis, S = SIS[base];
     document.body.dataset.sis = S ? base : 'ps1';
     document.body.classList.toggle('analogico', !S || !!S.analogico);
-    if (modoControle) modoControle.an = S && S.analogico === 'puro' ? 'puro' : 'misto';   // N64: o analógico não aperta o direcional
+    if (modoControle) modoControle.an = (S && S.analogico === 'puro') || (SIS[sis] && SIS[sis].analogico === 'puro') ? 'puro' : 'misto';   // N64/PS2: o analógico não aperta o direcional
     document.body.classList.toggle('so-ab', !!(S && S.botoes && !S.botoes.includes('X')));
     rotularControle(S ? base : 'ps1');
     const d = $('#modo-controle'); if (!d) return;
@@ -240,7 +241,7 @@
   }
   function enviarControle() {
     const m = modoControle; if (!m) return;
-    const b = estado(), e16 = [eixosToque[0], eixosToque[1], 0, 0].map((v) => (Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767)));
+    const b = estado() | (performance.now() - (m.menu || 0) < 150 ? 0x3000 : 0), e16 = [eixosToque[0], eixosToque[1], 0, 0].map((v) => (Math.abs(v) < 0.15 ? 0 : Math.round(Math.max(-1, Math.min(1, v)) * 32767)));
     const e = KofLibretro.empacotar(e16), agora = performance.now();
     if (b !== m.b || e !== m.e || agora - m.quando > 250) { KOFnesApk.controleEnviar(b, e); m.b = b; m.e = e; m.quando = agora; }
     if (agora - m.visto > 300) {

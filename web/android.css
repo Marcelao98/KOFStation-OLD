@@ -370,4 +370,4 @@ html.celular body[data-sis="n64"] #ctl.skin-classico [data-b="B"] { --c: #2e6fd8
 html.celular body[data-sis="n64"] #ctl.skin-classico :is([data-b="X"], [data-b="A"]) { --c: #eab824; color: #3b2f00; text-shadow: none; }
 html.celular body[data-sis="nes"] #ctl.skin-classico :is([data-b="A"], [data-b="B"]) { --c: #c8202c; }
 html.celular body:is([data-sis="gb"], [data-sis="gba"]) #ctl.skin-classico :is([data-b="A"], [data-b="B"]) { --c: #8e2a63; }
-body.modo-controle #ctl [data-b="menu"], body.modo-controle #ctl [data-b="turbo"], body.modo-controle #ctl [data-b="rew"] { display: none; }   /* sem jogo aqui: menu e turbo não servem */
+body.modo-controle #ctl [data-b="turbo"], body.modo-controle #ctl [data-b="rew"] { display: none; }   /* sem jogo aqui: turbo e rebobinar não servem; o ☰ abre o menu do PC */

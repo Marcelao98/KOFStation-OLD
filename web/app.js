@@ -3023,6 +3023,7 @@ const ITENS_RAPIDO = [
   { t: 'Cores do Game Boy', so: () => !!(snes && snes.sistema === 'gb'), v: () => PALETAS_GB.find(([k]) => k === paletaGb)[1], aj: (d) => mudarPaletaGb(ciclar(PALETAS_GB, paletaGb, d)) },
   { t: 'Cores do NES', so: () => !!(snes && snes.sistema === 'nes'), v: () => PALETAS_NES.find(([k]) => k === paletaNes)[1], aj: (d) => mudarPaletaNes(ciclar(PALETAS_NES, paletaNes, d)) },
   { t: 'Proporção', so: () => !semImagem(), v: () => nomeProporcao(proporcao), aj: (d) => mudarProporcao(ciclar(PROPORCOES, proporcao, d)) },
+  { t: '🎛 Painel de imagem', so: () => !semImagem(), f: () => { fecharRapido(); abrirVisual(); } },
   { t: 'Moldura', v: () => MOLDURAS.find(([k]) => k === moldura)[1], aj: (d) => mudarMoldura(ciclar(MOLDURAS.filter(([k]) => k !== 'propria' || propria), moldura, d)) },
   { t: 'Volume', v: () => (mudo ? 'mudo' : volume + '%'), aj: (d) => mudarVolume(d * 10) },
   { t: '⛶ Tela cheia', f: () => acao('cheia') },
@@ -3082,10 +3083,16 @@ function rapidoTecla(e) {
   if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && it.aj) { e.preventDefault(); it.aj(e.code === 'ArrowRight' ? 1 : -1); montarRapido(); return; }
   if (e.code === 'Enter') { e.preventDefault(); if (it.f) it.f(); else { it.aj(1); montarRapido(); } }
 }
+// analógico (controle físico ou celular) como direcional: navegar no menu rápido nos consoles de analógico 'puro' (N64, PS2)
+function direcionalDosEixos() {
+  let x = remoto.eixos[0] / 32767, y = remoto.eixos[1] / 32767;
+  for (const g of (navigator.getGamepads ? navigator.getGamepads() : [])) if (g && g.axes.length > 1 && Math.abs(g.axes[0]) + Math.abs(g.axes[1]) > Math.abs(x) + Math.abs(y)) { x = g.axes[0]; y = g.axes[1]; }
+  return (x < -0.5 ? 0x0200 : x > 0.5 ? 0x0100 : 0) | (y < -0.5 ? 0x0800 : y > 0.5 ? 0x0400 : 0);
+}
 // atalhos do controle (e das teclas configuradas): Select+Start menu, Select+L salva, Select+R carrega
 let comboAntes = 0;
 setInterval(() => {
-  const b = estado(), novo = b & ~comboAntes; comboAntes = b;
+  const b = estado() | (rapidoAberto ? direcionalDosEixos() : 0), novo = b & ~comboAntes; comboAntes = b;
   if (!novo || !snes) return;
   const sel = b & 0x2000;
   if (sel && (novo & 0x1000)) { if (rapidoAberto) fecharRapido(); else if ($('#biblioteca').hidden) abrirRapido(); return; }
@@ -3723,6 +3730,7 @@ async function acao(a) {
       avisar(pausaAuto ? 'pausa ao sair da janela ligada' : 'pausa ao sair da janela desligada'); break;
     case 'cheia': if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); break;
     case 'temas': if ($('#temas').hidden) abrirTemas(); else fecharTemas(); break;
+    case 'visual-temas': fecharTemas(false); abrirVisual(); break;
     case 'visual': if ($('#visual').hidden) abrirVisual(); else fecharVisual(); break;
     case 'molduras': if ($('#molduras').hidden) abrirMolduras(); else fecharMolduras(); break;
     case 'fechar-molduras': fecharMolduras(); break;

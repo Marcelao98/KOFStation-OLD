@@ -73,7 +73,7 @@ const KofLibretro = (() => {
     // dele e desenha num canvas próprio por cima da área do jogo; o app fala com ele por uma "fachada" (web/ps2.js), como os
     // nativos do celular. .iso/.chd são reconhecidos pelo conteúdo (SYSTEM.CNF com BOOT2; o PS1 também usa essas extensões).
     // BIOS não precisa (o Play! imita). O DVD não é copiado: o Play! lê pedaços do arquivo escolhido
-    ps2: { nome: 'PlayStation 2', curto: 'PS2', ext: ['elf', 'cso', 'isz'], nucleo: 'play', analogico: 'misto', largura: 640, altura: 448, tv43: true,
+    ps2: { nome: 'PlayStation 2', curto: 'PS2', ext: ['elf', 'cso', 'isz'], nucleo: 'play', analogico: 'puro', largura: 640, altura: 448, tv43: true,
       semRebob: true, musica: false, minimo: 0, grande: true, canais: [],
       // a BIOS só é usada pelo PCSX2 nativo (kofnativo); o Play! no navegador imita a BIOS. 4 MB, extraída do console
       bios: [{ arquivo: 'bios-ps2.bin', tamanho: 4194304, opcional: true }],

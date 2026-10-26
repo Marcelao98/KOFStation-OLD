@@ -1978,6 +1978,7 @@ html.celular body.com-visual #palco { padding-right: 0; padding-bottom: 58vh; }
       <div id="temas-cats"></div>
     </div>
     <div id="grade-temas"></div>
+    <button class="grande" data-acao="visual-temas">🎛 Painel de imagem: filtros, efeitos e ajustes finos</button>
     <button class="grande sec" data-acao="showcase">▶ Showcase lento: um tema a cada 3,5 s</button>
     <button class="grande sec" data-acao="showcase-rapido">⚡ Showcase rápido: meio segundo por tema</button>
     <p class="dica so-pc">passe o mouse pra experimentar · clique (ou Enter) pra escolher · Esc fecha</p><p class="dica so-cel">toque num tema pra escolher</p>
@@ -2038,6 +2039,13 @@ html.celular body.com-visual #palco { padding-right: 0; padding-bottom: 58vh; }
 <script>
 const KofNucleo = (() => {
 'use strict';
+function kofArrayGet(array, index) {
+    return array[index];
+}
+function kofArraySet(array, index, value, kind) {
+    if (kind === 0) { array[index] = value; return; }
+}
+
 function kofArrayGet(array, index) {
     return array[index];
 }
@@ -11921,7 +11929,7 @@ const KofLibretro = (() => {
     // dele e desenha num canvas próprio por cima da área do jogo; o app fala com ele por uma "fachada" (web/ps2.js), como os
     // nativos do celular. .iso/.chd são reconhecidos pelo conteúdo (SYSTEM.CNF com BOOT2; o PS1 também usa essas extensões).
     // BIOS não precisa (o Play! imita). O DVD não é copiado: o Play! lê pedaços do arquivo escolhido
-    ps2: { nome: 'PlayStation 2', curto: 'PS2', ext: ['elf', 'cso', 'isz'], nucleo: 'play', analogico: 'misto', largura: 640, altura: 448, tv43: true,
+    ps2: { nome: 'PlayStation 2', curto: 'PS2', ext: ['elf', 'cso', 'isz'], nucleo: 'play', analogico: 'puro', largura: 640, altura: 448, tv43: true,
       semRebob: true, musica: false, minimo: 0, grande: true, canais: [],
       // a BIOS só é usada pelo PCSX2 nativo (kofnativo); o Play! no navegador imita a BIOS. 4 MB, extraída do console
       bios: [{ arquivo: 'bios-ps2.bin', tamanho: 4194304, opcional: true }],
@@ -13893,7 +13901,7 @@ $('#arquivo-spc').addEventListener('change', (e) => { if (e.target.files.length)
 // estado (um marco) e anota os botões de cada quadro dali pra frente. O pacote
 // do bug leva o marco anterior + os botões até agora: rodando de novo, o
 // núcleo (determinístico) chega no mesmo lugar, quadro a quadro.
-const VERSAO = '202610260617 · e28200a', REPO = 'Marcelao98/KOFSnes';
+const VERSAO = '202610261106 · 99b4600', REPO = 'Marcelao98/KOFSnes';
 let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAtual = null;
 // eixos pro núcleo (-32767..32767): controle físico (com zona morta) ou a tela de toque; tudo parado = 0 (aí a ponte do N64
 // usa o direcional como analógico, como antes)
@@ -15604,6 +15612,7 @@ const ITENS_RAPIDO = [
   { t: 'Cores do Game Boy', so: () => !!(snes && snes.sistema === 'gb'), v: () => PALETAS_GB.find(([k]) => k === paletaGb)[1], aj: (d) => mudarPaletaGb(ciclar(PALETAS_GB, paletaGb, d)) },
   { t: 'Cores do NES', so: () => !!(snes && snes.sistema === 'nes'), v: () => PALETAS_NES.find(([k]) => k === paletaNes)[1], aj: (d) => mudarPaletaNes(ciclar(PALETAS_NES, paletaNes, d)) },
   { t: 'Proporção', so: () => !semImagem(), v: () => nomeProporcao(proporcao), aj: (d) => mudarProporcao(ciclar(PROPORCOES, proporcao, d)) },
+  { t: '🎛 Painel de imagem', so: () => !semImagem(), f: () => { fecharRapido(); abrirVisual(); } },
   { t: 'Moldura', v: () => MOLDURAS.find(([k]) => k === moldura)[1], aj: (d) => mudarMoldura(ciclar(MOLDURAS.filter(([k]) => k !== 'propria' || propria), moldura, d)) },
   { t: 'Volume', v: () => (mudo ? 'mudo' : volume + '%'), aj: (d) => mudarVolume(d * 10) },
   { t: '⛶ Tela cheia', f: () => acao('cheia') },
@@ -15663,10 +15672,16 @@ function rapidoTecla(e) {
   if ((e.code === 'ArrowLeft' || e.code === 'ArrowRight') && it.aj) { e.preventDefault(); it.aj(e.code === 'ArrowRight' ? 1 : -1); montarRapido(); return; }
   if (e.code === 'Enter') { e.preventDefault(); if (it.f) it.f(); else { it.aj(1); montarRapido(); } }
 }
+// analógico (controle físico ou celular) como direcional: navegar no menu rápido nos consoles de analógico 'puro' (N64, PS2)
+function direcionalDosEixos() {
+  let x = remoto.eixos[0] / 32767, y = remoto.eixos[1] / 32767;
+  for (const g of (navigator.getGamepads ? navigator.getGamepads() : [])) if (g && g.axes.length > 1 && Math.abs(g.axes[0]) + Math.abs(g.axes[1]) > Math.abs(x) + Math.abs(y)) { x = g.axes[0]; y = g.axes[1]; }
+  return (x < -0.5 ? 0x0200 : x > 0.5 ? 0x0100 : 0) | (y < -0.5 ? 0x0800 : y > 0.5 ? 0x0400 : 0);
+}
 // atalhos do controle (e das teclas configuradas): Select+Start menu, Select+L salva, Select+R carrega
 let comboAntes = 0;
 setInterval(() => {
-  const b = estado(), novo = b & ~comboAntes; comboAntes = b;
+  const b = estado() | (rapidoAberto ? direcionalDosEixos() : 0), novo = b & ~comboAntes; comboAntes = b;
   if (!novo || !snes) return;
   const sel = b & 0x2000;
   if (sel && (novo & 0x1000)) { if (rapidoAberto) fecharRapido(); else if ($('#biblioteca').hidden) abrirRapido(); return; }
@@ -16304,6 +16319,7 @@ async function acao(a) {
       avisar(pausaAuto ? 'pausa ao sair da janela ligada' : 'pausa ao sair da janela desligada'); break;
     case 'cheia': if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen(); break;
     case 'temas': if ($('#temas').hidden) abrirTemas(); else fecharTemas(); break;
+    case 'visual-temas': fecharTemas(false); abrirVisual(); break;
     case 'visual': if ($('#visual').hidden) abrirVisual(); else fecharVisual(); break;
     case 'molduras': if ($('#molduras').hidden) abrirMolduras(); else fecharMolduras(); break;
     case 'fechar-molduras': fecharMolduras(); break;
