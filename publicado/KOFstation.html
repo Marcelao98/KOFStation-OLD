@@ -121,6 +121,9 @@ body.vazio #tela { visibility: hidden; }
   background: var(--painel2); border: 1px solid var(--destaque); border-radius: var(--raio);
   box-shadow: var(--brilho); pointer-events: none;
 }
+#aviso.erro { pointer-events: auto; max-width: min(92vw, 640px); border-color: #e05a5a; z-index: 60; text-align: left; white-space: pre-wrap; line-height: 1.4; }
+#aviso .aviso-botoes { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+#aviso .aviso-botoes button { font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--borda); background: var(--painel); color: var(--texto); cursor: pointer; }
 body.arrastando #palco { outline: 3px dashed var(--destaque); outline-offset: -12px; }
 
 #status {
@@ -2024,6 +2027,13 @@ html.celular body.com-visual #palco { padding-right: 0; padding-bottom: 58vh; }
 <script>
 const KofNucleo = (() => {
 'use strict';
+function kofArrayGet(array, index) {
+    return array[index];
+}
+function kofArraySet(array, index, value, kind) {
+    if (kind === 0) { array[index] = value; return; }
+}
+
 function kofArrayGet(array, index) {
     return array[index];
 }
@@ -11891,7 +11901,7 @@ const KofLibretro = (() => {
   // Cada núcleo mora num arquivo próprio do lado do html (nucleos/<núcleo>-<hash>.js; o hash muda quando o núcleo muda)
   // e só é carregado quando abre um jogo daquele console. O juntar.py escreve aqui a lista exata desta versão.
   // É <script src> e não fetch: o navegador bloqueia fetch de arquivo local (file://), script ele deixa.
-  const ARQUIVOS = {"fbneo": "nucleos/fbneo-3ffc717a.js", "fceumm": "nucleos/fceumm-9243119b.js", "gambatte": "nucleos/gambatte-f3b4deb6.js", "genplus": "nucleos/genplus-cd68890e.js", "mgba": "nucleos/mgba-cefd6783.js", "mupen64": "nucleos/mupen64-9dc88f6a.js", "pcsx": "nucleos/pcsx-1c04c405.js", "play": "nucleos/play-93f87115.js", "snes9x": "nucleos/snes9x-e205bc90.js", "violino": "nucleos/violino-306d94e5.js", "jogos": "nucleos/jogos-371590f5.js"};
+  const ARQUIVOS = {"fbneo": "nucleos/fbneo-3ffc717a.js", "fceumm": "nucleos/fceumm-9243119b.js", "gambatte": "nucleos/gambatte-f3b4deb6.js", "genplus": "nucleos/genplus-cd68890e.js", "mgba": "nucleos/mgba-cefd6783.js", "mupen64": "nucleos/mupen64-9dc88f6a.js", "pcsx": "nucleos/pcsx-1c04c405.js", "play": "nucleos/play-e5f914a5.js", "snes9x": "nucleos/snes9x-e205bc90.js", "violino": "nucleos/violino-306d94e5.js", "jogos": "nucleos/jogos-371590f5.js"};
   const fabrica = (n) => (typeof globalThis['Nucleo_' + n] === 'function' ? globalThis['Nucleo_' + n] : null);
   const disponivel = (sis) => !!(SISTEMAS[sis] && (fabrica(SISTEMAS[sis].nucleo) || ARQUIVOS[SISTEMAS[sis].nucleo]
     || (SISTEMAS[sis].nativo && typeof KOFnesApk !== 'undefined' && KOFnesApk[SISTEMAS[sis].nativo + 'Nativo'] && KOFnesApk[SISTEMAS[sis].nativo + 'Nativo']())));
@@ -13294,7 +13304,7 @@ function laco(t) {
       }
     }
   } catch (e) {
-    pausado = true; avisar('erro no emulador: ' + e.message, 6000); console.error(e);
+    pausado = true; avisarErro('erro no emulador: ' + e.message, e.detalhe || e.stack); console.error(e);
     if (cacador) abrirBug(e);
     return;
   }
@@ -13814,7 +13824,7 @@ $('#arquivo-spc').addEventListener('change', (e) => { if (e.target.files.length)
 // estado (um marco) e anota os botões de cada quadro dali pra frente. O pacote
 // do bug leva o marco anterior + os botões até agora: rodando de novo, o
 // núcleo (determinístico) chega no mesmo lugar, quadro a quadro.
-const VERSAO = '202610252216 · 28d5679', REPO = 'Marcelao98/KOFSnes';
+const VERSAO = '202610260219 · 5dd98e1', REPO = 'Marcelao98/KOFSnes';
 let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAtual = null;
 // eixos pro núcleo (-32767..32767): controle físico (com zona morta) ou a tela de toque; tudo parado = 0 (aí a ponte do N64
 // usa o direcional como analógico, como antes)
@@ -14406,7 +14416,7 @@ async function abrirArquivo(arq, soltos = []) {
     }
     if (KofPatch.EXT.test(nome) || KofPatch.tipo(bytes)) { await aplicarPatch(nome, bytes); return; }
     await abrirBytes(nome, bytes, true);
-  } catch (e) { avisar(e.message, 5000); }
+  } catch (e) { avisarErro(e.message, e.detalhe); }
 }
 // Patch de tradução (.ips/.bps/.ups): aplica no jogo aberto ou pede a ROM; o jogo traduzido vira outro jogo na biblioteca
 // (a ROM original fica intacta e cada um tem o seu save). Arrastar a ROM e o patch juntos também funciona.
@@ -14847,7 +14857,7 @@ async function carregarEstado(est) {
     fecharJanelas();
     snes.runFrame(); snes.apu.dsp.outCount = 0; desenhar();
     avisar('estado de ' + quando(est.quando) + ' carregado');
-  } catch (e) { avisar('não consegui carregar: ' + e.message, 4000); }
+  } catch (e) { avisarErro('não consegui carregar o estado: ' + e.message, e.detalhe); }
 }
 // o PS2 (ps2.js) salva e carrega o estado na thread dele: os outros núcleos respondem na hora
 const capturarEstado = () => (snes.estadoAsync ? snes.estadoAsync() : KofEstado.capturar(snes));
@@ -15385,7 +15395,7 @@ async function abrirJogo(r, doZero) {
       await abrirBytes(r.jogo.arquivo || r.nome, bytes, false, extras);
     }
     else await abrirArquivo(await r.h.getFile());
-  } catch (e) { avisar(e.message, 4000); }
+  } catch (e) { avisarErro(e.message, e.detalhe); }
 }
 function listaTecla(e) {
   if (popId) { popTecla(e); return true; }
@@ -15844,8 +15854,25 @@ $('#guia .gu-menu').addEventListener('click', (e) => { const b = e.target.closes
 
 // ---------------- menu, temas e ações ----------------
 function avisar(t, ms) {
-  const a = $('#aviso'); a.textContent = t; a.hidden = false;
+  const a = $('#aviso');
+  if (avisarErro.aberto && Date.now() < avisarErro.aberto) return;   // um erro na tela não some por causa de um aviso comum
+  a.classList.remove('erro'); a.textContent = t; a.hidden = false;
   clearTimeout(avisar.t); avisar.t = setTimeout(() => { a.hidden = true; }, ms || 1800);
+}
+// erro: fica na tela até fechar (no máximo 2 min), com "copiar" pra mandar o texto inteiro; detalhe = log extra (PS2)
+function avisarErro(t, detalhe) {
+  const a = $('#aviso'); clearTimeout(avisar.t);
+  a.classList.add('erro'); a.hidden = false; a.textContent = '';
+  const p = document.createElement('div'); p.textContent = '⚠️ ' + t; a.appendChild(p);
+  const tudo = t + (detalhe ? '\n\n' + detalhe : '') + '\n\nKOFstation ' + VERSAO;
+  const b = document.createElement('div'); b.className = 'aviso-botoes';
+  const copiar = document.createElement('button'); copiar.textContent = '📋 copiar';
+  copiar.onclick = (e) => { e.stopPropagation(); navigator.clipboard.writeText(tudo).then(() => { copiar.textContent = '✅ copiado'; }, () => { copiar.textContent = 'não deu pra copiar'; }); };
+  const fechar = document.createElement('button'); fechar.textContent = '✕ fechar';
+  const sumir = () => { a.hidden = true; a.classList.remove('erro'); avisarErro.aberto = 0; };
+  fechar.onclick = (e) => { e.stopPropagation(); sumir(); };
+  b.append(copiar, fechar); a.appendChild(b);
+  avisarErro.aberto = Date.now() + 120000; avisar.t = setTimeout(sumir, 120000);
 }
 const TEMAS = [
   ['Clássicos do KOFstation', [['escuro', '🌙 Escuro'], ['claro', '☀️ Claro'], ['zsnes', '🕹️ ZSNES']]],
@@ -16259,6 +16286,7 @@ window.KOFnes = { desempenho: () => desemp.ultimo, controle: { conectar: conecta
 const PS2_MC = '/home/web_user/.local/share/Play Data Files/vfs/mc0';
 const PS2_CHAVE_MC = 'ps2/mc0';
 let play = null;   // { m: módulo do Play!, tela: canvas }
+const logPs2 = [];   // últimas linhas que o Play! escreveu: vão junto do erro (botão copiar)
 async function ehPs2(arq) {
   const n = (arq && arq.name || '').toLowerCase();
   if (typeof KofLibretro === 'undefined' || !KofLibretro.disponivel('ps2')) return false;
@@ -16296,7 +16324,9 @@ async function iniciarPlay() {
   tela.id = 'outputCanvas'; tela.width = 640; tela.height = 480;   // o Play! desenha em 640x480 e encaixa a imagem dentro
   tela.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:5;display:none';
   document.body.appendChild(tela);
-  const m = await Play({ mainScriptUrlOrBlob: url, print: () => {}, printErr: (t) => console.debug('[ps2]', t) });
+  const anotar = (t) => { logPs2.push(String(t)); if (logPs2.length > 40) logPs2.shift(); };
+  const m = await Play({ mainScriptUrlOrBlob: url, print: anotar, printErr: anotar,
+    onAbort: (w) => avisarErro('o PlayStation 2 parou: ' + w, logPs2.join('\n')) });
   m.FS.mkdir('/work');
   m.discImageDevice = {   // o Play! pede pedaços do DVD por aqui (na linha principal) e espera o isDone()
     arq: null, pronto: false,
@@ -16398,6 +16428,8 @@ function fachadaPs2(arq) {
         if (elf) { play.m.FS.writeFile('/jogo.elf', new Uint8Array(await arq.arrayBuffer())); play.m.bootElf('/jogo.elf'); }
         else { play.m.discImageDevice.arq = arq; play.m.bootDiscImage(arq.name); }
       })();
+      vigiarInicio(arq);
+      vigiarInicio(arq);
       return this.ligando;
     },
     ps2Quadros: () => play.m.getFrames(),   // pros testes: quadros que o Play! já mostrou
@@ -16417,11 +16449,39 @@ function fachadaPs2(arq) {
   };
 }
 const marcaPs2 = (nome) => new TextEncoder().encode(('ps2 ' + nome).padEnd(16)).slice(0, 16);   // o "arquivo" que o app guarda
+// o que mandar junto de um erro do PS2 (o Marcelo copia e manda): o log do Play! e como o navegador está
+function diagnosticoPs2(arq) {
+  return [`arquivo: ${arq ? arq.name + ' (' + Math.round(arq.size / 1048576) + ' MB)' : '?'}`,
+    `SharedArrayBuffer: ${typeof SharedArrayBuffer !== 'undefined'}, WebGL2: ${!!document.createElement('canvas').getContext('webgl2')}`,
+    `navegador: ${navigator.userAgent}`, '--- log do PS2 ---'].concat(logPs2).join('\n');
+}
 async function abrirPs2(arq) {
-  await iniciarPlay();
-  const f = fachadaPs2(arq);
-  await abrirBytes(arq.name, marcaPs2(arq.name), true, { nativo: f });
+  try {
+    await iniciarPlay();
+    const f = fachadaPs2(arq);
+    await abrirBytes(arq.name, marcaPs2(arq.name), true, { nativo: f });
+  } catch (e) { e.detalhe = diagnosticoPs2(arq); throw e; }
   avisar('💿 PlayStation 2', 1500);
+}
+// o Play! não avisa quando o jogo não começa (só escreve no log): sem nenhum quadro em 15 s de jogo rodando, mostra o erro
+function vigiarInicio(arq) {
+  clearInterval(vigiarInicio.t);
+  const antes = play.m.getFrames(); let rodando = 0;
+  vigiarInicio.t = setInterval(() => {
+    if (!play.vivo) return;   // pausado (menu etc.): não conta
+    if (play.m.getFrames() > antes + 5) { clearInterval(vigiarInicio.t); return; }
+    if (++rodando > 15) { clearInterval(vigiarInicio.t); avisarErro('o jogo de PS2 não começou (tela preta). Aperte "copiar" e me mande o texto.', diagnosticoPs2(arq)); }
+  }, 1000);
+}
+// o Play! não avisa quando o jogo não começa (só escreve no log): sem nenhum quadro em 15 s de jogo rodando, mostra o erro
+function vigiarInicio(arq) {
+  clearInterval(vigiarInicio.t);
+  const antes = play.m.getFrames(); let rodando = 0;
+  vigiarInicio.t = setInterval(() => {
+    if (!play.vivo) return;   // pausado (menu etc.): não conta
+    if (play.m.getFrames() > antes + 5) { clearInterval(vigiarInicio.t); return; }
+    if (++rodando > 15) { clearInterval(vigiarInicio.t); avisarErro('o jogo de PS2 não começou (tela preta). Aperte "copiar" e me mande o texto.', diagnosticoPs2(arq)); }
+  }, 1000);
 }
 // abrir pelo arquivo escolhido/arrastado: é de PS2? (o .iso pode ser de PS1)
 async function ps2Arquivo(arq) {

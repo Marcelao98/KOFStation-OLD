@@ -1,0 +1,24 @@
+diff --git a/src/MemoryFunction.cpp b/src/MemoryFunction.cpp
+index 73a3dab..a6f2fb8 100644
+--- a/src/MemoryFunction.cpp
++++ b/src/MemoryFunction.cpp
+@@ -73,7 +73,18 @@ EM_JS(emscripten::EM_VAL, WasmCreateModule, (uintptr_t code, uintptr_t size),
+ 	//	let url = URL.createObjectURL(blob);
+ 	//	console.log(url);
+ 	//}
+-	let module = new WebAssembly.Module(moduleBytes);
++	let module;
++	try
++	{
++		module = new WebAssembly.Module(moduleBytes);
++	}
++	catch(e)
++	{
++		// KOFstation: o erro leva o bloco que falhou (base64), pra dar pra ver o que o gerador escreveu de errado
++		let t = '';
++		for(let i = 0; i < moduleBytes.length; i++) t += String.fromCharCode(moduleBytes[i]);
++		throw new Error(e.message + ' [bloco wasm ' + moduleBytes.length + ' bytes: ' + btoa(t) + ']');
++	}
+ 	return Emval.toHandle(module);
+ });
+ #else

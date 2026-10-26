@@ -9,6 +9,7 @@
 const PS2_MC = '/home/web_user/.local/share/Play Data Files/vfs/mc0';
 const PS2_CHAVE_MC = 'ps2/mc0';
 let play = null;   // { m: módulo do Play!, tela: canvas }
+const logPs2 = [];   // últimas linhas que o Play! escreveu: vão junto do erro (botão copiar)
 async function ehPs2(arq) {
   const n = (arq && arq.name || '').toLowerCase();
   if (typeof KofLibretro === 'undefined' || !KofLibretro.disponivel('ps2')) return false;
@@ -46,7 +47,9 @@ async function iniciarPlay() {
   tela.id = 'outputCanvas'; tela.width = 640; tela.height = 480;   // o Play! desenha em 640x480 e encaixa a imagem dentro
   tela.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:5;display:none';
   document.body.appendChild(tela);
-  const m = await Play({ mainScriptUrlOrBlob: url, print: () => {}, printErr: (t) => console.debug('[ps2]', t) });
+  const anotar = (t) => { logPs2.push(String(t)); if (logPs2.length > 40) logPs2.shift(); };
+  const m = await Play({ mainScriptUrlOrBlob: url, print: anotar, printErr: anotar,
+    onAbort: (w) => avisarErro('o PlayStation 2 parou: ' + w, logPs2.join('\n')) });
   m.FS.mkdir('/work');
   m.discImageDevice = {   // o Play! pede pedaços do DVD por aqui (na linha principal) e espera o isDone()
     arq: null, pronto: false,
@@ -148,6 +151,8 @@ function fachadaPs2(arq) {
         if (elf) { play.m.FS.writeFile('/jogo.elf', new Uint8Array(await arq.arrayBuffer())); play.m.bootElf('/jogo.elf'); }
         else { play.m.discImageDevice.arq = arq; play.m.bootDiscImage(arq.name); }
       })();
+      vigiarInicio(arq);
+      vigiarInicio(arq);
       return this.ligando;
     },
     ps2Quadros: () => play.m.getFrames(),   // pros testes: quadros que o Play! já mostrou
@@ -167,11 +172,39 @@ function fachadaPs2(arq) {
   };
 }
 const marcaPs2 = (nome) => new TextEncoder().encode(('ps2 ' + nome).padEnd(16)).slice(0, 16);   // o "arquivo" que o app guarda
+// o que mandar junto de um erro do PS2 (o Marcelo copia e manda): o log do Play! e como o navegador está
+function diagnosticoPs2(arq) {
+  return [`arquivo: ${arq ? arq.name + ' (' + Math.round(arq.size / 1048576) + ' MB)' : '?'}`,
+    `SharedArrayBuffer: ${typeof SharedArrayBuffer !== 'undefined'}, WebGL2: ${!!document.createElement('canvas').getContext('webgl2')}`,
+    `navegador: ${navigator.userAgent}`, '--- log do PS2 ---'].concat(logPs2).join('\n');
+}
 async function abrirPs2(arq) {
-  await iniciarPlay();
-  const f = fachadaPs2(arq);
-  await abrirBytes(arq.name, marcaPs2(arq.name), true, { nativo: f });
+  try {
+    await iniciarPlay();
+    const f = fachadaPs2(arq);
+    await abrirBytes(arq.name, marcaPs2(arq.name), true, { nativo: f });
+  } catch (e) { e.detalhe = diagnosticoPs2(arq); throw e; }
   avisar('💿 PlayStation 2', 1500);
+}
+// o Play! não avisa quando o jogo não começa (só escreve no log): sem nenhum quadro em 15 s de jogo rodando, mostra o erro
+function vigiarInicio(arq) {
+  clearInterval(vigiarInicio.t);
+  const antes = play.m.getFrames(); let rodando = 0;
+  vigiarInicio.t = setInterval(() => {
+    if (!play.vivo) return;   // pausado (menu etc.): não conta
+    if (play.m.getFrames() > antes + 5) { clearInterval(vigiarInicio.t); return; }
+    if (++rodando > 15) { clearInterval(vigiarInicio.t); avisarErro('o jogo de PS2 não começou (tela preta). Aperte "copiar" e me mande o texto.', diagnosticoPs2(arq)); }
+  }, 1000);
+}
+// o Play! não avisa quando o jogo não começa (só escreve no log): sem nenhum quadro em 15 s de jogo rodando, mostra o erro
+function vigiarInicio(arq) {
+  clearInterval(vigiarInicio.t);
+  const antes = play.m.getFrames(); let rodando = 0;
+  vigiarInicio.t = setInterval(() => {
+    if (!play.vivo) return;   // pausado (menu etc.): não conta
+    if (play.m.getFrames() > antes + 5) { clearInterval(vigiarInicio.t); return; }
+    if (++rodando > 15) { clearInterval(vigiarInicio.t); avisarErro('o jogo de PS2 não começou (tela preta). Aperte "copiar" e me mande o texto.', diagnosticoPs2(arq)); }
+  }, 1000);
 }
 // abrir pelo arquivo escolhido/arrastado: é de PS2? (o .iso pode ser de PS1)
 async function ps2Arquivo(arq) {

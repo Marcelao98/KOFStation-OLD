@@ -113,6 +113,9 @@ body.vazio #tela { visibility: hidden; }
   background: var(--painel2); border: 1px solid var(--destaque); border-radius: var(--raio);
   box-shadow: var(--brilho); pointer-events: none;
 }
+#aviso.erro { pointer-events: auto; max-width: min(92vw, 640px); border-color: #e05a5a; z-index: 60; text-align: left; white-space: pre-wrap; line-height: 1.4; }
+#aviso .aviso-botoes { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+#aviso .aviso-botoes button { font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--borda); background: var(--painel); color: var(--texto); cursor: pointer; }
 body.arrastando #palco { outline: 3px dashed var(--destaque); outline-offset: -12px; }
 
 #status {

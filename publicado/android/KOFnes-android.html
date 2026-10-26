@@ -125,6 +125,9 @@ body.vazio #tela { visibility: hidden; }
   background: var(--painel2); border: 1px solid var(--destaque); border-radius: var(--raio);
   box-shadow: var(--brilho); pointer-events: none;
 }
+#aviso.erro { pointer-events: auto; max-width: min(92vw, 640px); border-color: #e05a5a; z-index: 60; text-align: left; white-space: pre-wrap; line-height: 1.4; }
+#aviso .aviso-botoes { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+#aviso .aviso-botoes button { font: inherit; font-size: 13px; padding: 4px 12px; border-radius: 8px; border: 1px solid var(--borda); background: var(--painel); color: var(--texto); cursor: pointer; }
 body.arrastando #palco { outline: 3px dashed var(--destaque); outline-offset: -12px; }
 
 #status {
@@ -2401,6 +2404,13 @@ body.modo-controle #ctl [data-b="menu"], body.modo-controle #ctl [data-b="turbo"
 <script>
 const KofNucleo = (() => {
 'use strict';
+function kofArrayGet(array, index) {
+    return array[index];
+}
+function kofArraySet(array, index, value, kind) {
+    if (kind === 0) { array[index] = value; return; }
+}
+
 function kofArrayGet(array, index) {
     return array[index];
 }
@@ -13671,7 +13681,7 @@ function laco(t) {
       }
     }
   } catch (e) {
-    pausado = true; avisar('erro no emulador: ' + e.message, 6000); console.error(e);
+    pausado = true; avisarErro('erro no emulador: ' + e.message, e.detalhe || e.stack); console.error(e);
     if (cacador) abrirBug(e);
     return;
   }
@@ -14191,7 +14201,7 @@ $('#arquivo-spc').addEventListener('change', (e) => { if (e.target.files.length)
 // estado (um marco) e anota os botões de cada quadro dali pra frente. O pacote
 // do bug leva o marco anterior + os botões até agora: rodando de novo, o
 // núcleo (determinístico) chega no mesmo lugar, quadro a quadro.
-const VERSAO = '202610252216 · 28d5679', REPO = 'Marcelao98/KOFSnes';
+const VERSAO = '202610260219 · 5dd98e1', REPO = 'Marcelao98/KOFSnes';
 let cacador = ler('cacador') !== '0', marcoBugAnt = null, marcoBug = null, romAtual = null;
 // eixos pro núcleo (-32767..32767): controle físico (com zona morta) ou a tela de toque; tudo parado = 0 (aí a ponte do N64
 // usa o direcional como analógico, como antes)
@@ -14783,7 +14793,7 @@ async function abrirArquivo(arq, soltos = []) {
     }
     if (KofPatch.EXT.test(nome) || KofPatch.tipo(bytes)) { await aplicarPatch(nome, bytes); return; }
     await abrirBytes(nome, bytes, true);
-  } catch (e) { avisar(e.message, 5000); }
+  } catch (e) { avisarErro(e.message, e.detalhe); }
 }
 // Patch de tradução (.ips/.bps/.ups): aplica no jogo aberto ou pede a ROM; o jogo traduzido vira outro jogo na biblioteca
 // (a ROM original fica intacta e cada um tem o seu save). Arrastar a ROM e o patch juntos também funciona.
@@ -15224,7 +15234,7 @@ async function carregarEstado(est) {
     fecharJanelas();
     snes.runFrame(); snes.apu.dsp.outCount = 0; desenhar();
     avisar('estado de ' + quando(est.quando) + ' carregado');
-  } catch (e) { avisar('não consegui carregar: ' + e.message, 4000); }
+  } catch (e) { avisarErro('não consegui carregar o estado: ' + e.message, e.detalhe); }
 }
 // o PS2 (ps2.js) salva e carrega o estado na thread dele: os outros núcleos respondem na hora
 const capturarEstado = () => (snes.estadoAsync ? snes.estadoAsync() : KofEstado.capturar(snes));
@@ -15762,7 +15772,7 @@ async function abrirJogo(r, doZero) {
       await abrirBytes(r.jogo.arquivo || r.nome, bytes, false, extras);
     }
     else await abrirArquivo(await r.h.getFile());
-  } catch (e) { avisar(e.message, 4000); }
+  } catch (e) { avisarErro(e.message, e.detalhe); }
 }
 function listaTecla(e) {
   if (popId) { popTecla(e); return true; }
@@ -16221,8 +16231,25 @@ $('#guia .gu-menu').addEventListener('click', (e) => { const b = e.target.closes
 
 // ---------------- menu, temas e ações ----------------
 function avisar(t, ms) {
-  const a = $('#aviso'); a.textContent = t; a.hidden = false;
+  const a = $('#aviso');
+  if (avisarErro.aberto && Date.now() < avisarErro.aberto) return;   // um erro na tela não some por causa de um aviso comum
+  a.classList.remove('erro'); a.textContent = t; a.hidden = false;
   clearTimeout(avisar.t); avisar.t = setTimeout(() => { a.hidden = true; }, ms || 1800);
+}
+// erro: fica na tela até fechar (no máximo 2 min), com "copiar" pra mandar o texto inteiro; detalhe = log extra (PS2)
+function avisarErro(t, detalhe) {
+  const a = $('#aviso'); clearTimeout(avisar.t);
+  a.classList.add('erro'); a.hidden = false; a.textContent = '';
+  const p = document.createElement('div'); p.textContent = '⚠️ ' + t; a.appendChild(p);
+  const tudo = t + (detalhe ? '\n\n' + detalhe : '') + '\n\nKOFstation ' + VERSAO;
+  const b = document.createElement('div'); b.className = 'aviso-botoes';
+  const copiar = document.createElement('button'); copiar.textContent = '📋 copiar';
+  copiar.onclick = (e) => { e.stopPropagation(); navigator.clipboard.writeText(tudo).then(() => { copiar.textContent = '✅ copiado'; }, () => { copiar.textContent = 'não deu pra copiar'; }); };
+  const fechar = document.createElement('button'); fechar.textContent = '✕ fechar';
+  const sumir = () => { a.hidden = true; a.classList.remove('erro'); avisarErro.aberto = 0; };
+  fechar.onclick = (e) => { e.stopPropagation(); sumir(); };
+  b.append(copiar, fechar); a.appendChild(b);
+  avisarErro.aberto = Date.now() + 120000; avisar.t = setTimeout(sumir, 120000);
 }
 const TEMAS = [
   ['Clássicos do KOFstation', [['escuro', '🌙 Escuro'], ['claro', '☀️ Claro'], ['zsnes', '🕹️ ZSNES']]],
