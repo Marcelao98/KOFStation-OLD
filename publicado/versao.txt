@@ -1,5 +1,5 @@
-versao=202610260522
-tamanho=1093804
+versao=202610260617
+tamanho=1096319
 lancador=10
 tamanho_exe=96256
 lancador_linux=8
@@ -15,5 +15,5 @@ nucleo=play-e5f914a5.js:3792710
 nucleo=snes9x-e205bc90.js:4101685
 nucleo=violino-306d94e5.js:1327057
 nucleo=jogos-371590f5.js:824997
-nativo_linux=kofnativo-75ff5edd:2463872
+nativo_linux=kofnativo-3dd8b3c7:2463872
 nativo_linux=pcsx2_libretro-405610ed.so.gz:3162606

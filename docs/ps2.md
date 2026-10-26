@@ -10,7 +10,7 @@ Como o PS2 entrou no KOFstation, o que deu errado no caminho e onde ele está ho
 | **PC Windows** | Ainda não tem o kofnativo. Sem ele, o PS2 cai no Play! do navegador, que só roda jogos leves. |
 | **Celular** | Não tem PS2. |
 | **BIOS** | Precisa da BIOS do console de quem joga: o arquivo **.bin de 4 MB**. Os .DIFF, .rom1, .rom2, .erom, .nvm e .mec que vêm junto não servem. Ela é guardada pela tela **🔑 BIOS dos consoles** (card no Início ou Arquivo). O KOFstation não traz BIOS nenhuma. |
-| **Filtros** | Funcionam: o shader da página é convertido e roda dentro do kofnativo. Molduras ainda não. |
+| **Imagem** | **Modo página** (padrão desde 26/10): o jogo aparece dentro do KOFstation, com tema, moldura, filtros e menus por cima, igual aos outros consoles. O modo janela antigo continua de reserva. |
 
 ## Linha do tempo
 
@@ -24,6 +24,8 @@ Como o PS2 entrou no KOFstation, o que deu errado no caminho e onde ele está ho
    - **Só lia o começo do disco (o bug principal):** o PCSX2 espera que "pular pra uma posição do disco" responda **0** quando dá certo, como faz o RetroArch. O kofnativo respondia a posição nova. A posição 0 funcionava, as outras não. O SYSTEM.CNF do Shadow of the Colossus fica a ~2,67 GB do começo, então o jogo nunca achava esse arquivo e caía na tela da BIOS. Quem achou o sintoma foi o **Claude Code rodando no PC do Marcelo**, seguindo o roteiro `docs/depurar-ps2-no-pc.md`.
    - **Travava jogando (segfault):** o PCSX2 e a janela do kofnativo dividiam o mesmo contexto OpenGL. O kofnativo trocava o estado que o PCSX2 guarda (o VAO e o programa), e o desenho seguinte do PCSX2 lia lixo dentro do driver da placa (Mesa). Agora o núcleo tem um contexto OpenGL só dele, compartilhado com o da janela, como faz o RetroArch. O quadro é copiado pra janela depois de um fence. O conserto foi feito pelo Claude Code no PC do Marcelo, que também ligou o **EE cycle skip leve** por padrão: no Ryzen 5 4600H, o SotC subiu de ~42 pra 60 quadros.
 
+4. **Modo página (26/10):** também feito pelo Claude Code no PC do Marcelo. A janela do kofnativo fica escondida e cada quadro vai pra página pelo WebSocket. A página desenha esse quadro pelo mesmo caminho dos outros consoles, então tema, moldura, filtro, pausa e menu rápido funcionam no PS2. No PC dele chegam 60 quadros por segundo e o savestate de 67 MB salva em ~0,7 s.
+
 ## Como funciona (técnico)
 
 ```
@@ -34,6 +36,7 @@ página (KOFstation.html, web/ps2.js)  ←── WebSocket 127.0.0.1:8643 ──
                                                                            (blocos de 1 MB pedidos à página)
 ```
 
+- **Modo página:** `modo pagina` / `modo janela`. Cada quadro é um binário `'Q'` com largura e altura (u16) e os pixels em RGB, com a origem em cima. A leitura do GPU é assíncrona (2 PBOs), e uma thread de envio guarda só o quadro mais novo: a emulação nunca espera a página. Se a página para de chamar o `runFrame` por 250 ms, ela manda `esconder` e o PCSX2 pausa. Com `localStorage kofnes.ps2Janela = '1'`, fica no modo janela. Um kofnativo antigo, que não manda `'Q'`, faz a página voltar sozinha pro modo janela. Teste com jogo de verdade: `testes/navegador/ps2-pagina.cjs`.
 - **Protocolo:** está descrito no topo de `pc-nativo/kofnativo.c` (`abrir`, `bios`, `pad`, `teclas`, `filtro`, `estado`, `ler`, `pronto`, `erro`...).
 - **Disco:** o jogo nunca é copiado. O PCSX2 pede pedaços e a página lê do arquivo. Cache de 48 blocos de 1 MB.
 - **Saves:** a pasta de cartões de memória do PCSX2 vira um pacote só (`ps2/pcsx2` no banco do navegador) e entra no backup `.kofsave`.
@@ -48,4 +51,4 @@ página (KOFstation.html, web/ps2.js)  ←── WebSocket 127.0.0.1:8643 ──
 
 1. O Marcelo confirmar o Shadow of the Colossus pelo KOFstation no Linux.
 2. kofnativo pro Windows (compilar LRPS2 + kofnativo com mingw e o `KOFstation.exe` abrir junto).
-3. Molduras no PS2 (hoje só os filtros passam pro kofnativo).
+3. Medir o atraso do controle no modo página (deve ser 1 a 2 quadros a mais que no modo janela).
