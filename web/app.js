@@ -797,7 +797,7 @@ function laco(t) {
     return;
   }
   const t2 = performance.now();
-  if (vezes && !snes.nativo) desenhar();   // nativo: a imagem vem por uma tela do Android por cima; a página não precisa redesenhar
+  if (vezes && (!snes.nativo || snes.imagemNaPagina)) desenhar();   // nativo: a imagem vem por uma tela do Android por cima (o PS2 do PC manda os quadros pra cá)
   const t3 = performance.now(); desemp.tela += t3 - t2;
   desdeFoto += vezes;
   if (rebobLigado && rebob && desdeFoto >= 2) { rebob.gravar(); desdeFoto = 0; desemp.rebob += performance.now() - t3; }   // ~30 fotos por segundo
@@ -1332,7 +1332,7 @@ function lerEixos() {
 function rodarQuadro() {
   snes.eixos = lerEixos();
   let b = semCombo(estado());
-  if (snes.sistema !== 'ps1' && snes.sistema !== 'n64') b &= ~0x000C;   // L2/R2: no SNES esses bits identificam o controle e têm de ficar zerados
+  if (snes.sistema !== 'ps1' && snes.sistema !== 'n64' && snes.sistema !== 'ps2') b &= ~0x000C;   // L2/R2: no SNES esses bits identificam o controle e têm de ficar zerados
   snes.pad[0] = b; snes.runFrame();
   if (marcoBug) { marcoBug.entradas.push(b); if (marcoBug.entradas.length >= 600) novoMarco(); }
 }
@@ -3008,7 +3008,7 @@ setInterval(() => {
 let rapidoAberto = false, pausadoAntesRapido = false, selR = 0;
 const ciclar = (lista, atual, d) => lista[(lista.findIndex(([k]) => k === atual) + d + lista.length) % lista.length][0];
 const ehPs1 = () => !!(snes && (snes.sistema === 'ps1' || snes.sistema === 'n64')),   // sem jukebox (ainda)
-   nativo = () => !!(snes && snes.nativo);
+   nativo = () => !!(snes && snes.nativo), semImagem = () => nativo() && !snes.imagemNaPagina;   // semImagem: a imagem não passa pela página
 const ITENS_RAPIDO = [
   { t: '▶ Continuar', f: () => fecharRapido() },   // so: o item só aparece quando faz sentido (PS1 nativo: a imagem não passa pela página)
   { t: '💾 Salvar estado', f: () => { fecharRapido(); salvarEstado(); } },
@@ -3019,10 +3019,10 @@ const ITENS_RAPIDO = [
   { t: '☕ Biblioteca', f: () => { fecharRapido(); acao('biblioteca'); } },
   { t: '📈 Painel de desempenho', v: () => (desemp.visivel ? 'ligado' : 'desligado'), aj: () => alternarDesempenho(), f: () => { alternarDesempenho(); fecharRapido(); } },
   { t: '🎨 Tema', v: () => TODOS_TEMAS.find(([k]) => k === temaSalvo)[1], aj: (d) => tema(ciclar(TODOS_TEMAS, temaSalvo, d)), f: () => { fecharRapido(); acao('temas'); } },
-  { t: 'Filtro', so: () => !nativo(), v: () => (FILTROS.find(([k]) => k === filtro) || [0, 'Meu jeito'])[1], aj: (d) => aplicarFiltro(ciclar(FILTROS, FILTROS.some(([k]) => k === filtro) ? filtro : 'original', d)) },
+  { t: 'Filtro', so: () => !semImagem(), v: () => (FILTROS.find(([k]) => k === filtro) || [0, 'Meu jeito'])[1], aj: (d) => aplicarFiltro(ciclar(FILTROS, FILTROS.some(([k]) => k === filtro) ? filtro : 'original', d)) },
   { t: 'Cores do Game Boy', so: () => !!(snes && snes.sistema === 'gb'), v: () => PALETAS_GB.find(([k]) => k === paletaGb)[1], aj: (d) => mudarPaletaGb(ciclar(PALETAS_GB, paletaGb, d)) },
   { t: 'Cores do NES', so: () => !!(snes && snes.sistema === 'nes'), v: () => PALETAS_NES.find(([k]) => k === paletaNes)[1], aj: (d) => mudarPaletaNes(ciclar(PALETAS_NES, paletaNes, d)) },
-  { t: 'Proporção', so: () => !nativo(), v: () => nomeProporcao(proporcao), aj: (d) => mudarProporcao(ciclar(PROPORCOES, proporcao, d)) },
+  { t: 'Proporção', so: () => !semImagem(), v: () => nomeProporcao(proporcao), aj: (d) => mudarProporcao(ciclar(PROPORCOES, proporcao, d)) },
   { t: 'Moldura', v: () => MOLDURAS.find(([k]) => k === moldura)[1], aj: (d) => mudarMoldura(ciclar(MOLDURAS.filter(([k]) => k !== 'propria' || propria), moldura, d)) },
   { t: 'Volume', v: () => (mudo ? 'mudo' : volume + '%'), aj: (d) => mudarVolume(d * 10) },
   { t: '⛶ Tela cheia', f: () => acao('cheia') },

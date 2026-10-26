@@ -9,11 +9,13 @@
 //                   bios <arquivo> + ab      sistema <chave> <valor>   (opção do núcleo)
 //                   pad <botões libretro> <eixos int8 x4>     teclas <codigo>:<id> ...   (teclado, ids do libretro)
 //                   mostrar | esconder | reiniciar | fechar | volume <0..1>
+//                   modo pagina | modo janela   (página: sem janela, os quadros vão pra página como binário 'Q')
 //                   filtro\n<fonte GLSL>   uni <4 floats u> <52 floats p>
 //                   estado (responde binário 'E') | carregar + ab | cartao + ab (pasta de saves) | pedecartao (responde 'M')
 //                   binário 'D' <id u32> <dados>: resposta de um "ler"
 //   aqui -> página: ler <id> <início> <tamanho> | pronto <largura> <altura> <fps> | erro <texto> | log <texto>
-//                   pausou (Esc na janela) | quadros <n> | binário 'E' estado, 'M' cartão de memória
+//                   pausou (Esc na janela) | quadros <n> | binário 'E' estado, 'M' cartão de memória,
+//                   'Q' <largura u16><altura u16><RGB> (modo página: um quadro, a origem em cima; RGBA com KOF_RGBA)
 // Compilar: pc-nativo/construir.sh. Uso: kofnativo <núcleo.so> <pasta de dados>
 #define _GNU_SOURCE
 #define GL_GLEXT_PROTOTYPES
@@ -356,7 +358,7 @@ static void atender(int s) {
     uint8_t h[20]; sha1((uint8_t *)chave, strlen(chave), h); char aceite[64]; base64(h, 20, aceite);
     char r[256]; int nr = snprintf(r, sizeof r, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n", aceite);
     pthread_mutex_lock(&envio); if (cliente >= 0) close(cliente); tudo(s, r, nr); cliente = s; pthread_mutex_unlock(&envio);
-    int one = 1; setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
+    int one = 1, buf = 8 << 20; setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one); setsockopt(s, SOL_SOCKET, SO_SNDBUF, &buf, sizeof buf);
     uint8_t *junta = NULL; size_t njunta = 0; int opJunta = 0;
     for (;;) {
         uint8_t c[2]; if (lerTudo(s, c, 2)) break;
@@ -472,9 +474,57 @@ static void copiarQuadroHw(void) {
     glBlitFramebuffer(0, 0, quadroL, quadroA, 0, vira ? quadroA : 0, quadroL, vira ? 0 : quadroA, GL_COLOR_BUFFER_BIT, GL_NEAREST);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0); glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
 }
+// modo página: a janela fica escondida e cada quadro vai pra página (binário 'Q' <largura u16><altura u16><RGB>), que desenha
+// com a interface dela por cima (tema, moldura, menus). A leitura do GPU é assíncrona (PBO: pega o quadro anterior, que já
+// ficou pronto) e o envio é numa thread: se a página atrasar, fica só o quadro mais novo e o jogo não espera
+static int modoPagina, bppPagina = 3; static GLuint fboPagina, pboQ[2]; static int pboVez, pboL[2], pboA[2], pboCheio[2]; static size_t pboTam[2];
+typedef struct { uint8_t *d; size_t cap; int l, a; } QBuf;
+static QBuf qEscrita, qPendente, qEnvio; static int qNovo; static unsigned qPulados;
+static pthread_mutex_t qTrava = PTHREAD_MUTEX_INITIALIZER; static pthread_cond_t qTem = PTHREAD_COND_INITIALIZER;
+static void *enviarQuadros(void *x) {
+    (void)x;
+    for (;;) {
+        pthread_mutex_lock(&qTrava);
+        while (!qNovo) pthread_cond_wait(&qTem, &qTrava);
+        QBuf t = qEnvio; qEnvio = qPendente; qPendente = t; qNovo = 0;
+        pthread_mutex_unlock(&qTrava);
+        uint8_t cab[5] = {'Q', qEnvio.l, qEnvio.l >> 8, qEnvio.a, qEnvio.a >> 8};
+        enviar(2, cab, 5, qEnvio.d, (size_t)qEnvio.l * qEnvio.a * bppPagina);
+    }
+    return NULL;
+}
+static void entregarQuadro(const void *d, int l, int a) {
+    size_t n = (size_t)l * a * bppPagina;
+    if (qEscrita.cap < n) { free(qEscrita.d); qEscrita.d = malloc(n); qEscrita.cap = n; }
+    memcpy(qEscrita.d, d, n); qEscrita.l = l; qEscrita.a = a;
+    pthread_mutex_lock(&qTrava);
+    QBuf t = qPendente; qPendente = qEscrita; qEscrita = t;
+    if (qNovo) qPulados++;   // a página ainda não levou o anterior: ele é descartado
+    qNovo = 1; pthread_cond_signal(&qTem);
+    pthread_mutex_unlock(&qTrava);
+}
+static void lerQuadroPagina(void) {
+    int l = quadroL, a = quadroA, i = pboVez, j = i ^ 1; pboVez = j;
+    if (!fboPagina) { glGenFramebuffers(1, &fboPagina); glGenBuffers(2, pboQ); }
+    glBindFramebuffer(GL_FRAMEBUFFER, fboPagina);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texQuadro[vez], 0);
+    if (bppPagina == 4) { glColorMask(0, 0, 0, 1); glClearColor(0, 0, 0, 1); glClear(GL_COLOR_BUFFER_BIT); glColorMask(1, 1, 1, 1); }   // a página quer alfa 255
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, pboQ[i]);
+    if (pboTam[i] < (size_t)l * a * bppPagina) { pboTam[i] = (size_t)l * a * bppPagina; glBufferData(GL_PIXEL_PACK_BUFFER, pboTam[i], NULL, GL_STREAM_READ); }
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadPixels(0, 0, l, a, bppPagina == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, 0);
+    pboL[i] = l; pboA[i] = a; pboCheio[i] = 1;
+    if (pboCheio[j]) {
+        glBindBuffer(GL_PIXEL_PACK_BUFFER, pboQ[j]);
+        const void *m = glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, (size_t)pboL[j] * pboA[j] * bppPagina, GL_MAP_READ_BIT);
+        if (m) { entregarQuadro(m, pboL[j], pboA[j]); glUnmapBuffer(GL_PIXEL_PACK_BUFFER); }
+        pboCheio[j] = 0;
+    }
+    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0); glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
 static void mostrar(int sim) {
     visivel = sim;
-    if (sim) { SDL_ShowWindow(janela); SDL_RaiseWindow(janela); SDL_PauseAudioDevice(som, 0); }
+    if (sim) { if (!modoPagina) { SDL_ShowWindow(janela); SDL_RaiseWindow(janela); } SDL_PauseAudioDevice(som, 0); }
     else { SDL_HideWindow(janela); SDL_PauseAudioDevice(som, 1); SDL_ClearQueuedAudio(som); }
 }
 static SDL_Scancode codigoParaTecla(const char *c) {   // KeyboardEvent.code (página) -> tecla do SDL
@@ -582,6 +632,12 @@ static void comando(Cmd *c) {
         return;
     }
     if (!strncmp(t, "volume ", 7)) { volume = atof(t + 7); return; }
+    if (!strcmp(t, "modo pagina") || !strcmp(t, "modo janela")) {
+        modoPagina = t[5] == 'p'; pboCheio[0] = pboCheio[1] = 0; pboTam[0] = pboTam[1] = 0;
+        bppPagina = getenv("KOF_RGBA") ? 4 : 3;
+        if (modoPagina) SDL_HideWindow(janela); else if (visivel) mostrar(1);
+        return;
+    }
     if (!strcmp(t, "mostrar")) { mostrar(1); return; }
     if (!strcmp(t, "esconder")) { mostrar(0); return; }
     if (!strcmp(t, "reiniciar")) { if (jogoAberto) { noNucleo(); nucleo.reset(); naJanela(); } return; }
@@ -672,7 +728,7 @@ int main(int argc, char **argv) {
     nucleo.set_audio_sample_batch(somLote); nucleo.set_input_poll(lerEntrada); nucleo.set_input_state(estadoEntrada);
     nucleo.init();
 
-    pthread_t th; pthread_create(&th, NULL, servidor, NULL);
+    pthread_t th; pthread_create(&th, NULL, servidor, NULL); pthread_create(&th, NULL, enviarQuadros, NULL);
     fprintf(stderr, "[kofnativo] esperando o KOFstation em 127.0.0.1:%d\n", PORTA);
     rodando = 1;
     uint64_t freq = SDL_GetPerformanceFrequency(), proximo = SDL_GetPerformanceCounter(); unsigned contados = 0; uint32_t marco = SDL_GetTicks();
@@ -695,8 +751,11 @@ int main(int argc, char **argv) {
             glWaitSync(s, 0, GL_TIMEOUT_IGNORED); glDeleteSync(s);
         } else glBindVertexArray(vao);   // sem contexto próprio o núcleo mexe no estado do OpenGL: devolve o nosso
         copiarQuadroHw();
-        if (quadroNovo) { quadroNovo = 0; desenhar(); contados++; }
-        if (SDL_GetTicks() - marco >= 1000) { dizer("quadros %u", contados); contados = 0; marco = SDL_GetTicks(); }
+        if (quadroNovo) { quadroNovo = 0; if (modoPagina) lerQuadroPagina(); else desenhar(); contados++; }
+        if (SDL_GetTicks() - marco >= 1000) {
+            dizer("quadros %u", contados); contados = 0; marco = SDL_GetTicks();
+            if (modoPagina && getenv("KOF_DEBUG")) fprintf(stderr, "[kofnativo] quadros pulados no envio: %u\n", qPulados);
+        }
         // ritmo: o fps do jogo, sem deixar o som acumular (mais de 120 ms na fila = espera)
         double fps = av.timing.fps > 1 ? av.timing.fps : 59.94;
         proximo += (uint64_t)(freq / fps);

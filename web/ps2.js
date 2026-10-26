@@ -233,9 +233,12 @@ KOFnes.ps2 = { gravarNoCartao: (nome, bytes) => { play.m.FS.mkdirTree(PS2_MC + '
 // O kofnativo é um programa do PC que o lançador abre junto: roda o PCSX2 (núcleo libretro LRPS2) de verdade, numa janela
 // própria por cima desta, com o MESMO filtro desta página (KofVisual.fonte vai pra ele). Fala por WebSocket em
 // 127.0.0.1:8643. O DVD continua sendo lido daqui (File.slice), aos pedaços que ele pede. Esc na janela dele = pausa aqui.
+// Modo página (o padrão): a janela dele fica escondida e cada quadro vem pra cá (binário 'Q'), então tema, moldura, filtro e
+// menus da página ficam por cima do jogo como nos outros consoles; o som continua saindo de lá. kofnativo antigo (sem 'Q')
+// ou localStorage kofnes.ps2Janela = '1' = modo janela.
 const NAT_CHAVE_SAVES = 'ps2/pcsx2';   // a pasta de saves do PCSX2 inteira (cartões de memória), num save só
 const NAT_BIOS = 'bios-ps2.bin';
-const nat = { ws: null, arq: null, quadros: 0, visivel: false, filtro: '', uni: '', pad: '', espera: null, avisos: [] };
+const nat = { ws: null, arq: null, quadros: 0, visivel: false, filtro: '', uni: '', pad: '', espera: null, avisos: [], pagina: false, recebidos: 0, ultimoRun: 0, f: null };
 function conectarNativo() {
   if (nat.ws && nat.ws.readyState === 1) return Promise.resolve(true);
   if (location.protocol !== 'file:' && !/^(localhost|127\.)/.test(location.hostname)) return Promise.resolve(false);
@@ -252,8 +255,9 @@ function conectarNativo() {
 const natEnviar = (t) => { if (nat.ws && nat.ws.readyState === 1) nat.ws.send(t); };
 function natResposta(tipo) { return new Promise((ok, erro) => { nat.espera = { tipo, ok, erro }; setTimeout(() => { if (nat.espera && nat.espera.tipo === tipo) { nat.espera = null; erro(new Error('o PCSX2 não respondeu')); } }, 20000); }); }
 async function mensagemNativa(d) {
-  if (typeof d !== 'string') {   // binário: 'E' estado, 'M' pasta de saves
+  if (typeof d !== 'string') {   // binário: 'E' estado, 'M' pasta de saves, 'Q' quadro (modo página)
     const u = new Uint8Array(d), tipo = String.fromCharCode(u[0]), corpo = u.subarray(1);
+    if (tipo === 'Q') { quadroNativo(u); return; }
     if (tipo === 'M') guardarSavesNativos(corpo);
     if (nat.espera && nat.espera.tipo === tipo) { const w = nat.espera; nat.espera = null; w.ok(corpo); }
     return;
@@ -269,6 +273,16 @@ async function mensagemNativa(d) {
   else if (cmd === 'log') { logPs2.push(resto); if (logPs2.length > 40) logPs2.shift(); }
   else if (cmd === 'erro') { if (nat.espera) { const w = nat.espera; nat.espera = null; w.erro(new Error(resto)); } else avisarErro('PS2: ' + resto, logPs2.join('\n')); }
   else if (cmd === 'pronto' || cmd === 'carregou') { if (nat.espera && nat.espera.tipo === cmd) { const w = nat.espera; nat.espera = null; w.ok(r); } }
+}
+// quadro do modo página: 'Q' <largura u16><altura u16><RGB (ou RGBA), a origem em cima> vira o rgba da fachada (o app desenha).
+// RGB: 3/4 do tamanho, e o Chrome não dava conta de 60 quadros RGBA (55 MB/s) pelo WebSocket
+function quadroNativo(u) {
+  const f = nat.f, l = u[1] | u[2] << 8, a = u[3] | u[4] << 8, n = l * a, bpp = (u.length - 5) / n;
+  if (!f || !nat.pagina || (bpp !== 3 && bpp !== 4)) return;
+  if (f.largura !== l || f.altura !== a) { f.largura = l; f.altura = a; f.rgba = new Uint32Array(n); }
+  if (bpp === 4) new Uint8Array(f.rgba.buffer).set(u.subarray(5));
+  else { const o = f.rgba; for (let i = 0, k = 5; i < n; i++, k += 3) o[i] = 0xFF000000 | u[k + 2] << 16 | u[k + 1] << 8 | u[k]; }
+  nat.recebidos++;
 }
 // pasta de saves do PCSX2 <-> banco (vai no backup .kofsave); o kofnativo manda um pacote com todos os arquivos
 async function guardarSavesNativos(corpo) {
@@ -312,8 +326,10 @@ async function fachadaNativa(arq) {
   }
   nat.ws.send('bios ' + NAT_BIOS); nat.ws.send(bios.dados);
   try { const r = await bdPegar('saves', NAT_CHAVE_SAVES); if (r) { natEnviar('cartao'); nat.ws.send(await KofGuarda.abrirSave(r)); } } catch (e) { /* sem saves ainda */ }
+  let janela = false; try { janela = localStorage.getItem('kofnes.ps2Janela') === '1'; } catch (e) { /* sem localStorage */ }
+  nat.pagina = !janela; natEnviar(nat.pagina ? 'modo pagina' : 'modo janela');
   natTeclas(); natFiltro();
-  nat.arq = arq; nat.quadros = 0; nat.visivel = false; logPs2.length = 0;
+  nat.arq = arq; nat.quadros = 0; nat.recebidos = 0; nat.visivel = false; logPs2.length = 0;
   const nome = arq.name.replace(/[\r\n]/g, ' ');
   const f = {
     sistema: 'ps2', nucleo: 'pcsx2', lr: true, nativo: true, largura: 640, altura: 448, proporcao: 4 / 3,
@@ -321,9 +337,14 @@ async function fachadaNativa(arq) {
     apu: { dsp: { outCount: 0, outBuf: new Int16Array(4) } },   // o som sai pelo kofnativo
     cart: { title: arq.name.replace(/\.[^.]+$/, ''), hasSram: () => false, sram: new Uint8Array(0) },
     ps2Quadros: () => nat.quadros,
+    ps2Recebidos: () => nat.recebidos,   // pros testes: quadros que chegaram na página (modo página)
+    get imagemNaPagina() { return nat.pagina; },
     runFrame() {
-      // a página voltou pro jogo (P, Esc, menu fechado): a janela do PCSX2 aparece de novo
+      // a página voltou pro jogo (P, Esc, menu fechado): o PCSX2 continua (no modo janela, a janela dele aparece de novo)
+      nat.ultimoRun = performance.now();
       if (!nat.visivel) { nat.visivel = true; natEnviar('mostrar'); }
+      // kofnativo antigo não conhece o modo página: já emulou uns segundos e nenhum quadro veio = fica no modo janela
+      if (nat.pagina && !nat.recebidos && nat.quadros > 180) { nat.pagina = false; natEnviar('modo janela'); natEnviar('mostrar'); }
       if (this.quadros++ % 30 === 0) { natEnviar('volume ' + (mudo ? 0 : volume / 100)); natFiltro(); }
       const p = 'pad ' + KofLibretro.mascara(this.pad[0]) + ' ' + (KofLibretro.empacotar(this.eixos) | 0);
       if (p !== nat.pad) { nat.pad = p; natEnviar(p); }
@@ -345,8 +366,14 @@ async function fachadaNativa(arq) {
       const r = natResposta('carregou'); natEnviar('carregar'); nat.ws.send(u); await r;
     },
   };
+  nat.f = f;
   return f;
 }
-// o celular como controle manda os botões pra página mesmo com a janela do PCSX2 na frente: repassa sem esperar o quadro
-setInterval(() => { if (nat.visivel && snes && snes.nucleo === 'pcsx2') snes.runFrame && (snes.pad[0] = estado(), snes.eixos = lerEixos(), snes.runFrame()); }, 16);
+// modo janela: o celular como controle manda os botões pra página mesmo com a janela do PCSX2 na frente: repassa sem esperar o
+// quadro. Modo página: a página é que está na frente; o runFrame parou (pausa, menu, outra tela) = o PCSX2 pausa também
+setInterval(() => {
+  if (!nat.visivel || !snes || snes.nucleo !== 'pcsx2') return;
+  if (!nat.pagina) snes.runFrame && (snes.pad[0] = estado(), snes.eixos = lerEixos(), snes.runFrame());
+  else if (performance.now() - nat.ultimoRun > 250) { nat.visivel = false; natEnviar('esconder'); guardarSavesNativos(); }
+}, 16);
 setInterval(() => { if (nat.ws && snes && snes.nucleo === 'pcsx2') guardarSavesNativos(); }, 60000);
