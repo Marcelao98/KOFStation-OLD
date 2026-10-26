@@ -172,7 +172,7 @@ O núcleo do console é **Kof puro**, sem nenhuma biblioteca de emulação:
 
 Os outros sistemas não são reescritos: o KOFstation usa núcleos que já existem no padrão **libretro**, compilados pra WebAssembly com o emscripten e ligados por uma ponte pequena ([`nucleo-libretro/`](nucleo-libretro/)). Cada núcleo tem a sua licença (Snes9x e Genesis Plus GX: só uso não comercial; Gambatte, FCEUmm e PCSX-ReARMed: GPL-2; mGBA: MPL-2.0). Os núcleos ficam em arquivos separados (`nucleos/`) e só carregam quando você abre um jogo daquele console; o atualizador baixa cada um.
 
-O KOFstation roda direto no navegador: `web/compilar.sh` compila o mesmo `snes/` com `kof build --target js` e junta a interface toda numa página só (~1 MB); os núcleos dos outros consoles ficam do lado, em `nucleos/`. O `KOFstation.exe` é um lançador pequeno em C (95 KB) que atualiza tudo e abre essa página numa janela do Edge. A saída do SNES é idêntica bit a bit à da versão em JVM, a 60 fps. A engenharia toda está explicada em [`docs/arquitetura.md`](docs/arquitetura.md).
+O KOFstation roda direto no navegador: `web/compilar.sh` compila o mesmo `snes/` com `kof build --target js` e junta a interface toda numa página só (~1 MB); os núcleos dos outros consoles ficam do lado, em `nucleos/`. O `KOFstation.exe` é um lançador pequeno em C (95 KB) que atualiza tudo e abre essa página numa janela do Edge. A saída do SNES é idêntica bit a bit à da versão em JVM, a 60 fps. A engenharia toda está explicada em [`docs/arquitetura.md`](docs/arquitetura.md). Onde cada console está: [`docs/progresso.md`](docs/progresso.md); a história do PS2: [`docs/ps2.md`](docs/ps2.md); a do projeto: [`HISTORICO.md`](HISTORICO.md).
 
 ```
 KOFstation/

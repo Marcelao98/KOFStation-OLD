@@ -1,6 +1,6 @@
 # ☕ KOFnes — histórico do projeto
 
-*De "será que dá pra fazer um Super Nintendo em Kof?" a um emulador que os amigos já usam. Tudo isso em 13 a 17 de outubro de 2026.*
+*De "será que dá pra fazer um Super Nintendo em Kof?" a um emulador que os amigos já usam (13 a 17/10) e depois ao KOFstation, com 12 consoles (até 26/10/2026).*
 
 ---
 
@@ -65,6 +65,20 @@ Foi o dia mais intenso, guiado pelos testes de quem jogava.
 
 ---
 
+## Dias 6 a 14 (18 a 26/10): de Super Nintendo a KOFstation
+
+- **Vira KOFstation (19/10).** Entram NES, Game Boy, Mega Drive, Master System e Game Gear, usando núcleos da comunidade (libretro) compilados pra WebAssembly. O núcleo em Kof continua sendo o coração da história.
+- **Neo Geo (20/10):** KOF rodou no KOFstation. GBA também.
+- **PlayStation e Nintendo 64 (21 a 24/10)**: no PC pelo navegador; no celular, com núcleos nativos dentro do APK.
+- **Celular de verdade:** APK que se atualiza sozinho, pasta de ROMs, biblioteca com capas e ficha do jogo.
+- **Celular como controle do PC (25/10):** funcionou de primeira no vídeo do Marcelo, com o PC ligado na TV. Na segunda versão, o controle muda de cara conforme o console do jogo aberto no PC.
+- **Saves com backup**, busca por gênero e empresa, painel de desempenho e o Snes9x como padrão no PC, pra rodar liso.
+- **PlayStation 2 (25 e 26/10):** primeiro com o Play! no navegador, que travou no Shadow of the Colossus; depois com o **PCSX2 de verdade** rodando por dentro do KOFstation, com os filtros. O último bug (só o começo do disco era lido) foi achado pelo Claude Code rodando no PC do Marcelo. A história inteira está em [docs/ps2.md](docs/ps2.md).
+
+Onde cada coisa está hoje: [docs/progresso.md](docs/progresso.md).
+
+---
+
 ## Em números
 
 - **~5.600 linhas de Kof** no núcleo, e o emulador inteiro cabe num arquivo de ~500 KB.
@@ -74,7 +88,7 @@ Foi o dia mais intenso, guiado pelos testes de quem jogava.
 
 ## O que vem pela frente
 
-- Celular: o mesmo KOFnes no Android, com controle na tela.
-- Linux com o mesmo lançador do Windows.
-- Mais consoles: NES, Game Boy, Mega Drive, e quem sabe PlayStation com Rust.
-- Conquistas, jogar online com um amigo e traduções (patches IPS/BPS).
+- PS2 no Windows e confirmado no Linux.
+- Saves sincronizados entre PC e celular.
+- Conquistas e jogar online com um amigo.
+- Consoles reescritos em Kof, um por vez.
