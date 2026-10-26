@@ -298,7 +298,10 @@ function natFiltro() {
 }
 async function fachadaNativa(arq) {
   const bios = await bdPegar('bios', NAT_BIOS).catch(() => null);
-  if (!bios) { pedirBios('ps2', () => abrirPs2(arq)); return null; }
+  if (!bios || !ehBiosPs2(bios.dados)) {   // sem BIOS, ou o arquivo guardado não é a BIOS (ex.: o .DIFF): pede de novo
+    if (bios) avisar('o arquivo guardado como BIOS do PS2 não é a BIOS: escolha o .bin de 4 MB', 6000);
+    pedirBios('ps2', () => abrirPs2(arq)); return null;
+  }
   nat.ws.send('bios ' + NAT_BIOS); nat.ws.send(bios.dados);
   try { const r = await bdPegar('saves', NAT_CHAVE_SAVES); if (r) { natEnviar('cartao'); nat.ws.send(await KofGuarda.abrirSave(r)); } } catch (e) { /* sem saves ainda */ }
   natTeclas(); natFiltro();

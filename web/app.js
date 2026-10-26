@@ -1945,10 +1945,11 @@ async function escolherBios(sisPedido) {
     const f = e.files[0]; if (!f) return;
     const dados = new Uint8Array(await f.arrayBuffer());
     let sis = ehBiosPs2(dados) ? 'ps2' : KofLibretro.sistemaDaBios(f.name, dados.length);
+    if (sis === 'ps2' && !ehBiosPs2(dados)) sis = null;   // 4 MB de qualquer coisa (ex.: .DIFF) não é BIOS do PS2: tem que ter a ROMDIR
     if (sisPedido && sis !== sisPedido) {
       const b = SIS[sisPedido].bios, ok = sisPedido === 'ps2' ? false : sisPedido === 'neogeo' ? /\.zip$/i.test(f.name) : b.some((x) => x.tamanho === dados.length);
       if (!ok) { avisarErro('esse arquivo não parece a BIOS do ' + SIS[sisPedido].nome + ' (' + f.name + ', ' + (dados.length / 1048576).toFixed(1) + ' MB)'
-        + (sisPedido === 'ps2' ? ': a do PS2 tem de 4 a 8 MB' : ''), ''); return; }
+        + (sisPedido === 'ps2' ? ': a do PS2 é o arquivo .bin de 4 MB (não o .DIFF, .rom1, .rom2, .erom, .nvm ou .mec)' : ''), ''); return; }
       sis = sisPedido;
     }
     if (!sis) { avisar('não reconheci essa BIOS (' + f.name + ')', 4000); return; }
