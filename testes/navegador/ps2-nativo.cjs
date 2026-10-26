@@ -22,7 +22,8 @@ const [,, pasta, kof, nucleo, iso] = process.argv;
   const tela = await p.evaluate(() => ({ aberta: !document.querySelector('#bios-tela').hidden, nome: document.querySelector('#bios-nome').textContent }));
   conferir(tela.aberta && tela.nome === 'PlayStation 2', 'sem BIOS: o KOFstation pede a BIOS do PS2 ' + JSON.stringify(tela));
   // 2) com uma BIOS (falsa, 4 MB): vai pro kofnativo, o disco é pedido e o erro do PCSX2 aparece com o log
-  await p.evaluate(() => new Promise((ok) => { const r = indexedDB.open('kofnes'); r.onsuccess = () => { const t = r.result.transaction('bios', 'readwrite'); t.objectStore('bios').put({ sistema: 'ps2', dados: new Uint8Array(4194304) }, 'bios-ps2.bin'); t.oncomplete = ok; }; }));
+  const falsa = process.env.KOF_BIOS ? Array.from(fs.readFileSync(process.env.KOF_BIOS)) : null;   // KOF_BIOS: uma BIOS falsa que passa na conferência do PCSX2 (testa o disco)
+  await p.evaluate((f) => new Promise((ok) => { const r = indexedDB.open('kofnes'); r.onsuccess = () => { const t = r.result.transaction('bios', 'readwrite'); t.objectStore('bios').put({ sistema: 'ps2', dados: f ? Uint8Array.from(f) : new Uint8Array(4194304) }, 'bios-ps2.bin'); t.oncomplete = ok; }; }), falsa);
   await p.evaluate(() => { document.querySelector('#bios-tela').hidden = true; });
   await p.setInputFiles('#arquivo', iso); await p.waitForTimeout(6000);
   const biosLa = fs.existsSync(path.join(dados, 'sistema/pcsx2/bios/bios-ps2.bin')) && fs.statSync(path.join(dados, 'sistema/pcsx2/bios/bios-ps2.bin')).size;

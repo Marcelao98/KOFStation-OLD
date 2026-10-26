@@ -189,11 +189,11 @@ static struct retro_hw_render_callback hw;
 static int temHw;
 static enum retro_pixel_format formato = RETRO_PIXEL_FORMAT_0RGB1555;
 static struct retro_system_av_info av;
-static char opcoes[64][2][256]; static int nopcoes;   // opções do núcleo (padrão do SET_VARIABLES + as da página)
+static char opcoes[512][2][256]; static int nopcoes;   // opções do núcleo (padrão do SET_VARIABLES + as da página)
 
 static void opcao(const char *k, const char *v) {
     for (int i = 0; i < nopcoes; i++) if (!strcmp(opcoes[i][0], k)) { snprintf(opcoes[i][1], 256, "%s", v); return; }
-    if (nopcoes < 64) { snprintf(opcoes[nopcoes][0], 256, "%s", k); snprintf(opcoes[nopcoes][1], 256, "%s", v); nopcoes++; }
+    if (nopcoes < 512) { snprintf(opcoes[nopcoes][0], 256, "%s", k); snprintf(opcoes[nopcoes][1], 256, "%s", v); nopcoes++; }
 }
 static int opcaoMudou;
 static void logNucleo(enum retro_log_level n, const char *fmt, ...) {
@@ -317,7 +317,8 @@ static bool ambiente(unsigned cmd, void *d) {
     }
     case RETRO_ENVIRONMENT_GET_VARIABLE: {
         struct retro_variable *v = d;
-        for (int i = 0; i < nopcoes; i++) if (!strcmp(opcoes[i][0], v->key)) { v->value = opcoes[i][1]; return true; }
+        for (int i = 0; i < nopcoes; i++) if (!strcmp(opcoes[i][0], v->key)) { v->value = opcoes[i][1]; if (getenv("KOF_DEBUG")) fprintf(stderr, "opção %s = %s\n", v->key, v->value); return true; }
+        if (getenv("KOF_DEBUG")) fprintf(stderr, "opção %s = (nenhuma)\n", v->key);
         v->value = NULL; return false;
     }
     case RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE: *(bool *)d = opcaoMudou; opcaoMudou = 0; return true;
@@ -521,6 +522,9 @@ static void comando(Cmd *c) {
             snprintf(d, sizeof d, "%s/pcsx2/bios", pastaSistema); mkdir(d, 0755);
             char *barra = strrchr(esperaArg, '/'); snprintf(d, sizeof d, "%s/pcsx2/bios/%s", pastaSistema, barra ? barra + 1 : esperaArg);
             gravarArquivo(d, b->bin, b->nbin);
+            // o LRPS2 procura a BIOS só ao ligar (retro_init, antes desta chegar): diz direto qual arquivo usar
+            opcao("pcsx2_bios", barra ? barra + 1 : esperaArg); opcaoMudou = 1;
+            if (getenv("KOF_DEBUG")) fprintf(stderr, "BIOS recebida: %s (%d bytes)\n", d, b->nbin);
         } else if (!strcmp(esperaBin, "cartao")) espalharSaves(b->bin, b->nbin);
         else if (jogoAberto && !nucleo.unserialize(b->bin, b->nbin)) dizer("erro o PS2 recusou o estado");
         else if (jogoAberto) dizer("carregou");

@@ -1,7 +1,7 @@
 # KOFstation (antigo KOFnes) — contexto pra próxima sessão
 
 ## ⏩ ONDE PAROU (25/10, fim do chat longo; leia isto primeiro)
-- **main publicada: versão 202610260240 (PS2 pelo PCSX2 nativo no Linux, LANCADOR=6), CASCA 13, lançador 10 (exe) / LANCADOR=5 (kofnes.sh)** (26/10: PS2 no PC + controle 2; publicado com `COMPILAR=web/compilar-sem-kof.sh web/publicar.sh`, sem o compilador Kof, porque snes/ e os núcleos não mudaram; precisa do `nucleo-libretro/saida/play.js` do `nucleo-ps2/construir.sh`) (repositório agora é `Marcelao98/KOFStation`; o nome antigo redireciona).
+- **main publicada: versão 202610260251 (PS2 pelo PCSX2 nativo no Linux, LANCADOR=6; BIOS achada pela opção pcsx2_bios), CASCA 13, lançador 10 (exe) / LANCADOR=5 (kofnes.sh)** (26/10: PS2 no PC + controle 2; publicado com `COMPILAR=web/compilar-sem-kof.sh web/publicar.sh`, sem o compilador Kof, porque snes/ e os núcleos não mudaram; precisa do `nucleo-libretro/saida/play.js` do `nucleo-ps2/construir.sh`) (repositório agora é `Marcelao98/KOFStation`; o nome antigo redireciona).
   Na main: N64 (PC wasm + celular nativo), PS1 nativo, analógico (N64/PS1), saves no banco + backup `.kofsave`, celular
   como controle do PC, busca por gênero/empresa, pasta de ROMs no APK, painel de desempenho (F3), **SNES do PC = Snes9x**
   (Kof como opção em Emulação). Detalhes de cada um nas notas abaixo.
@@ -85,7 +85,10 @@
 > navegador e mata quando o navegador fecha; flags novas contra "segundo plano lento". Teste:
 > `xvfb-run -a node testes/navegador/ps2-nativo.cjs <html> pc-nativo/saida/kofnativo pc-nativo/saida/pcsx2_libretro.so <iso>`
 > (sem BIOS de verdade: confere conexão, BIOS indo, erro na tela e filtro compilando). Windows: ainda não (falta compilar
-> LRPS2 + kofnativo pro Windows e o lançador_win abrir). Cuidado: `pkill -f`/`pgrep -f` com o nome casam o próprio shell.
+> LRPS2 + kofnativo pro Windows e o lançador_win abrir). Cuidado: `pkill -f`/`pgrep -f` com o nome casam o próprio shell. **BIOS:** o LRPS2 procura a BIOS só no retro_init: o kofnativo
+> passa `pcsx2_bios=<arquivo>` (a tabela de opções tem 512 lugares; com 64 a opção da BIOS ficava de fora). Teste com BIOS falsa
+> (`KOF_BIOS=bios-falsa.bin`: romdir RESET/ROMDIR/EXTINFO/ROMVER) chega no "pronto" (disco lido, OpenGL ligado) e depois cai
+> (o RetroArch cai igual com ela: é a BIOS falsa).
 
 > **PlayStation 2 (branch `ps2`, 25/10, não publicado):** núcleo **Play!** (github.com/jpd002/Play-, BSD-2, commit 505dac73)
 > em WebAssembly, só no PC. `nucleo-ps2/construir.sh` (emscripten **4.0.1** do emsdk, cmake + ninja; ~15 min na 1ª vez)
