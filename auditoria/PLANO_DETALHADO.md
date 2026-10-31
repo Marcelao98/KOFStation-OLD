@@ -61,7 +61,7 @@ flowchart TB
   subgraph Back["crates/ (Rust) + casca (Tauri ou serviço local)"]
     F[kof-files: Kof Games, saves, estados, config, BIOS]
     P[kof-process: sidecar kofnativo]
-    N[kof-net: rede (FFI kofrede.c)]
+    N["kof-net: rede (FFI kofrede.c)"]
     U[kof-update: manifesto assinado]
   end
   Cores[(núcleos wasm por hash · kofnativo + LRPS2 · .so do Android)]
