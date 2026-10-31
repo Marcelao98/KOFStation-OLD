@@ -209,6 +209,8 @@ diferente de hoje ("qualquer Chromium"): mais um ponto pro spike.
 
 ## 8. Perguntas pro Marcelo (precisam de resposta antes da Fase 2)
 
+> **Respondidas em 31/10/2026**: ver [PLANO_DETALHADO §0](PLANO_DETALHADO.md#0-decisões-fechadas-pelo-marcelo).
+
 1. **Nome e dono do repositório novo** (ex.: `Marcelao98/kofstation-next`)? Público ou privado? Posso criá-lo pelo
    GitHub quando você autorizar.
 2. **Linux é prioridade igual ao Windows?** Isso pesa muito em D2 (Tauri no Linux = WebKitGTK).
